@@ -1,0 +1,251 @@
+// =============================================================================
+// OdontoFlow - Schema Prisma
+// Multi-tenant SaaS de Gerenciamento Clínico Odontológico
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  
+}
+
+// =============================================================================
+// ENUMS — Substitui campos String livres, garantindo integridade no banco
+// =============================================================================
+
+enum UserRole {
+  ADMIN
+  DENTIST
+  SECRETARY
+}
+
+enum AppointmentStatus {
+  AGENDADO
+  CONFIRMADO
+  EM_ATENDIMENTO
+  FINALIZADO
+  CANCELADO
+  FALTOU
+  ESPERA
+}
+
+enum AppointmentType {
+  PARTICULAR
+  CONVENIO
+}
+
+enum Room {
+  SALA_1
+  SALA_2
+  SALA_3
+  SALA_4
+}
+
+enum PaymentMethod {
+  PIX
+  CREDITO
+  DEBITO
+  DINHEIRO
+  CONVENIO
+}
+
+enum TransactionType {
+  RECEITA   // Pagamento de consulta, procedimento
+  DESPESA   // Compra de insumos, salários, aluguel
+}
+
+enum Gender {
+  MASCULINO
+  FEMININO
+  OUTRO
+  NAO_INFORMADO
+}
+
+// =============================================================================
+// MODELS
+// =============================================================================
+
+model Clinic {
+  id        String   @id @default(uuid())
+  name      String
+  cnpj      String?  @unique
+  phone     String?
+  email     String?
+  address   String?
+  logoUrl   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relações
+  users        User[]
+  patients     Patient[]
+  appointments Appointment[]
+  products     Product[]
+  transactions Transaction[]
+  suppliers    Supplier[]
+
+  @@map("clinics")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  clinicId     String
+  name         String
+  email        String   @unique
+  passwordHash String   // Obrigatório — autenticação
+  role         UserRole
+  phone        String?
+  cro          String?  // Conselho Regional de Odontologia (para dentistas)
+  avatarUrl    String?
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relações
+  clinic       Clinic        @relation(fields: [clinicId], references: [id])
+  appointments Appointment[] @relation("DentistAppointments") // Consultas que o dentista atende
+
+  @@index([clinicId])
+  @@index([email])
+  @@map("users")
+}
+
+model Patient {
+  id           String    @id @default(uuid())
+  clinicId     String
+  name         String
+  phone        String
+  email        String?
+  cpf          String?
+  birthDate    DateTime?
+  gender       Gender    @default(NAO_INFORMADO)
+  address      String?
+  // Campos de prontuário
+  historyNotes String?   @db.Text
+  allergies    String?   @db.Text
+  medications  String?   @db.Text
+  bloodType    String?   // "A+", "B-", etc.
+  // Convênio
+  insuranceName   String?
+  insuranceNumber String?
+  // Soft delete
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relações
+  clinic       Clinic        @relation(fields: [clinicId], references: [id])
+  appointments Appointment[]
+
+  @@index([clinicId])
+  @@index([clinicId, cpf])
+  @@index([clinicId, name])
+  @@map("patients")
+}
+
+model Appointment {
+  id          String            @id @default(uuid())
+  clinicId    String
+  patientId   String
+  dentistId   String            // Dentista responsável
+  dateTime    DateTime
+  durationMin Int               @default(60) // Duração em minutos
+  status      AppointmentStatus @default(AGENDADO)
+  type        AppointmentType
+  room        Room
+  notes       String?           @db.Text // Observações do agendamento
+  // Soft delete
+  cancelledAt     DateTime?
+  cancellationReason String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Relações
+  clinic      Clinic       @relation(fields: [clinicId], references: [id])
+  patient     Patient      @relation(fields: [patientId], references: [id])
+  dentist     User         @relation("DentistAppointments", fields: [dentistId], references: [id])
+  transaction Transaction?
+
+  @@index([clinicId])
+  @@index([clinicId, dateTime])
+  @@index([clinicId, patientId])
+  @@index([clinicId, dentistId])
+  @@index([clinicId, status])
+  @@map("appointments")
+}
+
+model Product {
+  id           String     @id @default(uuid())
+  clinicId     String
+  supplierId   String?
+  name         String
+  description  String?
+  category     String?    // Ex: "Anestésico", "EPI", "Resina"
+  unit         String     @default("unidade") // "unidade", "caixa", "frasco"
+  quantity     Int
+  minQuantity  Int
+  costPrice    Decimal?   @db.Decimal(10, 2)
+  expiryDate   DateTime?
+  batchNumber  String?    // Número de lote
+  // Soft delete
+  deletedAt    DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Relações
+  clinic    Clinic     @relation(fields: [clinicId], references: [id])
+  supplier  Supplier?  @relation(fields: [supplierId], references: [id])
+
+  @@index([clinicId])
+  @@index([clinicId, category])
+  @@map("products")
+}
+
+model Supplier {
+  id        String    @id @default(uuid())
+  clinicId  String
+  name      String
+  cnpj      String?
+  phone     String?
+  email     String?
+  contact   String?   // Nome do contato comercial
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relações
+  clinic   Clinic    @relation(fields: [clinicId], references: [id])
+  products Product[]
+
+  @@index([clinicId])
+  @@map("suppliers")
+}
+
+model Transaction {
+  id            String          @id @default(uuid())
+  clinicId      String
+  appointmentId String?         @unique
+  type          TransactionType
+  amount        Decimal         @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  description   String?
+  category      String?         // "Consulta", "Procedimento", "Insumo", "Salário"
+  paidAt        DateTime?       // Data efetiva do pagamento (pode diferir do createdAt)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  // Relações
+  clinic      Clinic       @relation(fields: [clinicId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@index([clinicId])
+  @@index([clinicId, type])
+  @@index([clinicId, createdAt])
+  @@index([clinicId, paymentMethod])
+  @@map("transactions")
+}

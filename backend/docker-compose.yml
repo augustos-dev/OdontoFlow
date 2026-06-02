@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: odontoflow_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: odontoflow
+      POSTGRES_PASSWORD: odontoflow_secret
+      POSTGRES_DB: odontoflow
+    ports:
+      - '5432:5432'
+    volumes:
+      - odontoflow_data:/var/lib/postgresql/data
+
+volumes:
+  odontoflow_data:
