@@ -103,3 +103,35 @@ export async  function getPatientById(clinicId:string,patientId:string){
 
     return patient
 }
+
+// atualizar paciente 
+
+export async function updatePatient(clinicId:string,patientId:string, data:UpdatePatientDTO) {
+    const patient = await prisma.patient.findFirst({
+        where: {id:patientId , clinicId, deletedAt : null},
+    })
+
+    if(!patient){
+        throw new AppError('Paciente nao encontrado', 404)
+    }
+
+    if(data.cpf && data.cpf !== patient.cpf) {
+        const existing = await prisma.patient.findFirst({
+            where: {clinicId, cpf:data.cpf,deletedAt:null, NOT: {id:patientId}}
+        })
+
+        if (existing) {
+            throw new AppError('CPF  Ja cadastrado nessa clinica',409)
+        }
+    }
+
+    const updated = await prisma.patient.update({
+        where:{id : patientId},
+        data: {
+            ...data,
+            birthDate:data.birthDate ? new Date(data.birthDate) : undefined
+        }
+    })
+
+    return updated
+}
