@@ -76,3 +76,78 @@ export async function listPatients(clinicId: string , filters: PatientFiltersDTO
         },
     }
 }
+
+// lista pro id
+
+export async  function getPatientById(clinicId:string,patientId:string){
+    const patient  = await prisma.patient.findFirst({
+        where:{id: patientId,clinicId,deletedAt:null},
+        include:{
+            appointments:{
+                orderBy: {dateTime: 'desc'},
+                take: 5,
+                select: {
+                    id:true,
+                    dateTime:true,
+                    status:true,
+                    type:true,
+                    dentist: {select:{id:true, name: true} },
+                },
+            },
+        },
+    })
+
+    if(!patient){
+        throw  new AppError('Paciente nao encontrado.',404)
+    }
+
+    return patient
+}
+
+// atualizar paciente 
+
+export async function updatePatient(clinicId:string,patientId:string, data:UpdatePatientDTO) {
+    const patient = await prisma.patient.findFirst({
+        where: {id:patientId , clinicId, deletedAt : null},
+    })
+
+    if(!patient){
+        throw new AppError('Paciente nao encontrado', 404)
+    }
+
+    if(data.cpf && data.cpf !== patient.cpf) {
+        const existing = await prisma.patient.findFirst({
+            where: {clinicId, cpf:data.cpf,deletedAt:null, NOT: {id:patientId}}
+        })
+
+        if (existing) {
+            throw new AppError('CPF  Ja cadastrado nessa clinica',409)
+        }
+    }
+
+    const updated = await prisma.patient.update({
+        where:{id : patientId},
+        data: {
+            ...data,
+            birthDate:data.birthDate ? new Date(data.birthDate) : undefined
+        }
+    })
+
+    return updated
+}
+// soft delete so desativa o user 
+
+export async function deletePatient(clinicId:string,patientId:string) {
+    const patient = await prisma.patient.findFirst({
+        where: {id : patientId, clinicId , deletedAt: null}
+    })
+
+    if (!patient) {
+        throw new AppError('Paciente nao encontrado ', 404)
+    }
+
+    await prisma.patient.update({
+        where: {id: patientId},
+        data:{deletedAt: new Date()}
+    })
+}
