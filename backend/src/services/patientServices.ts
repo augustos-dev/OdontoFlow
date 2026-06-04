@@ -135,3 +135,19 @@ export async function updatePatient(clinicId:string,patientId:string, data:Updat
 
     return updated
 }
+// soft delete so desativa o user 
+
+export async function deletePatient(clinicId:string,patientId:string) {
+    const patient = await prisma.patient.findFirst({
+        where: {id : patientId, clinicId , deletedAt: null}
+    })
+
+    if (!patient) {
+        throw new AppError('Paciente nao encontrado ', 404)
+    }
+
+    await prisma.patient.update({
+        where: {id: patientId},
+        data:{deletedAt: new Date()}
+    })
+}
