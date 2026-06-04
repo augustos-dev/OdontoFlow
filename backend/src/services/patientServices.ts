@@ -76,3 +76,30 @@ export async function listPatients(clinicId: string , filters: PatientFiltersDTO
         },
     }
 }
+
+// lista pro id
+
+export async  function getPatientById(clinicId:string,patientId:string){
+    const patient  = await prisma.patient.findFirst({
+        where:{id: patientId,clinicId,deletedAt:null},
+        include:{
+            appointments:{
+                orderBy: {dateTime: 'desc'},
+                take: 5,
+                select: {
+                    id:true,
+                    dateTime:true,
+                    status:true,
+                    type:true,
+                    dentist: {select:{id:true, name: true} },
+                },
+            },
+        },
+    })
+
+    if(!patient){
+        throw  new AppError('Paciente nao encontrado.',404)
+    }
+
+    return patient
+}
