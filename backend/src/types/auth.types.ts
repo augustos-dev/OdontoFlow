@@ -1,6 +1,7 @@
 // backend/src/types/auth.types.ts
 
 export interface RegisterDTO {
+  tenantId: string
   clinicId: string
   name: string
   email: string
@@ -17,6 +18,7 @@ export interface LoginDTO {
 
 export interface JwtPayload {
   sub: string      // userId
+  tenantId: string
   clinicId: string
   role: string
   iat?: number
@@ -30,6 +32,7 @@ export interface AuthResponse {
     name: string
     email: string
     role: string
+    tenantId: string
     clinicId: string
   }
-} 
+}

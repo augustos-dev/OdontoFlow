@@ -9,12 +9,17 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  
 }
 
 // =============================================================================
-// ENUMS — Substitui campos String livres, garantindo integridade no banco
+// ENUMS
 // =============================================================================
+
+enum TenantPlan {
+  STANDARD
+  PREMIUM
+  ENTERPRISE
+}
 
 enum UserRole {
   ADMIN
@@ -53,8 +58,8 @@ enum PaymentMethod {
 }
 
 enum TransactionType {
-  RECEITA   // Pagamento de consulta, procedimento
-  DESPESA   // Compra de insumos, salários, aluguel
+  RECEITA
+  DESPESA
 }
 
 enum Gender {
@@ -68,8 +73,32 @@ enum Gender {
 // MODELS
 // =============================================================================
 
+// 🏢 TENANT — Entidade máxima, representa a assinatura/empresa no SaaS
+model Tenant {
+  id          String     @id @default(uuid())
+  name        String
+  slug        String     @unique
+  plan        TenantPlan @default(STANDARD)
+  databaseUrl String?    // Futuro: isolamento por banco para Enterprise
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  clinics      Clinic[]
+  users        User[]
+  patients     Patient[]
+  appointments Appointment[]
+  products     Product[]
+  suppliers    Supplier[]
+  transactions Transaction[]
+
+  @@map("tenants")
+}
+
+// 🏥 CLINIC — Filial pertencente a um Tenant
 model Clinic {
   id        String   @id @default(uuid())
+  tenantId  String
   name      String
   cnpj      String?  @unique
   phone     String?
@@ -80,7 +109,7 @@ model Clinic {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relações
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   users        User[]
   patients     Patient[]
   appointments Appointment[]
@@ -88,89 +117,92 @@ model Clinic {
   transactions Transaction[]
   suppliers    Supplier[]
 
+  @@index([tenantId])
   @@map("clinics")
 }
 
 model User {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
+  tenantId     String
   clinicId     String
   name         String
-  email        String   @unique
-  passwordHash String   // Obrigatório — autenticação
+  email        String    @unique
+  passwordHash String
   role         UserRole
   phone        String?
-  cro          String?  // Conselho Regional de Odontologia (para dentistas)
+  cro          String?   // Conselho Regional de Odontologia (dentistas)
   avatarUrl    String?
-  isActive     Boolean  @default(true)
+  isActive     Boolean   @default(true)
   lastLoginAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  // Relações
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   clinic       Clinic        @relation(fields: [clinicId], references: [id])
-  appointments Appointment[] @relation("DentistAppointments") // Consultas que o dentista atende
+  appointments Appointment[] @relation("DentistAppointments")
 
+  @@index([tenantId])
   @@index([clinicId])
   @@index([email])
   @@map("users")
 }
 
 model Patient {
-  id           String    @id @default(uuid())
-  clinicId     String
-  name         String
-  phone        String
-  email        String?
-  cpf          String?
-  birthDate    DateTime?
-  gender       Gender    @default(NAO_INFORMADO)
-  address      String?
-  // Campos de prontuário
-  historyNotes String?   @db.Text
-  allergies    String?   @db.Text
-  medications  String?   @db.Text
-  bloodType    String?   // "A+", "B-", etc.
-  // Convênio
+  id              String    @id @default(uuid())
+  tenantId        String
+  clinicId        String
+  name            String
+  phone           String
+  email           String?
+  cpf             String?
+  birthDate       DateTime?
+  gender          Gender    @default(NAO_INFORMADO)
+  address         String?
+  historyNotes    String?   @db.Text
+  allergies       String?   @db.Text
+  medications     String?   @db.Text
+  bloodType       String?
   insuranceName   String?
   insuranceNumber String?
-  // Soft delete
-  deletedAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  // Relações
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   clinic       Clinic        @relation(fields: [clinicId], references: [id])
   appointments Appointment[]
 
+  @@unique([tenantId, cpf]) // CPF único dentro do tenant (todas as filiais)
+  @@index([tenantId])
   @@index([clinicId])
-  @@index([clinicId, cpf])
   @@index([clinicId, name])
   @@map("patients")
 }
 
 model Appointment {
-  id          String            @id @default(uuid())
-  clinicId    String
-  patientId   String
-  dentistId   String            // Dentista responsável
-  dateTime    DateTime
-  durationMin Int               @default(60) // Duração em minutos
-  status      AppointmentStatus @default(AGENDADO)
-  type        AppointmentType
-  room        Room
-  notes       String?           @db.Text // Observações do agendamento
-  // Soft delete
-  cancelledAt     DateTime?
+  id                 String            @id @default(uuid())
+  tenantId           String
+  clinicId           String
+  patientId          String
+  dentistId          String
+  dateTime           DateTime
+  durationMin        Int               @default(60)
+  status             AppointmentStatus @default(AGENDADO)
+  type               AppointmentType
+  room               Room
+  notes              String?           @db.Text
+  cancelledAt        DateTime?
   cancellationReason String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
-  // Relações
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   clinic      Clinic       @relation(fields: [clinicId], references: [id])
   patient     Patient      @relation(fields: [patientId], references: [id])
   dentist     User         @relation("DentistAppointments", fields: [dentistId], references: [id])
   transaction Transaction?
 
+  @@index([tenantId])
   @@index([clinicId])
   @@index([clinicId, dateTime])
   @@index([clinicId, patientId])
@@ -180,27 +212,28 @@ model Appointment {
 }
 
 model Product {
-  id           String     @id @default(uuid())
-  clinicId     String
-  supplierId   String?
-  name         String
-  description  String?
-  category     String?    // Ex: "Anestésico", "EPI", "Resina"
-  unit         String     @default("unidade") // "unidade", "caixa", "frasco"
-  quantity     Int
-  minQuantity  Int
-  costPrice    Decimal?   @db.Decimal(10, 2)
-  expiryDate   DateTime?
-  batchNumber  String?    // Número de lote
-  // Soft delete
-  deletedAt    DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id          String    @id @default(uuid())
+  tenantId    String
+  clinicId    String
+  supplierId  String?
+  name        String
+  description String?
+  category    String?
+  unit        String    @default("unidade")
+  quantity    Int
+  minQuantity Int
+  costPrice   Decimal?  @db.Decimal(10, 2)
+  expiryDate  DateTime?
+  batchNumber String?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  // Relações
-  clinic    Clinic     @relation(fields: [clinicId], references: [id])
-  supplier  Supplier?  @relation(fields: [supplierId], references: [id])
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clinic   Clinic    @relation(fields: [clinicId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
 
+  @@index([tenantId])
   @@index([clinicId])
   @@index([clinicId, category])
   @@map("products")
@@ -208,41 +241,45 @@ model Product {
 
 model Supplier {
   id        String    @id @default(uuid())
+  tenantId  String
   clinicId  String
   name      String
   cnpj      String?
   phone     String?
   email     String?
-  contact   String?   // Nome do contato comercial
+  contact   String?
   deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  // Relações
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   clinic   Clinic    @relation(fields: [clinicId], references: [id])
   products Product[]
 
+  @@index([tenantId])
   @@index([clinicId])
   @@map("suppliers")
 }
 
 model Transaction {
   id            String          @id @default(uuid())
+  tenantId      String
   clinicId      String
   appointmentId String?         @unique
   type          TransactionType
   amount        Decimal         @db.Decimal(10, 2)
   paymentMethod PaymentMethod
   description   String?
-  category      String?         // "Consulta", "Procedimento", "Insumo", "Salário"
-  paidAt        DateTime?       // Data efetiva do pagamento (pode diferir do createdAt)
+  category      String?
+  paidAt        DateTime?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
-  // Relações
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   clinic      Clinic       @relation(fields: [clinicId], references: [id])
   appointment Appointment? @relation(fields: [appointmentId], references: [id])
 
+  @@index([tenantId])
   @@index([clinicId])
   @@index([clinicId, type])
   @@index([clinicId, createdAt])

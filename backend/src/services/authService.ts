@@ -1,5 +1,3 @@
-//erros de sintaxe corrigidos 
-
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/prisma'
@@ -12,9 +10,15 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '8h'
 // ─── Register ────────────────────────────────────────────────────────────────
 
 export async function register(data: RegisterDTO): Promise<AuthResponse> {
-  const { clinicId, name, email, password, role, phone, cro } = data
+  const { tenantId, clinicId, name, email, password, role, phone, cro } = data
 
-  const clinic = await prisma.clinic.findUnique({ where: { id: clinicId } })
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } })
+  if (!tenant) throw new AppError('Tenant não encontrado.', 404)
+  if (!tenant.isActive) throw new AppError('Assinatura inativa.', 403)
+
+  const clinic = await prisma.clinic.findFirst({
+    where: { id: clinicId, tenantId },
+  })
   if (!clinic) throw new AppError('Clínica não encontrada.', 404)
 
   const existing = await prisma.user.findUnique({ where: { email } })
@@ -23,11 +27,23 @@ export async function register(data: RegisterDTO): Promise<AuthResponse> {
   const passwordHash = await bcrypt.hash(password, 12)
 
   const user = await prisma.user.create({
-    data: { clinicId, name, email, passwordHash, role, phone, cro },
-    select: { id: true, name: true, email: true, role: true, clinicId: true },
+    data: { tenantId, clinicId, name, email, passwordHash, role, phone, cro },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      tenantId: true,
+      clinicId: true,
+    },
   })
 
-  const token = generateToken({ sub: user.id, clinicId: user.clinicId, role: user.role })
+  const token = generateToken({
+    sub: user.id,
+    tenantId: user.tenantId,
+    clinicId: user.clinicId,
+    role: user.role,
+  })
 
   return { token, user }
 }
@@ -44,13 +60,16 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
       name: true,
       email: true,
       role: true,
+      tenantId: true,
       clinicId: true,
       passwordHash: true,
       isActive: true,
+      tenant: { select: { isActive: true } },
     },
   })
 
   if (!user) throw new AppError('Credenciais inválidas.', 401)
+  if (!user.tenant.isActive) throw new AppError('Assinatura inativa. Entre em contato com o suporte.', 403)
   if (!user.isActive) throw new AppError('Usuário inativo. Entre em contato com o administrador.', 403)
 
   const passwordMatch = await bcrypt.compare(password, user.passwordHash)
@@ -61,18 +80,23 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
     data: { lastLoginAt: new Date() },
   }).catch(() => {})
 
-  const token = generateToken({ sub: user.id, clinicId: user.clinicId, role: user.role })
+  const token = generateToken({
+    sub: user.id,
+    tenantId: user.tenantId,
+    clinicId: user.clinicId,
+    role: user.role,
+  })
 
-  const { passwordHash: _, ...userWithoutPassword } = user
+  const { passwordHash: _, tenant: __, ...userWithoutPassword } = user
 
   return { token, user: userWithoutPassword }
 }
 
 // ─── Me ──────────────────────────────────────────────────────────────────────
 
-export async function getMe(userId: string, clinicId: string) {
+export async function getMe(userId: string, tenantId: string, clinicId: string) {
   const user = await prisma.user.findFirst({
-    where: { id: userId, clinicId },
+    where: { id: userId, tenantId, clinicId },
     select: {
       id: true,
       name: true,
@@ -83,6 +107,7 @@ export async function getMe(userId: string, clinicId: string) {
       avatarUrl: true,
       lastLoginAt: true,
       createdAt: true,
+      tenant: { select: { id: true, name: true, plan: true } },
       clinic: { select: { id: true, name: true } },
     },
   })
