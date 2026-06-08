@@ -1,7 +1,7 @@
 
 export interface CreateAppointmentDTO{
     patientId: string,
-    dentinstId: string,
+    dentistId: string,
     dateTime:string,
     durationMin?:number,
     type: 'PARTICULAR' | 'CONVENIO'
