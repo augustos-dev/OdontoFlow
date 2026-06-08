@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createAppointmentControlller,listAppointmentsController,getAppointmentByIdController,updateAppointmentController,uptadeAppointmentStatusCotroller, deleteAppointmentController } from "../controllers/apponitmentController";
+import { createAppointmentController,listAppointmentsController,getAppointmentByIdController,updateAppointmentController,updateAppointmentStatusController, deleteAppointmentController } from "../controllers/apponitmentController";
 import { authenticate,authorize } from "../middlewares/authMiddlewares";
 
 const appointmentRouter = Router()
@@ -15,12 +15,12 @@ appointmentRouter.get('/:id',getAppointmentByIdController)
 
 // rotas privadas - edicao (ADM , SECRETARIA , DENTISTA )
 
-appointmentRouter.post('/',authorize('ADMIN','SECRETARY','DENSTIST'),createAppointmentControlller)
+appointmentRouter.post('/',authorize('ADMIN','SECRETARY','DENSTIST'),createAppointmentController)
 appointmentRouter.put('/:id',authorize('ADMIN','SECRETARY','DENSTIST'),updateAppointmentController)
 
 // rotas privadas de status 
 
-appointmentRouter.patch('/:id/status', authorize('ADMIN','SECRETARY','DENSTIST'),uptadeAppointmentStatusCotroller)
+appointmentRouter.patch('/:id/status', authorize('ADMIN','SECRETARY','DENSTIST'),updateAppointmentStatusController)
 
 // rotas privadas de exclusao 
 
