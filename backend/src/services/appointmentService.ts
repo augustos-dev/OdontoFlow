@@ -190,6 +190,26 @@ export async  function listAppointments(tenantId:string,clinicId:string,filters:
         }
     }
 }
+// ─── Get by ID ────────────────────────────────────────────────────────────────
+ 
+export async function getAppointmentById(
+  tenantId: string,
+  clinicId: string,
+  appointmentId: string
+) {
+  const appointment = await prisma.appointment.findFirst({
+    where: { id: appointmentId, tenantId, clinicId },
+    include: {
+      patient: { select: { id: true, name: true, phone: true, email: true } },
+      dentist: { select: { id: true, name: true, cro: true } },
+      transaction: true,
+    },
+  })
+ 
+  if (!appointment) throw new AppError('Agendamento não encontrado.', 404)
+ 
+  return appointment
+}
 
 // update ---------
 
