@@ -1,5 +1,6 @@
 // backend/src/services/patient.service.ts
 
+import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
 import type { CreatePatientDTO, UpdatePatientDTO, PatientFiltersDTO } from '../types/patient.types'
@@ -8,19 +9,25 @@ import type { CreatePatientDTO, UpdatePatientDTO, PatientFiltersDTO } from '../t
 
 export async function createPatient(tenantId: string, clinicId: string, data: CreatePatientDTO) {
   if (data.cpf) {
-    // CPF único dentro do tenant inteiro (todas as filiais)
     const existing = await prisma.patient.findUnique({
       where: { tenantId_cpf: { tenantId, cpf: data.cpf } },
     })
     if (existing) throw new AppError('CPF já cadastrado neste tenant.', 409)
   }
 
+  // Cria o paciente e já inicializa o prontuário clínico vazio (MedicalRecord 1:1)
   const patient = await prisma.patient.create({
     data: {
       tenantId,
       clinicId,
       ...data,
       birthDate: data.birthDate ? new Date(data.birthDate) : undefined,
+      medicalRecord: {
+        create: { tenantId, clinicId },
+      },
+    },
+    include: {
+      medicalRecord: { select: { id: true } },
     },
   })
 
@@ -33,11 +40,11 @@ export async function listPatients(tenantId: string, clinicId: string, filters: 
   const { name, cpf, page = 1, limit = 20 } = filters
   const skip = (page - 1) * limit
 
-  const where = {
+  const where: Prisma.PatientWhereInput = {
     tenantId,
     clinicId,
     deletedAt: null,
-    ...(name && { name: { contains: name, mode: 'insensitive' as const } }),
+    ...(name && { name: { contains: name, mode: 'insensitive' } }),
     ...(cpf && { cpf: { contains: cpf } }),
   }
 
@@ -55,7 +62,6 @@ export async function listPatients(tenantId: string, clinicId: string, filters: 
         cpf: true,
         birthDate: true,
         gender: true,
-        insuranceName: true,
         createdAt: true,
       },
     }),
@@ -64,12 +70,7 @@ export async function listPatients(tenantId: string, clinicId: string, filters: 
 
   return {
     data: patients,
-    meta: {
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    },
+    meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
   }
 }
 
@@ -79,6 +80,20 @@ export async function getPatientById(tenantId: string, clinicId: string, patient
   const patient = await prisma.patient.findFirst({
     where: { id: patientId, tenantId, clinicId, deletedAt: null },
     include: {
+      // Prontuário clínico completo
+      medicalRecord: {
+        select: {
+          id: true,
+          chiefComplaint: true,
+          historyNotes: true,
+          allergies: true,
+          medications: true,
+          bloodType: true,
+          habits: true,
+          systemicDiseases: true,
+        },
+      },
+      // Últimos 5 agendamentos
       appointments: {
         orderBy: { dateTime: 'desc' },
         take: 5,
@@ -89,6 +104,18 @@ export async function getPatientById(tenantId: string, clinicId: string, patient
           type: true,
           dentist: { select: { id: true, name: true } },
         },
+      },
+      // Planos de tratamento ativos
+      treatmentPlans: {
+        where: { status: { not: 'RECUSADO' } },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          totalAmount: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
       },
     },
   })
@@ -119,15 +146,13 @@ export async function updatePatient(
     if (existing) throw new AppError('CPF já cadastrado neste tenant.', 409)
   }
 
-  const updated = await prisma.patient.update({
+  return prisma.patient.update({
     where: { id: patientId },
     data: {
       ...data,
       birthDate: data.birthDate ? new Date(data.birthDate) : undefined,
     },
   })
-
-  return updated
 }
 
 // ─── Soft Delete ──────────────────────────────────────────────────────────────
