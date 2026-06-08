@@ -191,3 +191,79 @@ export async  function listAppointments(tenantId:string,clinicId:string,filters:
     }
 }
 
+// update ---------
+
+export async function updateAppointment(tenantId:string,clinicId:string,appointmentId:string,data:UpdateAppointmentDTO ) {
+    const appointment = await prisma.appointment.findFirst({
+        where: {id:appointmentId, tenantId, clinicId},
+    })
+
+    if(!appointment){
+        throw new AppError('Agendamento nao encontrado.',404)
+    }
+    // agendamento finalizados ou cancelados nao poder ser editados 
+
+    if (['FINALIZADO', 'CANCELADO','FALTOU'].includes(appointment.status)){
+        throw new AppError('Agendamentos finalizados ou cancelados nao podem ser alterados', 400)
+    }
+
+    const newDateTime = data.dateTime ? new Date(data.dateTime) : appointment.dateTime
+    const newDuration = data.durationMin ?? appointment.durationMin
+    const newRoom = data.room ?? appointment.room
+    const newDentistId = data.dentinstId ?? appointment.dentistId
+    const endTime = calcEndTime(newDateTime,newDuration)
+
+    if ( data.dateTime && newDateTime < new Date()){
+        throw new AppError('Nao e possive agendar em uma data/hora passada ', 400)
+    }
+
+    // verifica conflitos excluindo o proprio agendamento
+
+    await checkConflicts(clinicId,newRoom,newDentistId,newDateTime,endTime,appointmentId)
+
+    const updated = await prisma.appointment.update({
+        where:{id: appointmentId},
+        data: {
+            ...data,
+            dateTime:newDateTime,
+        },
+        include: {
+            patient: {select: { id:true, name: true, phone:true}},
+            dentist: {select: {id:true, name: true}}
+        }
+    })
+
+    return updated
+}
+
+/// uptade status 
+
+export async function uptadeAppointmentStatus(tenantId:string, clinicId:string, appointmentId:string, data: UpdateAppointStatusDTO){
+    const appointment = await prisma.appointment.findFirst({
+        where:{id: appointmentId, tenantId,clinicId},
+    })
+
+    if(!appointment){
+        throw new AppError('agendamento nao encontrado', 404)
+    }
+
+    //agendamentos ja finalizados nao mudam mais de status 
+
+    if(appointment.status === 'FINALIZADO'){
+        throw new AppError('Agendamento ja finalizado', 400)
+    }
+
+    const updated = await prisma.appointment.update({
+        where: {id:appointmentId},
+        data: {
+            status: data.status,
+            ...(data.status === 'CANCELADO' && {
+                cancelledAt: new Date(),
+                cancellationReason: data.cancellationReason,
+
+            }),
+        },
+    })
+
+    return updated
+}
