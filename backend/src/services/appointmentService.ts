@@ -267,3 +267,20 @@ export async function uptadeAppointmentStatus(tenantId:string, clinicId:string, 
 
     return updated
 }
+
+/// delete ===========================
+
+export async function deleteAppointment(tenantId:string,clinicId:string,appointmentId:string){
+    const appointment = await prisma.appointment.findFirst({
+        where: {id:appointmentId,tenantId,clinicId},
+    })
+    if(!appointment){
+        throw new AppError('agendamento nao encontrado', 404)
+    }
+
+    if(['FINALIZADO', 'EM_ATENDIMENTO'].includes(appointment.status)){
+         throw new AppError('Não é possível deletar um agendamento em andamento ou finalizado.', 400)
+    }
+
+    await prisma.appointment.delete({where:{id:appointmentId}})
+}
