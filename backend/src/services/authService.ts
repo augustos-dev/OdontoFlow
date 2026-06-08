@@ -1,3 +1,5 @@
+// backend/src/services/auth.service.ts
+
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/prisma'
@@ -16,8 +18,9 @@ export async function register(data: RegisterDTO): Promise<AuthResponse> {
   if (!tenant) throw new AppError('Tenant não encontrado.', 404)
   if (!tenant.isActive) throw new AppError('Assinatura inativa.', 403)
 
+  // Garante que a clínica pertence ao tenant (isolamento multi-tenant)
   const clinic = await prisma.clinic.findFirst({
-    where: { id: clinicId, tenantId },
+    where: { id: clinicId, tenantId, isActive: true },
   })
   if (!clinic) throw new AppError('Clínica não encontrada.', 404)
 
@@ -28,22 +31,10 @@ export async function register(data: RegisterDTO): Promise<AuthResponse> {
 
   const user = await prisma.user.create({
     data: { tenantId, clinicId, name, email, passwordHash, role, phone, cro },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      tenantId: true,
-      clinicId: true,
-    },
+    select: { id: true, name: true, email: true, role: true, tenantId: true, clinicId: true },
   })
 
-  const token = generateToken({
-    sub: user.id,
-    tenantId: user.tenantId,
-    clinicId: user.clinicId,
-    role: user.role,
-  })
+  const token = generateToken({ sub: user.id, tenantId: user.tenantId, clinicId: user.clinicId, role: user.role })
 
   return { token, user }
 }
@@ -75,28 +66,20 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
   const passwordMatch = await bcrypt.compare(password, user.passwordHash)
   if (!passwordMatch) throw new AppError('Credenciais inválidas.', 401)
 
-  prisma.user.update({
-    where: { id: user.id },
-    data: { lastLoginAt: new Date() },
-  }).catch(() => {})
+  prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }).catch(() => {})
 
-  const token = generateToken({
-    sub: user.id,
-    tenantId: user.tenantId,
-    clinicId: user.clinicId,
-    role: user.role,
-  })
+  const token = generateToken({ sub: user.id, tenantId: user.tenantId, clinicId: user.clinicId, role: user.role })
 
-  const { passwordHash: _, tenant: __, ...userWithoutPassword } = user
+  const { passwordHash: _, tenant: __, ...userWithoutSensitiveData } = user
 
-  return { token, user: userWithoutPassword }
+  return { token, user: userWithoutSensitiveData }
 }
 
 // ─── Me ──────────────────────────────────────────────────────────────────────
 
 export async function getMe(userId: string, tenantId: string, clinicId: string) {
   const user = await prisma.user.findFirst({
-    where: { id: userId, tenantId, clinicId },
+    where: { id: userId, tenantId, clinicId, isActive: true },
     select: {
       id: true,
       name: true,
@@ -108,7 +91,7 @@ export async function getMe(userId: string, tenantId: string, clinicId: string) 
       lastLoginAt: true,
       createdAt: true,
       tenant: { select: { id: true, name: true, plan: true } },
-      clinic: { select: { id: true, name: true } },
+      clinic: { select: { id: true, name: true, logoUrl: true } },
     },
   })
 

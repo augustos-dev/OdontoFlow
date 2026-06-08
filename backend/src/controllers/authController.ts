@@ -1,3 +1,5 @@
+// backend/src/controllers/auth.controller.ts
+
 import type { Request, Response, NextFunction } from 'express'
 import * as authService from '../services/authService'
 import type { RegisterDTO, LoginDTO } from '../types/auth.types'
