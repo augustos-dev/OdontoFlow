@@ -90,9 +90,10 @@ export async function CreateAppointment(tenantId:string, clinicId:string,data:Cr
     const patient = await prisma.patient.findFirst({
         where:{id: patientId, tenantId,clinicId, deletedAt:null}
     })
-
+    
     if (!patient){
         throw new AppError('Paciente nao encontrado.', 404)
+    }
 
         // valida se  o dentista pertence ao tenant e a clinca 
 
@@ -135,10 +136,58 @@ export async function CreateAppointment(tenantId:string, clinicId:string,data:Cr
             },
         })
         
-        return appointment
-        }
-        
+        return appointment        
+}
 
+// list appointment -------------
+
+export async  function listAppointments(tenantId:string,clinicId:string,filters: AppointmentFilterDTO){
+
+    const {date,dentistId,patientId,status,room,page = 1, limit = 20 } = filters
+
+    const skip = (page - 1) * limit
+
+    // se filtrar por dia , monta o intervalo dia inteiro
+    let dateFiter = {}
+    if(date) {
+        const start = new Date(`${date}T00:00:00.000Z`)
+        const end = new Date(`${date}T23:59:59.999Z`)
+        dateFiter = {dateTime: {gte:start, lte:end}}
+
+    }
+
+    const where = {
+        tenantId,
+        clinicId,
+        ...dateFiter,
+        ...(dentistId && { dentistId }),
+        ...(patientId && { patientId}),
+        ...(status && { status: status as $Enums.AppointmentStatus }),
+        ...(room && { room: room as $Enums.Room }),
+    }
     
+    const [appointments,total] = await Promise.all([
+        prisma.appointment.findMany({
+            where,
+            skip,
+            take:limit,
+            orderBy: {dateTime:'asc'},
+            include: {
+                patient: {select: {id: true, name:true, phone: true}},
+                dentist: {select: {id:true, name:true}}
+            }
+        }),
+        prisma.appointment.count({where}),
+    ])
+
+    return {
+        DataView: appointments,
+        meta: {
+            total,
+            page,
+            limit,
+            totaPages : Math.ceil(total / limit)
+        }
+    }
 }
 
