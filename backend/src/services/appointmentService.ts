@@ -8,6 +8,7 @@ import type {
     AppointmentFilterDTO
     
 } from '../types/appointment.types'
+import { connect } from "node:http2";
 
 // Helpers --------------------------
 
@@ -77,5 +78,67 @@ async function checkConflicts(
       )
     }
   }
+}
+
+// Create --------------
+
+export async function CreateAppointment(tenantId:string, clinicId:string,data:CreateAppointmentDTO) {
+    const {patientId, dentistId, dateTime , durationMin = 60,type, room , notes} = data
+
+    // valida se paciente pertece ao tenant e a clinica 
+
+    const patient = await prisma.patient.findFirst({
+        where:{id: patientId, tenantId,clinicId, deletedAt:null}
+    })
+
+    if (!patient){
+        throw new AppError('Paciente nao encontrado.', 404)
+
+        // valida se  o dentista pertence ao tenant e a clinca 
+
+        const dentist = await prisma.user.findFirst({
+            where:{id: dentistId,tenantId,clinicId,role:'DENTIST', isActive: true}
+        })
+        if(!dentist){
+            throw new AppError('Dentista nao encontardo ou inativo', 404)
+
+        }
+        const startTime = new Date(dateTime)
+        const endTime = calcEndTime(startTime,durationMin)
+
+        // valida se horairo nao e no passado 
+
+        if (startTime < new Date()){
+            throw new AppError('Nao e possivel agendar em uma data/hora passada', 400)
+        }
+
+        // verifica conflitos de sala e dentista 
+        
+        await checkConflicts(clinicId,room,dentistId,startTime,endTime)
+        
+
+        const appointment = await prisma.appointment.create({
+            data: {
+            tenantId,
+            clinicId,
+            patientId,
+            dentistId,
+            dateTime: startTime,
+            durationMin,
+            type,
+            room,
+            notes,
+            },
+            include: {
+            patient: { select: { id: true, name: true, phone: true } },
+            dentist: { select: { id: true, name: true } },
+            },
+        })
+        
+        return appointment
+        }
+        
+
+    
 }
 
