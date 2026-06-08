@@ -1,5 +1,5 @@
 
-export interface CreateApointmentDTO{
+export interface CreateAppointmentDTO{
     patientId: string,
     dentinstId: string,
     dateTime:string,
@@ -9,7 +9,7 @@ export interface CreateApointmentDTO{
     notes?:string
 }
 
-export interface UpdateApointmentDTO {
+export interface UpdateAppointmentDTO {
     patientId?: string,
     dentinstId?: string,
     dateTime?:string,
@@ -18,7 +18,7 @@ export interface UpdateApointmentDTO {
     room?: 'SALA_1' | 'SALA_2' | 'SALA_3' | 'SALA_4'
     notes?:string
 }
-export interface UpdateApointStatusDTO {
+export interface UpdateAppointStatusDTO {
     status: 'AGENDADO' | 'CONFIRMADO' | 'EM_ATENDIMENTO' | 'FINALIZADO' | 'CANCELADO' | 'FALTOU' | 'ESPERA'
 
     cancellationReason?: string
