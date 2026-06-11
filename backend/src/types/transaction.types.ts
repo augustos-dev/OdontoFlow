@@ -29,7 +29,7 @@ export interface TransactionFiltersDTO {
     limit?:number
 }
 
-export interface transactionReportDTO {
+export interface TransactionReportDTO {
     startDate:string
     endDate: string
 }
