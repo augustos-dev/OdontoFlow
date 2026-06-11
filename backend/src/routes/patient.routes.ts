@@ -5,7 +5,7 @@ import {
   getPatientByIdController,
   updatePatientController,
   deletePatientController,
-} from '../controllers/PatientController'
+} from '../controllers/patientController'
 import { authenticate,authorize } from "../middlewares/authMiddlewares";
 
 const patientRoutes = Router()
