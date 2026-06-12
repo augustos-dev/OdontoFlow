@@ -6,7 +6,7 @@ export interface CreateProductDTO {
     supplierId?:string | null
     name: string
     quantity: number
-    minQuantity?: number
+    minQuantity: number
     expiryDate?: Date
 }
 
