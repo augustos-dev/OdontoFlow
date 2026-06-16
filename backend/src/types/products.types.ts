@@ -1,45 +1,30 @@
-
 export interface CreateProductDTO {
-    id: string
-    tenantId: string
-    clinicId : string
-    supplierId?:string | null
     name: string
     quantity: number
-    minQuantity: number
-    expiryDate?: Date
-}
-
-export interface UpdateProductDTO{
-    tenantId?:string
-    clinicId?:string
-    supplierID?: string 
-    name?: string
-    quntity?:number
-    minQuantity?:number
-    expiryDate?:Date
-}
-
-export interface ProductResposeDTO {
-    id:string
-    tenantId: string
-    clinicId:string
-    supplierId?:string | null
-    name: string
-    quantity:number
     minQuantity:number
-    expiryDate?: Date | null
-    createdAt: Date
-    updatedAt:Date
-}
-
-export interface  FilterProductDTO {
-    tenantId?: string
-    clinicId?:string
     supplierId?:string
-    name?:string
-    page?: number
-    limit?: number
-    stockStatus?: 'NORMAL' | 'LOW' | 'OUT_OF_STOCK'
+    expiryDate?: string 
 }
 
+export interface UpdateProductDTO {
+    name?:string
+    quantity?: number
+    minQuantity?: number
+    supplierId?:string
+    expiryDate?:string
+}
+
+export interface AdjustStockDTO {
+    quantity:number
+    reason: string
+
+}
+
+export interface FilterProductDTO{
+    name?:string
+    supplierId?:string
+    lowStock?: boolean
+    expiring?:boolean
+    page?:number
+    limit?:number
+}
