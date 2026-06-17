@@ -42,8 +42,17 @@ export async function createProductService(
     include : {
         supplier: {select: {id:true, name: true} }
     },
-    
+
    })
 }
 
 //lista --------------------------------------------------------------------------------------------------------
+
+
+export async function listProductService(tenantId: string , clinicId:string ,filters:FilterProductDTO):Promise<void> {
+    const {name,lowStock,supplierId,expiring,page = 1 ,limit = 20 } = filters
+
+    const skip = (page-1) * limit
+
+    // Alerta de vencimento de produtos vencendo em 30 dias 
+}
