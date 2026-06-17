@@ -3,7 +3,7 @@ import { $Enums } from '@prisma/client'
 import { AppError } from '../shared/AppError'
 import type {
     CreateProductDTO,
-    ProductResposeDTO,
+    AdjustStockDTO,
     UpdateProductDTO,
     FilterProductDTO,
 } from '../types/products.types'
@@ -15,26 +15,44 @@ export async function createProductService(
     clinicId:string,
     data: CreateProductDTO
 ) {
-   const existingProduct = await prisma.product.findFirst({
-    where:{
-        name: data.name,
-        clinicId:clinicId,
-        tenantId: tenantId
+   const {name,quantity,minQuantity,supplierId,expiryDate} = data
+
+   // valida fornecedor caso informado 
+
+   if (supplierId) {
+    const supplier = await prisma.supplier.findFirst({
+        where: {id :supplierId,tenantId,clinicId},
+    })
+    if (!supplier) {
+        throw new AppError('Fornecedor nao encontrado',404)
     }
-
-   })
-
-   if (existingProduct) {
-    throw new AppError('Ja existe um produto cadastrado com esse nome',400)
    }
 
-   const product = await prisma.product.create({
+   return prisma.product.create({
     data: {
-        ...data,
         tenantId,
         clinicId,
+        name,
+        quantity,
+        minQuantity,
+        supplierId: supplierId ?? null,
+        expiryDate: expiryDate ? new Date(expiryDate) : null,
     },
-  })
 
-  return product
+    include : {
+        supplier: {select: {id:true, name: true} }
+    },
+
+   })
+}
+
+//lista --------------------------------------------------------------------------------------------------------
+
+
+export async function listProductService(tenantId: string , clinicId:string ,filters:FilterProductDTO):Promise<void> {
+    const {name,lowStock,supplierId,expiring,page = 1 ,limit = 20 } = filters
+
+    const skip = (page-1) * limit
+
+    // Alerta de vencimento de produtos vencendo em 30 dias 
 }
