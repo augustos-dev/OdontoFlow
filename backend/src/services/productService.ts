@@ -1,5 +1,5 @@
 import {prisma} from '../lib/prisma'
-import { $Enums } from '@prisma/client'
+import { $Enums, Prisma } from '@prisma/client'
 import { AppError } from '../shared/AppError'
 import type {
     CreateProductDTO,
@@ -7,6 +7,14 @@ import type {
     UpdateProductDTO,
     FilterProductDTO,
 } from '../types/products.types'
+import { get } from 'node:http'
+//helpers
+
+function getStockStatus(quantity: number, minQuantity: number): 'CRITICO' | 'BAIXO' | 'OK' {
+  if (quantity === 0) return 'CRITICO'
+  if (quantity <= minQuantity) return 'BAIXO'
+  return 'OK'
+}
 
 //Create--------------------------------------------------------------------------------------------------
 
@@ -49,10 +57,65 @@ export async function createProductService(
 //lista --------------------------------------------------------------------------------------------------------
 
 
-export async function listProductService(tenantId: string , clinicId:string ,filters:FilterProductDTO):Promise<void> {
+export async function listProductService(tenantId: string , clinicId:string ,filters:FilterProductDTO):Promise <any> {
     const {name,lowStock,supplierId,expiring,page = 1 ,limit = 20 } = filters
 
     const skip = (page-1) * limit
 
     // Alerta de vencimento de produtos vencendo em 30 dias 
+    const vencendoEmTrintaDias = new Date() 
+    vencendoEmTrintaDias.setDate(vencendoEmTrintaDias.getDate() + 30)
+
+    const where : Prisma.ProductWhereInput = {
+        tenantId,
+        clinicId,
+        ...(name && {name: {contains: name, mode:'insensitive'}}),
+        ...(supplierId && {supplierId}),
+        // Filtro de semafaro para disparado de estoque critico (quantity <= minQuantity)
+        ...(lowStock &&{
+            quantity : {lte: prisma.product.fields.minQuantity},
+        }),
+        // filtro vencendo em 30 dias 
+        ...(expiring && {
+            expiryDate : {
+                not: null,
+                lte: vencendoEmTrintaDias,
+                gte: new Date()
+            },
+        }),
+    }
+
+
+    const [products, total] = await Promise.all([
+        prisma.product.findMany({
+            where,
+            skip,
+            take:limit,
+            orderBy: {name: 'asc'},
+            include: {
+                supplier: {select: {id: true, name: true}},
+            },
+        }),
+        prisma.product.count({where}),
+    ])
+
+    //enriquece cada produto com o status do semafaro do estoque 
+
+    const data = products.map((product) => ({
+        ...product,
+        stockStatus:getStockStatus(product.quantity, product.minQuantity),
+        isExpiringSoon: 
+            product.expiryDate !== null && product.expiryDate <= vencendoEmTrintaDias,
+    })) as any[]
+
+    return {
+        data,
+        meta:{
+            total,
+            page,
+            limit,
+            totaPages:Math.ceil(total/limit)
+        },
+    }
+
 }
