@@ -171,3 +171,47 @@ export async function updateProductService(tenantId:string,clinicId:string, prod
 
 
 }
+
+/// ajuste de stock ----------------------------
+ export async function adjustStockService(tenantId:string,clinicId:string,productId:string, data: AdjustStockDTO) {
+    const product = await prisma.product.findFirst({
+        where:{id: productId,tenantId,clinicId},
+    })
+
+    if(!product) {
+        throw new AppError('Produto nao encontrado', 404)
+    }
+
+    const newQuantity = product.quantity + data.quantity 
+
+    // nao permite estoque negativo 
+
+    if(newQuantity < 0) {
+        throw new AppError(
+            `Estoque insuficiente. Disponvel: ${product.quantity} unidade(s).`,
+            400
+        )
+    }
+
+    const updated = await prisma.product.update({
+        where:{id: productId},
+        data: {
+            quantity: newQuantity
+        },
+        include:{
+            supplier:{select:{id:true,name:true}},
+        },
+    })
+
+    return {
+        ...updated,
+        stockStatus:getStockStatus(updated.quantity, updated.minQuantity),
+        adjustment:{
+            previous: product.quantity,
+            change: data.quantity,
+            current: newQuantity,
+            reason: data.reason
+        },
+    }
+
+ }
