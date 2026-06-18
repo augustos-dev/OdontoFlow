@@ -1,110 +1,312 @@
-# OdontoFlow
+<div align="center">
 
-API backend para gerenciamento clínico odontológico (OdontoFlow).
+# 🦷 OdontoFlow
 
-Este repositório contém o backend em TypeScript com Express e Prisma, projetado como uma plataforma multi-tenant para clínicas odontológicas. O README abaixo resume o schema Prisma, o estado atual das rotas e instruções rápidas para rodar o projeto localmente.
+**Plataforma SaaS B2B de Gerenciamento Clínico Odontológico**
 
-**Links úteis**
-- Schema Prisma: [backend/prisma/schema.prisma](backend/prisma/schema.prisma)
-- Código do servidor: [backend/src/server.ts](backend/src/server.ts)
-- Rotas registradas: [backend/src/routes/index.ts](backend/src/routes/index.ts)
-- Package.json (scripts): [backend/package.json](backend/package.json)
+*Multi-tenant · REST API · TypeScript · Prisma ORM · PostgreSQL*
 
-**Status atual do backend**
-- Linguagem: TypeScript
-- Framework HTTP: Express
-- ORM: Prisma (Postgres)
-- Autenticação: JWT
-- Rotas já implementadas: Auth, Patients, Appointments, Transactions
+![Status](https://img.shields.io/badge/status-em%20desenvolvimento-yellow?style=flat-square)
+![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square&logo=node.js)
+![TypeScript](https://img.shields.io/badge/typescript-5.x-blue?style=flat-square&logo=typescript)
+![Prisma](https://img.shields.io/badge/prisma-7.x-2D3748?style=flat-square&logo=prisma)
+![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 
-Principais dependências: `@prisma/client`, `prisma`, `express`, `dotenv`, `jsonwebtoken`, `bcryptjs`.
+</div>
 
-**Visão geral do schema (resumo)**
-O schema Prisma está em [backend/prisma/schema.prisma](backend/prisma/schema.prisma) e contém modelos e enums pensados para um sistema multi-tenant. Modelos principais:
-- Tenant, Clinic, User
-- Patient, MedicalRecord, Evolution, ToothCondition, MedicalFile
-- Appointment, TreatmentPlan, Procedure, PlanProcedure
-- Product, Supplier, Transaction
+---
 
-Enums importantes:
-- `TenantPlan`, `UserRole`, `AppointmentStatus`, `AppointmentType`, `TreatmentStatus`, `Room`, `PaymentMethod`, `TransactionType`, `Gender`.
+## 📌 Sobre o Projeto
 
-Esses modelos suportam controle de multi-tenancy (tenantId) e índices para consultas comuns (agenda, relatório financeiro, histórico de pacientes, etc.).
+O **OdontoFlow** é uma API REST multi-tenant desenvolvida para gerenciar clínicas odontológicas de forma escalável. A arquitetura permite que um único sistema sirva múltiplos clientes (tenants), onde cada tenant pode ter várias filiais (clínicas), cada uma com seus próprios usuários, pacientes, agendamentos e dados financeiros completamente isolados.
 
-**APIs principais (resumo de endpoints)**
-- Auth: `/api/auth`
-	- `POST /register` — criar usuário (vinculado a tenant/clinic)
-	- `POST /login` — autenticar e receber JWT
-	- `GET /me` — obter perfil (autenticado)
+> A hierarquia central do sistema é: **Tenant → Clinic → Users / Patients / Appointments / Transactions / Products**
 
-- Patients: `/api/patients` (todas as rotas protegidas)
-	- `GET /` — listar pacientes (filtros: name, cpf, page, limit)
-	- `GET /:id` — obter paciente
-	- `POST /` — criar paciente (roles: ADMIN, SECRETARY, DENTIST)
-	- `PUT /:id` — atualizar (roles: ADMIN, SECRETARY, DENTIST)
-	- `DELETE /:id` — deletar (role: ADMIN)
+---
 
-- Appointments: `/api/appointments` (protegidas)
-	- `GET /` — listar
-	- `GET /:id` — obter
-	- `POST /` — criar (roles: ADMIN, SECRETARY, DENTIST)
-	- `PUT /:id` — atualizar
-	- `PATCH /:id/status` — atualizar status
-	- `DELETE /:id` — deletar
+## ✅ Módulos Implementados
 
-- Transactions: `/api/transactions` (protegidas)
-	- `GET /` — listar (filtros)
-	- `GET /report` — relatório financeiro (ADMIN)
-	- `GET /:id` — obter
-	- `POST /` — criar (ADMIN, SECRETARY)
-	- `PUT /:id` — atualizar (ADMIN, SECRETARY)
-	- `DELETE /:id` — deletar (ADMIN)
+| Módulo | Endpoints | Status |
+|---|---|---|
+| 🔐 **Auth** | Register, Login, Me | ✅ Concluído |
+| 👥 **Patients** | CRUD + Soft Delete + Paginação | ✅ Concluído |
+| 📅 **Appointments** | CRUD + Conflito de Sala/Dentista + Status | ✅ Concluído |
+| 💰 **Transactions** | CRUD + Relatório Financeiro | ✅ Concluído |
+| 📦 **Products** | CRUD + Estoque + Alertas | ✅ Concluído |
+| 🩺 **Medical Records** | Prontuário + Odontograma + Evoluções | 🔜 Próximo |
+| 📋 **Treatment Plans** | Orçamentos + Procedimentos | 🔜 Planejado |
+| 👤 **Users** | Gestão de usuários por clínica | 🔜 Planejado |
+| 🏥 **Clinics** | Gestão de filiais por tenant | 🔜 Planejado |
+| 📊 **Dashboard** | Métricas e relatórios consolidados | 🔜 Planejado |
 
-Para ver os arquivos das rotas, consulte [backend/src/routes](backend/src/routes).
+---
 
-**Variáveis de ambiente (mínimas)**
-- `DATABASE_URL` — string de conexão PostgreSQL usada pelo Prisma
-- `JWT_SECRET` — segredo para assinar tokens JWT
-- `JWT_EXPIRES_IN` — tempo de expiração do JWT (ex: `8h`) (opcional, padrão: `8h`)
-- `PORT` — porta da API (opcional, padrão: `3333`)
+## 🏗️ Arquitetura
 
-Observação: o projeto já usa `dotenv`, então crie um arquivo `.env` na pasta `backend` com essas variáveis antes de iniciar.
+### Stack Principal
 
-**Executando localmente (rápido)**
-1. Instale dependências e prepare banco:
+| Camada | Tecnologia |
+|---|---|
+| Runtime | Node.js 24 + TypeScript |
+| Framework | Express 5 |
+| ORM | Prisma 7 |
+| Banco de dados | PostgreSQL 16 |
+| Autenticação | JWT (jsonwebtoken) |
+| Hash de senha | bcryptjs (salt 12) |
+| Runner dev | tsx |
+| Containerização | Docker + Docker Compose |
 
-```bash
-cd backend
-npm install
-# Defina DATABASE_URL no .env (Postgres)
-npx prisma migrate dev --name init
-npm run seed     # popula dados de exemplo (se aplicável)
+### Estrutura de Pastas
+
+```
+backend/
+├── prisma/
+│   ├── schema.prisma        # Schema multi-tenant completo
+│   ├── seed.ts              # Dados iniciais para desenvolvimento
+│   └── migrations/          # Histórico de migrations
+├── prisma.config.ts         # Configuração Prisma v7 + adapter pg
+├── tsconfig.json
+├── docker-compose.yml
+└── src/
+    ├── server.ts            # Entry point da aplicação
+    ├── controllers/         # Camada HTTP (req/res)
+    ├── services/            # Regras de negócio + queries Prisma
+    ├── routes/
+    │   ├── index.ts         # Agregador central de rotas
+    │   └── *.routes.ts      # Rotas por módulo
+    ├── middlewares/
+    │   ├── auth.middleware.ts       # JWT + RBAC
+    │   └── errorHandler.middleware.ts
+    ├── types/               # DTOs e tipagens TypeScript
+    ├── shared/
+    │   └── AppError.ts      # Classe de erro centralizada
+    ├── lib/
+    │   └── prisma.ts        # Singleton do PrismaClient
+    ├── docs/                # Configuração Swagger
+    └── __tests__/           # Testes automatizados
 ```
 
-2. Rodar em modo desenvolvimento:
+### Multi-tenancy
+
+Todas as queries do banco são isoladas por `tenantId + clinicId`, extraídos do JWT — nunca do body da requisição. Isso garante que usuários de uma clínica jamais acessem dados de outra.
+
+```
+Token JWT
+  └── tenantId  ──► filtra no WHERE de toda query
+  └── clinicId  ──► filtra no WHERE de toda query
+  └── role      ──► controla acesso via middleware authorize()
+```
+
+---
+
+## 🔐 Autenticação & Autorização
+
+O sistema usa **JWT** com payload contendo `tenantId`, `clinicId` e `role`. O controle de acesso (RBAC) é feito via middleware `authorize(...roles)`:
+
+| Role | Permissões |
+|---|---|
+| `ADMIN` | Acesso total — leitura, escrita e exclusão |
+| `DENTIST` | Leitura total + criar/editar pacientes e agendamentos |
+| `SECRETARY` | Leitura total + criar/editar pacientes, agendamentos e transações |
+
+---
+
+## 🚀 Como Rodar Localmente
+
+### Pré-requisitos
+
+- Node.js >= 20
+- Docker + Docker Compose
+
+### 1. Clone o repositório
+
+```bash
+git clone https://github.com/augustos-dev/OdontoFlow.git
+cd OdontoFlow/backend
+```
+
+### 2. Configure as variáveis de ambiente
+
+```bash
+cp .env.example .env
+```
+
+```env
+DATABASE_URL="postgresql://odontoflow:odontoflow_secret@localhost:5432/odontoflow"
+JWT_SECRET="seu_segredo_super_forte_aqui"
+JWT_EXPIRES_IN="8h"
+PORT=3333
+```
+
+### 3. Suba o banco de dados
+
+```bash
+docker compose up -d
+```
+
+### 4. Instale as dependências
+
+```bash
+npm install
+```
+
+### 5. Execute as migrations e o seed
+
+```bash
+npx prisma migrate dev --name init
+npm run seed
+```
+
+O seed cria um **Tenant** e uma **Clinic** de exemplo e exibe os IDs no terminal — use-os no Postman para testar os endpoints.
+
+### 6. Inicie o servidor
 
 ```bash
 npm run dev
 ```
 
-Scripts úteis (em [backend/package.json](backend/package.json)):
+A API estará disponível em `http://localhost:3333`
 
-```json
-"scripts": {
-	"dev": "tsx --tsconfig tsconfig.json src/server.ts",
-	"build": "tsc",
-	"start": "node dist/server.js",
-	"seed": "tsx prisma/seed.ts"
-}
+---
+
+## 📡 Endpoints Disponíveis
+
+### Health Check
+```
+GET http://localhost:3333/health
 ```
 
-**Testes e documentação**
-- Não existem testes automatizados configurados no momento.
-- O projeto inclui integração com Swagger (`swagger-jsdoc` e `swagger-ui-express`) — ver [backend/src/docs](backend/src/docs) para a configuração.
+### Auth
+```
+POST /api/auth/register
+POST /api/auth/login
+GET  /api/auth/me
+```
 
-**Próximos passos sugeridos**
-- Documentar endpoints com exemplos (Swagger ou Postman collection).
-- Implementar testes unitários e de integração.
-- Adicionar instruções de deploy (Docker / docker-compose).
+### Patients
+```
+GET    /api/patients
+GET    /api/patients/:id
+POST   /api/patients
+PUT    /api/patients/:id
+DELETE /api/patients/:id
+```
 
-Se quiser, eu atualizo este README com exemplos de requests, uma collection do Postman ou instruções de Docker.
+### Appointments
+```
+GET    /api/appointments
+GET    /api/appointments/:id
+POST   /api/appointments
+PUT    /api/appointments/:id
+PATCH  /api/appointments/:id/status
+DELETE /api/appointments/:id
+```
+
+### Transactions
+```
+GET    /api/transactions
+GET    /api/transactions/report?startDate=&endDate=
+GET    /api/transactions/:id
+POST   /api/transactions
+PUT    /api/transactions/:id
+DELETE /api/transactions/:id
+```
+
+### Products
+```
+GET    /api/products
+GET    /api/products/low-stock
+GET    /api/products/expiring
+GET    /api/products/:id
+POST   /api/products
+PUT    /api/products/:id
+PATCH  /api/products/:id/stock
+DELETE /api/products/:id
+```
+
+---
+
+## 🗄️ Modelo de Dados
+
+O schema completo está em `backend/prisma/schema.prisma`. Os principais modelos são:
+
+```
+Tenant           → Entidade máxima (assinatura SaaS)
+  └── Clinic     → Filiais do tenant
+       ├── User           → Usuários (ADMIN, DENTIST, SECRETARY)
+       ├── Patient        → Pacientes
+       │    └── MedicalRecord   → Prontuário clínico (1:1)
+       │         ├── Evolution       → Evoluções clínicas
+       │         └── ToothCondition  → Odontograma
+       ├── Appointment    → Agendamentos
+       ├── Transaction    → Financeiro
+       ├── Product        → Estoque
+       ├── Supplier       → Fornecedores
+       └── TreatmentPlan  → Planos de tratamento / Orçamentos
+            └── PlanProcedure → Procedimentos do plano
+```
+
+---
+
+## 🧪 Testes
+
+> Suíte de testes em planejamento — será implementada com **Vitest** + **Supertest**.
+
+```bash
+# Em breve
+npm run test
+npm run test:coverage
+```
+
+---
+
+## 📖 Documentação
+
+A documentação interativa via **Swagger UI** está disponível em:
+
+```
+GET http://localhost:3333/docs
+```
+
+> Documentação em desenvolvimento — endpoints sendo documentados progressivamente.
+
+---
+
+## 🗺️ Roadmap
+
+- [x] Fase 1 — Infraestrutura (Docker, Prisma v7, Express, AppError)
+- [x] Fase 2 — Auth (JWT, RBAC, bcrypt)
+- [x] Fase 3 — Patients (CRUD, soft delete, paginação)
+- [x] Fase 4 — Appointments (CRUD, conflito de sala/dentista)
+- [x] Fase 5 — Transactions (financeiro, relatório por período)
+- [x] Fase 6 — Products (estoque, alertas semáforo)
+- [ ] Fase 7 — Medical Records (prontuário, odontograma, evoluções)
+- [ ] Fase 8 — Treatment Plans (orçamentos, procedimentos)
+- [ ] Fase 9 — Users & Clinics (gestão interna)
+- [ ] Fase 10 — Dashboard & Relatórios
+- [ ] Fase 11 — Testes automatizados (Vitest + Supertest)
+- [ ] Fase 12 — CI/CD + Dockerfile produção
+
+---
+
+## 💡 Ideias Futuras
+
+- Isolamento por banco de dados para clientes Enterprise (campo `databaseUrl` já previsto no `Tenant`)
+- Notificações de consulta via WhatsApp/SMS
+- Upload de radiografias e documentos por paciente (S3/Supabase Storage)
+- App mobile em React Native consumindo a mesma API
+- Auditoria completa de ações por usuário
+
+---
+
+## 👨‍💻 Autor
+
+Desenvolvido por **Vicente Augusto** — [@augustos-dev](https://github.com/augustos-dev)
+
+---
+
+<div align="center">
+
+*OdontoFlow — Gerenciamento clínico inteligente para odontologia moderna*
+
+</div>
