@@ -119,3 +119,55 @@ export async function listProductService(tenantId: string , clinicId:string ,fil
     }
 
 }
+
+// get by id -----------------------------------------------
+export async function getProductByIdService(tenantId: string,clinicId: string, productId:string) {
+    const product = await prisma.product.findFirst({
+        where: {id: productId,tenantId,clinicId},
+        include: {
+            supplier:{select:{id:true,name:true,phone:true,email:true}},
+        }
+    })
+    if(!product) {
+        throw new AppError('Produto nao encontrado', 404)
+    }
+
+    return {
+        ...product,
+        stockStatus:getStockStatus(product.quantity, product.minQuantity)
+    }
+}
+
+// Update ---------------------------------------------------------
+
+export async function updateProductService(tenantId:string,clinicId:string, productId:string,data:UpdateProductDTO){
+    const product = await prisma.product.findFirst({
+        where: {id:productId,tenantId,clinicId}
+    })
+
+    if(!product) {
+        throw new AppError('Produto nao encontrado', 404)
+    }
+    if(data.supplierId) {
+        const supplier = await prisma.supplier.findFirst({
+            where: {id: data.supplierId, tenantId, clinicId},
+        })
+        if (!supplier) {
+            throw new AppError('Fornecedor nao encontrado', 404)
+        }
+
+        return prisma.product.update({
+            where: {id:productId},
+            data: {
+                ...data,
+                expiryDate:data.expiryDate ? new Date(data.expiryDate) : undefined,
+            },
+            include: {
+                supplier : {select:{id: true, name: true}},
+            },
+        })
+
+    }
+
+
+}
