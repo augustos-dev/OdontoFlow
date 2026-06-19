@@ -215,3 +215,82 @@ export async function updateProductService(tenantId:string,clinicId:string, prod
     }
 
  }
+
+ // estoque baixo low stcok alert -------------------
+
+ export async function getLowStockAlertService(tenantId:string,clinicId:string) {
+    const products = await prisma.product.findMany({
+        where:{tenantId,clinicId},
+        include: {
+            supplier:{select:{id:true,name:true, phone: true}}
+        },
+        orderBy:{
+            quantity:'asc'
+        }
+    })
+
+    // flitra manualmentte para comparar campos da mesma linha
+
+    const lowStock = products.filter((p)=> p.quantity <= p.quantity)
+
+    return lowStock.map((p) => ({
+        ...p,
+        stockStatus: getStockStatus(p.quantity, p.minQuantity,)
+    }))
+ }
+
+
+ // expirando --- expiring
+
+ export async function getExpringProductsService(tenantId:string,clinicId:string) {
+    const vencendoEmTrintaDias = new Date()
+    vencendoEmTrintaDias.setDate(vencendoEmTrintaDias.getDate() + 30)
+
+    const products = await prisma.product.findMany({
+        where:{
+            tenantId,
+            clinicId,
+            expiryDate: {
+                not: null,
+                lte: vencendoEmTrintaDias,
+                gte: new Date()
+            },
+        },
+        include:{
+            supplier:{select: {id:true, name: true, phone:true}}
+        },
+        orderBy: {
+            expiryDate:'asc'
+        }
+    })
+
+    return products.map((p) => ({
+        ...p,
+        daysUntilExpiry: Math.ceil(
+            (p.expiryDate!.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+        ),
+    }))
+ }
+
+ // delete ------------------------------
+
+ export async function deleteProductService(tenantId:string,clinicId:string,productId:string) {
+    const product = await prisma.product.findFirst({
+        where:{id:productId,tenantId,clinicId}
+    })
+
+     if (!product) {
+        throw new AppError('Produto não encontrado.', 404)
+     }
+
+    if (product.quantity > 0) {
+        throw new AppError(
+            'nao e possivel deletar um produto com quantidade acima de zero. zere antes de  deletar', 400
+        )
+    }
+
+    await prisma.product.delete({
+        where:{id:productId}
+    })
+
+ }
