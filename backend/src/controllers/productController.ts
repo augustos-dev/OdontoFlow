@@ -37,7 +37,7 @@ export async function listProductController(req:Request,res:Response,next:NextFu
     }
 }
 
-export async function PatientByIdController(req:Request,res:Response,next:NextFunction):Promise<void> {
+export async function productByIdController(req:Request,res:Response,next:NextFunction):Promise<void> {
     try {
         const {tenantId,clinicId} =req.user!
         const  {id} = req.params
