@@ -1,5 +1,3 @@
-// backend/src/controllers/patient.controller.ts
-
 import type { Request, Response, NextFunction } from 'express'
 import * as patientService from '../services/patientServices'
 import type { CreatePatientDTO, UpdatePatientDTO, PatientFiltersDTO } from '../types/patient.types'
