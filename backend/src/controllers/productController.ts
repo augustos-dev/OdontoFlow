@@ -60,3 +60,48 @@ export async function updateProductController(req:Request,res:Response,next:Next
         next(error)
     }
 }
+
+export async function adjustStockController(req:Request,res:Response,next:NextFunction):Promise<void> {
+    try{
+        const {tenantId,clinicId} = req.user!
+        const {id} = req.params
+        const result = await productService.adjustStockService(tenantId,clinicId, id as string, req.body as AdjustStockDTO)
+        res.status(200).json(result)
+
+    } catch (error) {
+        next(error)
+    }
+}
+export async function lowStockController(req:Request,res:Response,next:NextFunction):Promise<void> {
+    try {
+        const {tenantId,clinicId} = req.user!
+        const products = await productService.getLowStockAlertService(tenantId,clinicId)
+        res.status(200).json(products)
+
+    } catch (error) {
+        next(error)
+    }
+}
+
+export async function expringProductController(req:Request,res:Response,next:NextFunction):Promise<void> {
+    try {
+        const {tenantId,clinicId} = req.user!
+        const products = await productService.getExpringProductsService(tenantId,clinicId)
+        res.status(200).json(products)
+
+    } catch (error) {
+        next(error)
+    }
+}
+
+export async function deleteProductController(req:Request,res:Response,next:NextFunction):Promise<void> {
+    try {
+        const {tenantId,clinicId} = req.user!
+        const {id} = req.params
+        await productService.deleteProductService(tenantId,clinicId,id as string) 
+        res.status(204).send()
+
+    } catch (error) {
+        next(error)
+    }
+}
