@@ -270,3 +270,29 @@ export async function getOdontogram(
 
 // delete tooth Condition
 
+export async function deleteToothCondition(
+  tenantId: string,
+  clinicId: string,
+  patientId: string,
+  toothNumber: number
+) {
+  const medicalRecord = await prisma.medicalRecord.findUnique({
+    where: { tenantId_patientId: { tenantId, patientId } },
+  })
+ 
+  if (!medicalRecord) throw new AppError('Prontuário não encontrado.', 404)
+  if (medicalRecord.clinicId !== clinicId) throw new AppError('Prontuário não encontrado.', 404)
+ 
+  const toothCondition = await prisma.toothCondition.findUnique({
+    where: {
+      medicalRecordId_toothNumber: {
+        medicalRecordId: medicalRecord.id,
+        toothNumber,
+      },
+    },
+  })
+ 
+  if (!toothCondition) throw new AppError('Registro do dente não encontrado.', 404)
+ 
+  await prisma.toothCondition.delete({ where: { id: toothCondition.id } })
+}
