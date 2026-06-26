@@ -10,10 +10,10 @@ import type {
 // numeros de dente validos na notacao FDI
 
 const VALID_TOOTH_NUMBERS = [
-    ...Array.from({length:8},(_,i) => 11 + 1),
-    ...Array.from({length:8},(_,i) => 21 + 1),
-    ...Array.from({length:8},(_,i) => 31 + 1),
-    ...Array.from({length:8},(_,i) => 41 + 1)
+    ...Array.from({ length: 8 }, (_, i) => 11 + i),
+    ...Array.from({ length: 8 }, (_, i) => 21 + i),
+    ...Array.from({ length: 8 }, (_, i) => 31 + i),
+    ...Array.from({ length: 8 }, (_, i) => 41 + i),
 ]
 
 //  Get by Patient
@@ -181,7 +181,7 @@ export async function upsertToothCondition(
 ) {
     const {toothNumber,condition,faces,notes} = data 
 
-    if(VALID_TOOTH_NUMBERS.includes(toothNumber)) {
+    if (!VALID_TOOTH_NUMBERS.includes(toothNumber)) {
         throw new AppError(
          `Numero de dente invalido: ${toothNumber}. Use a notacao FDI (11-18, 21-28, 31-38, 41-48).`,400
         )
