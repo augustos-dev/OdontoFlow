@@ -10,10 +10,10 @@ import type {
 // numeros de dente validos na notacao FDI
 
 const VALID_TOOTH_NUMBERS = [
-    ...Array.from({length:8},(_,i) => 11 + 1),
-    ...Array.from({length:8},(_,i) => 21 + 1),
-    ...Array.from({length:8},(_,i) => 31 + 1),
-    ...Array.from({length:8},(_,i) => 41 + 1)
+    ...Array.from({ length: 8 }, (_, i) => 11 + i),
+    ...Array.from({ length: 8 }, (_, i) => 21 + i),
+    ...Array.from({ length: 8 }, (_, i) => 31 + i),
+    ...Array.from({ length: 8 }, (_, i) => 41 + i),
 ]
 
 //  Get by Patient
@@ -181,7 +181,7 @@ export async function upsertToothCondition(
 ) {
     const {toothNumber,condition,faces,notes} = data 
 
-    if(VALID_TOOTH_NUMBERS.includes(toothNumber)) {
+    if (!VALID_TOOTH_NUMBERS.includes(toothNumber)) {
         throw new AppError(
          `Numero de dente invalido: ${toothNumber}. Use a notacao FDI (11-18, 21-28, 31-38, 41-48).`,400
         )
@@ -270,3 +270,29 @@ export async function getOdontogram(
 
 // delete tooth Condition
 
+export async function deleteToothCondition(
+  tenantId: string,
+  clinicId: string,
+  patientId: string,
+  toothNumber: number
+) {
+  const medicalRecord = await prisma.medicalRecord.findUnique({
+    where: { tenantId_patientId: { tenantId, patientId } },
+  })
+ 
+  if (!medicalRecord) throw new AppError('Prontuário não encontrado.', 404)
+  if (medicalRecord.clinicId !== clinicId) throw new AppError('Prontuário não encontrado.', 404)
+ 
+  const toothCondition = await prisma.toothCondition.findUnique({
+    where: {
+      medicalRecordId_toothNumber: {
+        medicalRecordId: medicalRecord.id,
+        toothNumber,
+      },
+    },
+  })
+ 
+  if (!toothCondition) throw new AppError('Registro do dente não encontrado.', 404)
+ 
+  await prisma.toothCondition.delete({ where: { id: toothCondition.id } })
+}
