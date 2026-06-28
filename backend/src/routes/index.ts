@@ -5,6 +5,8 @@ import appointmentRouter from './appointment.routes'
 import transactionRoute from './transaction.routes'
 import productRouter from './product.routes'
 import medicalRecordRouter from './medicalRecord.routes'
+import procedureRoutes from './procedure.routes'
+import treatmentPlanRoutes from './treatment.routes'
 
 const router = Router()
 
@@ -14,6 +16,9 @@ router.use('/appointments', appointmentRouter)
 router.use('/transactions', transactionRoute)
 router.use('/products', productRouter)
 router.use('/medical-records', medicalRecordRouter)
+router.use('/procedures', procedureRoutes)
+router.use('/treatment-plans', treatmentPlanRoutes)
+ 
 
 // Novos módulos serão registrados aqui conforme forem criados
 // router.use('/patients', patientRoutes)
