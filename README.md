@@ -34,10 +34,10 @@ O **OdontoFlow** é uma API REST multi-tenant desenvolvida para gerenciar clíni
 | 💰 **Transactions** | CRUD + Relatório Financeiro | ✅ Concluído |
 | 📦 **Products** | CRUD + Estoque + Alertas | ✅ Concluído |
 | 🩺 **Medical Records** | Prontuário + Odontograma + Evoluções | ✅ Concluído |
-| 📋 **Treatment Plans** | Orçamentos + Procedimentos | 🔜 Planejado |
-| 👤 **Users** | Gestão de usuários por clínica | 🔜 Planejado |
-| 🏥 **Clinics** | Gestão de filiais por tenant | 🔜 Planejado |
-| 📊 **Dashboard** | Métricas e relatórios consolidados | 🔜 Planejado |
+| 📋 **Treatment Plans** | Orçamentos + Procedimentos | ✅ Concluído |
+| 👤 **Users** | Gestão de usuários por clínica | ✅ Concluído |
+| 🏥 **Clinics** | Gestão de filiais por tenant | ✅ Concluído |
+| 📊 **Dashboard** | Métricas e relatórios consolidados | ✅ Concluído |
 
 ---
 
