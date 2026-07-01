@@ -24,7 +24,9 @@ app.get('/health', (req, res) => {
 
 app.use(errorHandler)
 
-app.listen(PORT, () => {
-  console.log(`🚀 OdontoFlow API rodando em http://localhost:${PORT}`)
-  console.log(`📖 Documentação Swagger em http://localhost:${PORT}/docs`)
+const portNumber = Number(PORT)
+
+app.listen(portNumber, '0.0.0.0', () => {
+  console.log(`🚀 OdontoFlow API rodando com sucesso!`)
+  console.log(`📖 Documentação Swagger disponível na subpasta /docs`)
 })
