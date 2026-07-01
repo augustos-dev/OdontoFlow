@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_USER: odontoflow
       POSTGRES_PASSWORD: odontoflow_secret
-      POSTGRES_DB: odontoflow
+      POSTGRES_DB: ${DB_NAME:-odontoflow}
     ports:
       - '5432:5432'
     volumes:
