@@ -10,11 +10,7 @@
 ![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square&logo=node.js)
 ![TypeScript](https://img.shields.io/badge/typescript-5.x-blue?style=flat-square&logo=typescript)
 ![Prisma](https://img.shields.io/badge/prisma-7.x-2D3748?style=flat-square&logo=prisma)
-![Deploy](https://img.shields.io/badge/deploy-render-46E3B7?style=flat-square&logo=render)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-
-**🚀 API em produção:** [`https://odontoflow-bbcl.onrender.com`](https://odontoflow-bbcl.onrender.com)  
-**📖 Documentação Swagger:** [`https://odontoflow-bbcl.onrender.com/docs`](https://odontoflow-bbcl.onrender.com/docs)
 
 </div>
 
@@ -36,15 +32,12 @@ O **OdontoFlow** é uma API REST multi-tenant desenvolvida para gerenciar clíni
 | 👥 **Patients** | CRUD + Soft Delete + Paginação | ✅ Concluído |
 | 📅 **Appointments** | CRUD + Conflito de Sala/Dentista + Status | ✅ Concluído |
 | 💰 **Transactions** | CRUD + Relatório Financeiro | ✅ Concluído |
-| 📦 **Products** | CRUD + Estoque Semáforo + Alertas | ✅ Concluído |
-| 📊 **Dashboard** | Métricas consolidadas (dia/semana/mês) | ✅ Concluído |
-| 🏥 **Clinics** | CRUD + Ativar/Desativar filiais | ✅ Concluído |
-| 👤 **Users** | CRUD + Role + Status + Senha | ✅ Concluído |
-| 🩺 **Medical Records** | Prontuário + Odontograma + Evoluções | ✅ Concluído |
-| 💉 **Procedures** | Catálogo de procedimentos | ✅ Concluído |
-| 📋 **Treatment Plans** | Orçamentos + Procedimentos vinculados | ✅ Concluído |
-
-**Total: 65 endpoints documentados e em produção.**
+| 📦 **Products** | CRUD + Estoque + Alertas | ✅ Concluído |
+| 🩺 **Medical Records** | Prontuário + Odontograma + Evoluções | 🔜 Próximo |
+| 📋 **Treatment Plans** | Orçamentos + Procedimentos | 🔜 Planejado |
+| 👤 **Users** | Gestão de usuários por clínica | 🔜 Planejado |
+| 🏥 **Clinics** | Gestão de filiais por tenant | 🔜 Planejado |
+| 📊 **Dashboard** | Métricas e relatórios consolidados | 🔜 Planejado |
 
 ---
 
@@ -57,13 +50,11 @@ O **OdontoFlow** é uma API REST multi-tenant desenvolvida para gerenciar clíni
 | Runtime | Node.js 24 + TypeScript |
 | Framework | Express 5 |
 | ORM | Prisma 7 |
-| Banco de dados | PostgreSQL (Supabase) |
+| Banco de dados | PostgreSQL 16 |
 | Autenticação | JWT (jsonwebtoken) |
 | Hash de senha | bcryptjs (salt 12) |
 | Runner dev | tsx |
 | Containerização | Docker + Docker Compose |
-| Deploy | Render |
-| Documentação | Swagger UI (OpenAPI 3.0) |
 
 ### Estrutura de Pastas
 
@@ -82,17 +73,17 @@ backend/
     ├── services/            # Regras de negócio + queries Prisma
     ├── routes/
     │   ├── index.ts         # Agregador central de rotas
-    │   └── *.routes.ts      # Rotas por módulo com JSDoc Swagger
+    │   └── *.routes.ts      # Rotas por módulo
     ├── middlewares/
-    │   ├── authMiddlewares.ts       # JWT + RBAC
+    │   ├── auth.middleware.ts       # JWT + RBAC
     │   └── errorHandler.middleware.ts
     ├── types/               # DTOs e tipagens TypeScript
     ├── shared/
     │   └── AppError.ts      # Classe de erro centralizada
     ├── lib/
     │   └── prisma.ts        # Singleton do PrismaClient
-    └── docs/
-        └── Swagger.ts       # Configuração OpenAPI + schemas
+    ├── docs/                # Configuração Swagger
+    └── __tests__/           # Testes automatizados
 ```
 
 ### Multi-tenancy
@@ -115,7 +106,7 @@ O sistema usa **JWT** com payload contendo `tenantId`, `clinicId` e `role`. O co
 | Role | Permissões |
 |---|---|
 | `ADMIN` | Acesso total — leitura, escrita e exclusão |
-| `DENTIST` | Leitura total + criar/editar pacientes, agendamentos e prontuários |
+| `DENTIST` | Leitura total + criar/editar pacientes e agendamentos |
 | `SECRETARY` | Leitura total + criar/editar pacientes, agendamentos e transações |
 
 ---
@@ -145,7 +136,6 @@ DATABASE_URL="postgresql://odontoflow:odontoflow_secret@localhost:5432/odontoflo
 JWT_SECRET="seu_segredo_super_forte_aqui"
 JWT_EXPIRES_IN="8h"
 PORT=3333
-NODE_ENV=development
 ```
 
 ### 3. Suba o banco de dados
@@ -175,8 +165,7 @@ O seed cria um **Tenant** e uma **Clinic** de exemplo e exibe os IDs no terminal
 npm run dev
 ```
 
-A API estará disponível em `http://localhost:3333`  
-O Swagger em `http://localhost:3333/docs`
+A API estará disponível em `http://localhost:3333`
 
 ---
 
@@ -184,7 +173,7 @@ O Swagger em `http://localhost:3333/docs`
 
 ### Health Check
 ```
-GET /health
+GET http://localhost:3333/health
 ```
 
 ### Auth
@@ -235,89 +224,26 @@ PATCH  /api/products/:id/stock
 DELETE /api/products/:id
 ```
 
-### Dashboard (ADMIN)
-```
-GET /api/dashboard/summary
-GET /api/dashboard/revenue-chart?startDate=&endDate=
-GET /api/dashboard/upcoming-appointments
-GET /api/dashboard/top-dentists
-```
-
-### Clinics
-```
-GET    /api/clinics
-GET    /api/clinics/:id
-POST   /api/clinics
-PUT    /api/clinics/:id
-PATCH  /api/clinics/:id/deactivate
-PATCH  /api/clinics/:id/reactivate
-```
-
-### Users
-```
-GET    /api/users
-GET    /api/users/:id
-POST   /api/users
-PUT    /api/users/:id
-PATCH  /api/users/:id/role
-PATCH  /api/users/:id/status
-PATCH  /api/users/me/change-password
-DELETE /api/users/:id
-```
-
-### Medical Records
-```
-GET    /api/medical-records/:patientId
-PUT    /api/medical-records/:patientId
-GET    /api/medical-records/:patientId/odontogram
-PUT    /api/medical-records/:patientId/odontogram
-DELETE /api/medical-records/:patientId/odontogram/:toothNumber
-POST   /api/medical-records/:patientId/evolutions
-PUT    /api/medical-records/evolutions/:evolutionId
-PATCH  /api/medical-records/evolutions/:evolutionId/lock
-```
-
-### Procedures
-```
-GET    /api/procedures
-GET    /api/procedures/:id
-POST   /api/procedures
-PUT    /api/procedures/:id
-DELETE /api/procedures/:id
-```
-
-### Treatment Plans
-```
-GET    /api/treatment-plans
-GET    /api/treatment-plans/:id
-POST   /api/treatment-plans
-PUT    /api/treatment-plans/:id
-PATCH  /api/treatment-plans/:id/status
-DELETE /api/treatment-plans/:id
-```
-
-> 📖 Todos os endpoints estão documentados e testáveis em [`https://odontoflow-bbcl.onrender.com/docs`](https://odontoflow-bbcl.onrender.com/docs)
-
 ---
 
 ## 🗄️ Modelo de Dados
+
+O schema completo está em `backend/prisma/schema.prisma`. Os principais modelos são:
 
 ```
 Tenant           → Entidade máxima (assinatura SaaS)
   └── Clinic     → Filiais do tenant
        ├── User           → Usuários (ADMIN, DENTIST, SECRETARY)
        ├── Patient        → Pacientes
-       │    ├── MedicalRecord   → Prontuário clínico (1:1)
-       │    │    ├── Evolution       → Evoluções clínicas
-       │    │    └── ToothCondition  → Odontograma (dente a dente)
-       │    └── MedicalFile    → Radiografias e documentos
+       │    └── MedicalRecord   → Prontuário clínico (1:1)
+       │         ├── Evolution       → Evoluções clínicas
+       │         └── ToothCondition  → Odontograma
        ├── Appointment    → Agendamentos
        ├── Transaction    → Financeiro
        ├── Product        → Estoque
        ├── Supplier       → Fornecedores
        └── TreatmentPlan  → Planos de tratamento / Orçamentos
             └── PlanProcedure → Procedimentos do plano
-                 └── Procedure → Catálogo de procedimentos
 ```
 
 ---
@@ -334,6 +260,18 @@ npm run test:coverage
 
 ---
 
+## 📖 Documentação
+
+A documentação interativa via **Swagger UI** está disponível em:
+
+```
+GET http://localhost:3333/docs
+```
+
+> Documentação em desenvolvimento — endpoints sendo documentados progressivamente.
+
+---
+
 ## 🗺️ Roadmap
 
 - [x] Fase 1 — Infraestrutura (Docker, Prisma v7, Express, AppError)
@@ -342,43 +280,33 @@ npm run test:coverage
 - [x] Fase 4 — Appointments (CRUD, conflito de sala/dentista)
 - [x] Fase 5 — Transactions (financeiro, relatório por período)
 - [x] Fase 6 — Products (estoque, alertas semáforo)
-- [x] Fase 7 — Dashboard (métricas consolidadas)
-- [x] Fase 8 — Clinics & Users (gestão interna)
-- [x] Fase 9 — Medical Records (prontuário, odontograma, evoluções)
-- [x] Fase 10 — Treatment Plans & Procedures (orçamentos)
-- [x] Fase 11 — Swagger/OpenAPI (65 endpoints documentados)
-- [x] Fase 12 — Deploy em produção (Render + Supabase)
-- [ ] Fase 13 — Testes automatizados (Vitest + Supertest)
-- [ ] Fase 14 — Frontend (React + Vite)
-- [ ] Fase 15 — CI/CD com GitHub Actions
+- [ ] Fase 7 — Medical Records (prontuário, odontograma, evoluções)
+- [ ] Fase 8 — Treatment Plans (orçamentos, procedimentos)
+- [ ] Fase 9 — Users & Clinics (gestão interna)
+- [ ] Fase 10 — Dashboard & Relatórios
+- [ ] Fase 11 — Testes automatizados (Vitest + Supertest)
+- [ ] Fase 12 — CI/CD + Dockerfile produção
 
 ---
 
 ## 💡 Ideias Futuras
 
-| Ideia | Descrição |
-|---|---|
-| **Isolamento por banco** | Campo `databaseUrl` no `Tenant` já previsto — banco dedicado para Enterprise |
-| **Multi-clínica por usuário** | Dentista atendendo em múltiplas filiais do mesmo tenant |
-| **Notificações** | Lembretes de consulta via WhatsApp/SMS (Twilio ou Z-API) |
-| **Upload de arquivos** | Radiografias e documentos por paciente (S3/Supabase Storage) |
-| **Agenda visual** | Endpoint otimizado para calendário semanal por sala/dentista |
-| **Plano por features** | Limitar funcionalidades por `TenantPlan` (STANDARD / PREMIUM / ENTERPRISE) |
-| **Auditoria** | Log de ações por usuário (quem criou, editou, deletou e quando) |
-| **App mobile** | React Native consumindo a mesma API |
+- Isolamento por banco de dados para clientes Enterprise (campo `databaseUrl` já previsto no `Tenant`)
+- Notificações de consulta via WhatsApp/SMS
+- Upload de radiografias e documentos por paciente (S3/Supabase Storage)
+- App mobile em React Native consumindo a mesma API
+- Auditoria completa de ações por usuário
 
 ---
 
 ## 👨‍💻 Autor
 
-Desenvolvido por **Augusto** — [@augustos-dev](https://github.com/augustos-dev)
+Desenvolvido por **Vicente Augusto** — [@augustos-dev](https://github.com/augustos-dev)
 
 ---
 
 <div align="center">
 
 *OdontoFlow — Gerenciamento clínico inteligente para odontologia moderna*
-
-**🚀 [`https://odontoflow-bbcl.onrender.com`](https://odontoflow-bbcl.onrender.com) · 📖 [`/docs`](https://odontoflow-bbcl.onrender.com/docs)**
 
 </div>
