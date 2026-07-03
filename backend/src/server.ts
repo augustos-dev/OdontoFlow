@@ -6,6 +6,17 @@ import { errorHandler } from './middlewares/errorHandler.middleware'
 import { swaggerSpec } from './docs/Swagger'
 import swaggerUi from 'swagger-ui-express'
 
+process.on('uncaughtException', (err) => {
+  console.error('❌ uncaughtException:', err)
+  process.exit(1)
+})
+
+process.on('unhandledRejection', (reason) => {
+  console.error('❌ unhandledRejection:', reason)
+  process.exit(1)
+})
+
+
 const app = express()
 const PORT = process.env.PORT ?? 3333
 
@@ -27,6 +38,9 @@ app.use(errorHandler)
 const portNumber = Number(PORT)
 
 app.listen(portNumber, '0.0.0.0', () => {
-  console.log(`🚀 OdontoFlow API rodando com sucesso!`)
-  console.log(`📖 Documentação Swagger disponível na subpasta /docs`)
+  console.log(`🚀 OdontoFlow API rodando com sucesso na porta ${portNumber}!`)
+  console.log(`📖 Swagger em http://localhost:${portNumber}/docs`)
+}).on('error', (err) => {
+  console.error('❌ Erro ao iniciar servidor:', err)
+  process.exit(1)
 })
