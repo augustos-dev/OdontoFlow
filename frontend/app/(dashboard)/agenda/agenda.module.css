@@ -1,0 +1,164 @@
+/* app/(dashboard)/agenda/agenda.module.css */
+
+.page { display: flex; flex-direction: column; gap: 16px; }
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dateNav { display: flex; align-items: center; gap: 8px; }
+
+.dateBtn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dateBtn:hover { border-color: var(--primary); color: var(--primary); }
+
+.dateInput {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  outline: none;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.dotConfirmado { width: 8px; height: 8px; border-radius: 50%; background: var(--status-confirmado-border); display: inline-block; }
+.dotEmAtendimento { width: 8px; height: 8px; border-radius: 50%; background: var(--status-em-atendimento-border); display: inline-block; }
+.dotFinalizado { width: 8px; height: 8px; border-radius: 50%; background: var(--status-finalizado-border); display: inline-block; }
+
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.cardHeader {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cardTitle { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.cardSub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+.loading {
+  padding: 48px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 60px repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.timeCol { border-right: 1px solid var(--border); }
+
+.timeColHeader {
+  height: 42px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-page);
+}
+
+.timeSlot {
+  height: 80px;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: flex-start;
+}
+
+.roomCol { border-right: 1px solid var(--border); }
+.roomCol:last-child { border-right: none; }
+
+.roomHeader {
+  height: 42px;
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+}
+
+.roomBody {}
+
+.slot {
+  height: 80px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border-light);
+  position: relative;
+}
+
+.apptCard {
+  height: 100%;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid;
+  position: relative;
+  overflow: hidden;
+}
+
+.apptName { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.apptProcedure { font-size: 11px; color: var(--text-secondary); margin-top: 1px; }
+
+.apptBadge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.confirmado { background: var(--status-confirmado-bg); border-color: var(--status-confirmado-border); }
+.confirmado .apptBadge { background: var(--status-confirmado-bg); color: var(--status-confirmado-text); }
+
+.emAtendimento { background: var(--status-em-atendimento-bg); border-color: var(--status-em-atendimento-border); }
+.emAtendimento .apptBadge { background: var(--status-em-atendimento-bg); color: var(--status-em-atendimento-text); }
+
+.finalizado { background: var(--status-finalizado-bg); border-color: var(--status-finalizado-border); }
+.finalizado .apptBadge { background: var(--status-finalizado-bg); color: var(--status-finalizado-text); }
+
+.agendado { background: var(--status-agendado-bg); border-color: var(--status-agendado-border); }
+.agendado .apptBadge { background: var(--status-agendado-bg); color: var(--status-agendado-text); }
+
+.cancelado { background: var(--status-cancelado-bg); border-color: var(--status-cancelado-border); }
+.cancelado .apptBadge { background: var(--status-cancelado-bg); color: var(--status-cancelado-text); }
+
+.espera { background: #fdf4ff; border-color: #a855f7; }
+.espera .apptBadge { background: #fdf4ff; color: #7c3aed; }

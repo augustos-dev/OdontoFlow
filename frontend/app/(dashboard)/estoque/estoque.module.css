@@ -1,0 +1,117 @@
+/* app/(dashboard)/estoque/estoque.module.css */
+
+.page { display: flex; flex-direction: column; gap: 16px; }
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.metricCard {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.metricLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.metricValue { font-size: 36px; font-weight: 700; color: var(--text-primary); }
+.metricCritico { color: var(--stock-critico); }
+.metricOk { color: var(--stock-ok); }
+
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.cardTitleRow { display: flex; align-items: center; gap: 12px; }
+.cardIcon { font-size: 20px; }
+.cardTitle { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.cardSub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+.tabs { display: flex; gap: 4px; }
+
+.tab {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+
+.tab:hover { border-color: var(--primary); color: var(--primary); }
+.tabActive { background: var(--primary-light); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+
+.loading { padding: 48px; text-align: center; color: var(--text-muted); }
+
+.table { width: 100%; border-collapse: collapse; }
+
+.table th {
+  text-align: left;
+  padding: 10px 24px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-page);
+}
+
+.row {
+  border-bottom: 1px solid var(--border-light);
+  transition: background 0.15s;
+}
+
+.row:hover { background: var(--bg-page); }
+.row:last-child { border-bottom: none; }
+
+.row td { padding: 14px 24px; font-size: 14px; }
+
+.productName { font-weight: 500; color: var(--text-primary); }
+.minQty { color: var(--text-secondary); }
+.expiry { color: var(--text-secondary); font-size: 13px; }
+
+.qtyBadge {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 6px;
+}
+
+.ok { background: var(--stock-ok-bg); color: var(--stock-ok); }
+.baixo { background: var(--stock-baixo-bg); color: var(--stock-baixo); }
+.critico { background: var(--stock-critico-bg); color: var(--stock-critico); }
+
+.alertBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 4px;
+}
+
+.alertOk { background: var(--stock-ok-bg); color: var(--stock-ok); }
+.alertCritico { background: var(--stock-critico-bg); color: var(--stock-critico); }
+
+.empty { text-align: center; color: var(--text-muted); padding: 48px; }
