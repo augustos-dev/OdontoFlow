@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import styles from './layout.module.css'
+import { ModalProvider } from '@/app/components/ModalContext'
+import { useModal } from '@/app/components/ModalContext'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: '⊞' },
@@ -15,10 +17,12 @@ const navItems = [
   { href: '/configuracoes', label: 'Configurações', icon: '⚙️' },
 ]
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+// ─── Componente interno que usa o contexto ────────────────────
+function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState<any>(null)
+  const { openNovoAgendamento } = useModal() // ← agora está DENTRO do Provider
 
   useEffect(() => {
     const token = localStorage.getItem('odontoflow_token')
@@ -35,9 +39,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   })
 
   const todayFormatted = today.charAt(0).toUpperCase() + today.slice(1)
-
   const pageTitle = navItems.find((n) => n.href === pathname)?.label ?? 'OdontoFlow'
-
   const initials = user?.name
     ? user.name.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()
     : 'U'
@@ -50,7 +52,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className={styles.shell}>
-      {/* ─── Sidebar ─────────────────────────────────────── */}
+      {/* ─── Sidebar ─── */}
       <aside className={styles.sidebar}>
         <div className={styles.sidebarLogo}>
           <div className={styles.logoIcon}>🦷</div>
@@ -86,7 +88,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* ─── Main ────────────────────────────────────────── */}
+      {/* ─── Main ─── */}
       <div className={styles.main}>
         <header className={styles.header}>
           <div className={styles.headerLeft}>
@@ -102,14 +104,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <input placeholder="Buscar paciente, procedimento..." className={styles.searchInput} />
             </div>
             <button className={styles.notifBtn}>🔔</button>
-            <Link href="/agenda" className={styles.newAppointmentBtn}>
+            <button className={styles.newAppointmentBtn} onClick={openNovoAgendamento}>
               + Novo Agendamento
-            </Link>
+            </button>
           </div>
         </header>
 
         <main className={styles.content}>{children}</main>
       </div>
     </div>
+  )
+}
+
+// ─── Layout principal — só envolve com o Provider ─────────────
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ModalProvider>
+      <DashboardShell>{children}</DashboardShell>
+    </ModalProvider>
   )
 }

@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import api from '@/lib/api'
 import styles from './agenda.module.css'
+import NovoAgendamentoModal from '@/app/components/NovoAgendamentoModal'
 
 interface Appointment {
   id: string
@@ -34,20 +35,22 @@ export default function AgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
   const [loading, setLoading] = useState(true)
+  const [modalOpen, setModalOpen] = useState(false)  // ← estado do modal
+
+  async function loadAppointments(date: string) {
+    setLoading(true)
+    try {
+      const { data } = await api.get(`/appointments?date=${date}&limit=100`)
+      setAppointments(data.data)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    async function load() {
-      setLoading(true)
-      try {
-        const { data } = await api.get(`/appointments?date=${selectedDate}&limit=100`)
-        setAppointments(data.data)
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
+    loadAppointments(selectedDate)
   }, [selectedDate])
 
   function formatTime(dt: string) {
@@ -95,11 +98,14 @@ export default function AgendaPage() {
             setSelectedDate(d.toISOString().slice(0, 10))
           }}>›</button>
         </div>
+
         <div className={styles.legend}>
           <span className={styles.legendItem}><span className={styles.dotConfirmado} /> Confirmado</span>
           <span className={styles.legendItem}><span className={styles.dotEmAtendimento} /> Em Atend.</span>
           <span className={styles.legendItem}><span className={styles.dotFinalizado} /> Finalizado</span>
         </div>
+
+        
       </div>
 
       <div className={styles.card}>
@@ -114,7 +120,6 @@ export default function AgendaPage() {
           <div className={styles.loading}>Carregando agenda...</div>
         ) : (
           <div className={styles.grid}>
-            {/* Coluna de horários */}
             <div className={styles.timeCol}>
               <div className={styles.timeColHeader} />
               {HOURS.map((h) => (
@@ -122,7 +127,6 @@ export default function AgendaPage() {
               ))}
             </div>
 
-            {/* Colunas por sala */}
             {displayRooms.map((room) => (
               <div key={room} className={styles.roomCol}>
                 <div className={styles.roomHeader}>{room.replace('_', ' ')}</div>
