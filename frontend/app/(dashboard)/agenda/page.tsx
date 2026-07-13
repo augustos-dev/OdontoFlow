@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import api from '@/lib/api'
 import styles from './agenda.module.css'
-import NovoAgendamentoModal from '@/app/components/NovoAgendamentoModal'
+
 
 interface Appointment {
   id: string
