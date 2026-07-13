@@ -48,15 +48,27 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
 
   // Busca dentistas
   useEffect(() => {
-    if (!open) return
-    async function loadDentists() {
-      try {
-        const { data } = await api.get('/users')
-        setDentists(data.filter((u: User) => u.role === 'DENTIST'))
-      } catch {}
+  if (!open) return
+  
+  async function loadDentists() {
+    try {
+      // 1. Buscamos a resposta da API
+      const response = await api.get('/users')
+      
+      // 2. Pegamos o array real de usuários que está em response.data.data
+      const allUsers = response.data.data
+      
+      // 3. Filtramos apenas quem é DENTIST
+      const dentistsOnly = allUsers.filter((u: User) => u.role === 'DENTIST')
+      
+      setDentists(dentistsOnly)
+    } catch (err) {
+      console.error("Erro ao carregar dentistas no modal:", err)
     }
-    loadDentists()
-  }, [open])
+  }
+  
+  loadDentists()
+}, [open])
 
   function set(field: string, value: any) {
     setForm((prev) => ({ ...prev, [field]: value }))
