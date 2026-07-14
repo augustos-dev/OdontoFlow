@@ -1,0 +1,292 @@
+/* app/components/DetalhesAgendamentoModal.module.css */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.modal {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+}
+
+/* ─── Header ─── */
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.modalTitle { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.modalSub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; text-transform: capitalize; }
+
+.closeBtn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--text-muted);
+  padding: 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.closeBtn:hover { color: var(--text-primary); background: var(--bg-page); }
+
+/* ─── Body ─── */
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ─── Status row ─── */
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.statusBadge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.roomBadge, .typeBadge, .durationBadge {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--bg-page);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+/* Status colors */
+.confirmado { background: var(--status-confirmado-bg); color: var(--status-confirmado-text); }
+.emAtendimento { background: var(--status-em-atendimento-bg); color: var(--status-em-atendimento-text); }
+.finalizado { background: var(--status-finalizado-bg); color: var(--status-finalizado-text); }
+.agendado { background: var(--status-agendado-bg); color: var(--status-agendado-text); }
+.cancelado { background: var(--status-cancelado-bg); color: var(--status-cancelado-text); }
+.espera { background: #fdf4ff; color: #7c3aed; }
+
+/* ─── Sections ─── */
+.section { display: flex; flex-direction: column; gap: 10px; }
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* ─── Person card ─── */
+.personCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-page);
+  padding: 12px;
+  border-radius: var(--radius-sm);
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.avatarDentist {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.personInfo { flex: 1; }
+.personName { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.personSub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+/* ─── Notes ─── */
+.notes {
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--bg-page);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  line-height: 1.5;
+}
+
+.cancelReason {
+  font-size: 13px;
+  color: var(--status-cancelado-text);
+  background: var(--status-cancelado-bg);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  line-height: 1.5;
+}
+
+/* ─── Transaction ─── */
+.transactionCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+}
+
+.transactionAmount { font-size: 16px; font-weight: 700; color: #16a34a; }
+.transactionMethod { font-size: 13px; color: #16a34a; }
+
+/* ─── Status change ─── */
+.statusChangeRow {
+  display: flex;
+  gap: 8px;
+}
+
+.select {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  outline: none;
+}
+
+.select:focus { border-color: var(--primary); }
+
+.updateBtn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.updateBtn:hover:not(:disabled) { background: var(--primary-hover); }
+.updateBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.textarea {
+  padding: 8px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  width: 100%;
+}
+
+.textarea:focus { border-color: var(--primary); }
+
+/* ─── Error ─── */
+.error {
+  font-size: 13px;
+  color: var(--status-cancelado-text);
+  background: var(--status-cancelado-bg);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+}
+
+/* ─── Footer ─── */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.deleteBtn {
+  background: none;
+  border: 1.5px solid #fecaca;
+  color: #dc2626;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.deleteBtn:hover { background: #fff1f2; }
+
+.confirmDelete {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.confirmYes {
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.confirmNo {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.closeFooterBtn {
+  margin-left: auto;
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+
+.closeFooterBtn:hover { border-color: var(--text-secondary); color: var(--text-primary); }

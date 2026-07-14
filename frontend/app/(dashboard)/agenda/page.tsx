@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import api from '@/lib/api'
 import styles from './agenda.module.css'
+import DetalhesAgendamentoModal from '@/app/components/DetalhesAgendamentoModal'
 
 
 interface Appointment {
@@ -76,6 +77,7 @@ export default function AgendaPage() {
 
   const activeRooms = ROOMS.filter((r) => getApptsByRoom(r).length > 0)
   const displayRooms = activeRooms.length >= 2 ? activeRooms : ROOMS.slice(0, 2)
+  const [selectedAppt,setSelectedAppt] = useState<Appointment | null>(null)
 
   return (
     <div className={styles.page}>
@@ -138,7 +140,9 @@ export default function AgendaPage() {
                     return (
                       <div key={h} className={styles.slot}>
                         {appt && (
-                          <div className={`${styles.apptCard} ${getStatusClass(appt.status)}`}>
+                          <div className={`${styles.apptCard} ${getStatusClass(appt.status)}`}
+                              onClick={()=>setSelectedAppt(appt)}
+                              style={{cursor: 'pointer'}}>
                             <div className={styles.apptName}>{appt.patient.name}</div>
                             <div className={styles.apptProcedure}>{appt.notes ?? appt.type}</div>
                             <span className={styles.apptBadge}>{STATUS_LABEL[appt.status]}</span>
@@ -148,7 +152,12 @@ export default function AgendaPage() {
                     )
                   })}
                 </div>
+                <DetalhesAgendamentoModal
+                              appointment={selectedAppt}
+                              onClose={() => setSelectedAppt(null)}
+                              onSuccess={() => loadAppointments(selectedDate)} />
               </div>
+              
             ))}
           </div>
         )}
