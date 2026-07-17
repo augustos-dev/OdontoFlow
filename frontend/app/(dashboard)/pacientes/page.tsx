@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import api from '@/lib/api'
 import styles from './pacientes.module.css'
+import NovoPacienteModal from '../../components/NovoPacienteModal'
 
 interface Patient {
   id: string
@@ -23,23 +24,25 @@ export default function PacientesPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [modalOpen, setModalOpen] = useState(false)
+
+  async function load() {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: '20' })
+      if (search) params.set('name', search)
+      const { data } = await api.get(`/patients?${params}`)
+      setPatients(data.data)
+      setTotal(data.meta.total)
+      setTotalPages(data.meta.totalPages)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    async function load() {
-      setLoading(true)
-      try {
-        const params = new URLSearchParams({ page: String(page), limit: '20' })
-        if (search) params.set('name', search)
-        const { data } = await api.get(`/patients?${params}`)
-        setPatients(data.data)
-        setTotal(data.meta.total)
-        setTotalPages(data.meta.totalPages)
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
-    }
     const timer = setTimeout(load, 300)
     return () => clearTimeout(timer)
   }, [search, page])
@@ -65,7 +68,9 @@ export default function PacientesPage() {
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
           />
         </div>
-        <button className={styles.newBtn}>+ Novo Paciente</button>
+        <button className={styles.newBtn} onClick={() => setModalOpen(true)}>
+          + Novo Paciente
+        </button>
       </div>
 
       <div className={styles.card}>
@@ -83,7 +88,7 @@ export default function PacientesPage() {
                 <th>NOME</th>
                 <th>TELEFONE</th>
                 <th>CPF</th>
-                <th>ÚLTIMA VISITA</th>
+                <th>CADASTRO</th>
                 <th>STATUS</th>
               </tr>
             </thead>
@@ -127,6 +132,18 @@ export default function PacientesPage() {
           </div>
         )}
       </div>
+
+      {/* ─── Modal fora de tudo ─── */}
+      <NovoPacienteModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSuccess={() => {
+          setModalOpen(false)
+          setPage(1)
+          setSearch('')
+          load()
+        }}
+      />
     </div>
   )
 }
