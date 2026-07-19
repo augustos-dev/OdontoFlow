@@ -145,9 +145,9 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
             <span className={`${styles.statusBadge} ${styles[STATUS_CLASS[appointment.status] ?? 'agendado']}`}>
               {STATUS_OPTIONS.find(s => s.value === appointment.status)?.label ?? appointment.status}
             </span>
-            <span className={styles.roomBadge}>{appointment.room.replace('_', ' ')}</span>
+            <span className={styles.roomBadge}>{appointment.room?.replace('_', ' ') ?? '—'}</span>
             <span className={styles.typeBadge}>{appointment.type === 'PARTICULAR' ? 'Particular' : 'Convênio'}</span>
-            <span className={styles.durationBadge}>⏱ {appointment.durationMin} min</span>
+            <span className={styles.durationBadge}>⏱ {appointment.durationMin ?? '—'} min</span>
           </div>
 
           {/* ─── Paciente ─── */}
