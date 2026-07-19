@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import api from '@/lib/api'
 import styles from './pacientes.module.css'
 import NovoPacienteModal from '../../components/NovoPacienteModal'
+import { useRouter } from 'next/navigation'
 
 interface Patient {
   id: string
@@ -25,6 +26,7 @@ export default function PacientesPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
+  const router = useRouter()
 
   async function load() {
     setLoading(true)
@@ -99,7 +101,9 @@ export default function PacientesPage() {
                 </tr>
               )}
               {patients.map((p) => (
-                <tr key={p.id} className={styles.row}>
+                <tr key={p.id} className={styles.row}
+                onClick={() => router.push(`/pacientes/${p.id}`)}
+                style={{cursor: 'pointer'}}>
                   <td>
                     <div className={styles.nameCell}>
                       <div className={styles.avatar}>{getInitials(p.name)}</div>
