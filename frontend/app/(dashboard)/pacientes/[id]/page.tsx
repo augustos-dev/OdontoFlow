@@ -121,42 +121,28 @@ export default function PerfilPacientePage() {
 
   async function handleSaveMedicalRecord(e: React.FormEvent) {
   e.preventDefault()
-  
-  // Garante que temos o ID do prontuário ou do paciente
-  const recordId = patient?.medicalRecord?.id
-  if (!recordId && !id) {
-    alert('Prontuário ou Paciente não encontrado.')
-    return
-  }
 
   setSavingMR(true)
   try {
-    // Opção A: Atualizar direto pelo ID do Prontuário (Tente PATCH e PUT se necessário)
-    if (recordId) {
-      await api.patch(`/medical-records/${recordId}`, mrForm)
-    } else {
-      // Opção B: Atualizar vinculando ao ID do paciente
-      await api.patch(`/patients/${id}/medical-record`, mrForm)
-    }
+    // A rota correta do backend vincula diretamente o ID do paciente
+    await api.patch(`/patients/${id}/medical-record`, mrForm)
 
-    await load() // Recarrega os dados do paciente atualizados
+    await load() // Recarrega os dados atualizados do paciente
     setIsEditingMR(false)
   } catch (err: any) {
-    console.error('Erro detalhado ao atualizar prontuário:', err.response?.data || err)
-    
-    // Tenta fallback com PUT caso o backend use PUT em vez de PATCH
+    console.error('Erro ao salvar no endpoint do paciente:', err)
+
+    // Fallback utilizando PUT caso a rota no NestJS utilize @Put
     try {
-      if (recordId) {
-        await api.put(`/medical-records/${recordId}`, mrForm)
-        await load()
-        setIsEditingMR(false)
-        return
-      }
+      await api.put(`/patients/${id}/medical-record`, mrForm)
+      await load()
+      setIsEditingMR(false)
+      return
     } catch (putErr) {
       console.error('Erro com PUT:', putErr)
     }
 
-    alert(`Erro ao salvar: ${err.response?.data?.message || 'Verifique o console do navegador.'}`)
+    alert('Erro ao salvar as alterações do prontuário. Verifique os campos.')
   } finally {
     setSavingMR(false)
   }
@@ -526,18 +512,19 @@ export default function PerfilPacientePage() {
         <div className={styles.card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
             <h3 className={styles.sectionTitle} style={{ margin: 0 }}>Histórico de Evoluções Clínicas</h3>
-            <button 
-              className={styles.backBtn} 
-              style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px' }}
+            <button
+              className={styles.backBtn}
+              style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer' }}
               onClick={() => setIsAddEvolutionOpen(true)}
             >
               + Nova Evolução
             </button>
           </div>
 
-          <EvolutionsTimeline 
-            patientId={id} 
-            key={reloadEvolutionsTrigger} 
+          <EvolutionsTimeline
+            patientId={id as string}
+            medicalRecordId={patient.medicalRecord?.id}
+            key={reloadEvolutionsTrigger}
           />
         </div>
       )}
