@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import api from '@/lib/api'; // Certifique-se de que o caminho do seu axios/api está correto
+import api from '@/lib/api';
 import { Stethoscope, ClipboardList, FileText, Paperclip, User } from 'lucide-react';
-import './EvolutionsTimeline.css'; // Ajuste a extensão para .module.css se usar CSS Modules
+import './EvolutionsTimeline.css';
 
-// Tipagem dos tipos de evolução
 export type EvolutionType = 'PROCEDURE' | 'ANAMNESIS' | 'NOTE' | 'FILE' | string;
 
 export interface Evolution {
@@ -18,9 +17,9 @@ export interface Evolution {
 }
 
 interface EvolutionsTimelineProps {
-  patientId?: string;
+  patientId: string;
   medicalRecordId?: string;
-  evolutions?: Evolution[]; // Mantido como opcional caso queira passar manualmente
+  evolutions?: Evolution[];
 }
 
 const getIcon = (type: EvolutionType) => {
@@ -53,28 +52,21 @@ const getBadgeClass = (type: EvolutionType) => {
 
 export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
   patientId,
-  medicalRecordId,
   evolutions: initialEvolutions,
 }) => {
   const [evolutions, setEvolutions] = useState<Evolution[]>(initialEvolutions || []);
   const [loading, setLoading] = useState(!initialEvolutions);
 
   useEffect(() => {
-    // Se já foi passado o array via props, não faz busca externa
     if (initialEvolutions) return;
 
     async function loadEvolutions() {
+      if (!patientId) return;
+
       try {
         setLoading(true);
-        // Se tiver medicalRecordId usa ele direto, senão busca pelo patientId ou rota genérica
-        const targetId = medicalRecordId || patientId;
-        if (!targetId) return;
-
-        const endpoint = medicalRecordId 
-          ? `/medical-records/${medicalRecordId}/evolutions`
-          : `/patients/${patientId}/evolutions`;
-
-        const { data } = await api.get(endpoint);
+        // 🎯 Rota unificada no padrão /medical-records/:patientId/evolutions
+        const { data } = await api.get(`/medical-records/${patientId}/evolutions`);
         setEvolutions(Array.isArray(data) ? data : data.evolutions || []);
       } catch (err) {
         console.error('Erro ao carregar evoluções:', err);
@@ -84,7 +76,7 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
     }
 
     loadEvolutions();
-  }, [patientId, medicalRecordId, initialEvolutions]);
+  }, [patientId, initialEvolutions]);
 
   if (loading) {
     return <div className="timeline-empty">Carregando evoluções clínicas...</div>;

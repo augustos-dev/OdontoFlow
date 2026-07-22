@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import api from '@/lib/api'; // Certifique-se de que o caminho do seu axios/api está correto
-import './AddEvolutionModal.css'; // Ajuste a extensão do CSS se for .module.css
+import api from '@/lib/api';
+import './AddEvolutionModal.css';
 
 interface AddEvolutionModalProps {
   patientId: string;
@@ -12,7 +12,6 @@ interface AddEvolutionModalProps {
 
 export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   patientId,
-  medicalRecordId,
   isOpen,
   onClose,
   onSuccess,
@@ -22,21 +21,21 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Se o modal não estiver aberto, não renderiza
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!medicalRecordId) {
-      alert('Paciente não possui um prontuário cadastrado.');
+    if (!patientId) {
+      alert('ID do paciente não informado.');
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await api.post(`/medical-records/${medicalRecordId}/evolutions`, {
+      // 🎯 Bate na rota refatorada usando o UUID do PACIENTE
+      const response = await api.post(`/medical-records/${patientId}/evolutions`, {
         title,
         type,
         description,
@@ -48,8 +47,9 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
         setType('NOTE');
         if (onSuccess) onSuccess();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao adicionar evolução:', err);
+      alert(err.response?.data?.message || 'Erro ao salvar registro de evolução.');
     } finally {
       setLoading(false);
     }

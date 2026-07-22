@@ -98,7 +98,9 @@ export default function PerfilPacientePage() {
     }
   }
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => { 
+    if (id) load() 
+  }, [id])
 
   // Lógica para alternar seleção de tags no formulário
   function toggleTag(field: keyof typeof mrForm, tag: string) {
@@ -120,33 +122,22 @@ export default function PerfilPacientePage() {
   }
 
   async function handleSaveMedicalRecord(e: React.FormEvent) {
-  e.preventDefault()
+    e.preventDefault()
 
-  setSavingMR(true)
-  try {
-    // A rota correta do backend vincula diretamente o ID do paciente
-    await api.patch(`/patients/${id}/medical-record`, mrForm)
-
-    await load() // Recarrega os dados atualizados do paciente
-    setIsEditingMR(false)
-  } catch (err: any) {
-    console.error('Erro ao salvar no endpoint do paciente:', err)
-
-    // Fallback utilizando PUT caso a rota no NestJS utilize @Put
+    setSavingMR(true)
     try {
-      await api.put(`/patients/${id}/medical-record`, mrForm)
+      // Bate exatamente na rota PUT /medical-records/:patientId
+      await api.put(`/medical-records/${id}`, mrForm)
+
       await load()
       setIsEditingMR(false)
-      return
-    } catch (putErr) {
-      console.error('Erro com PUT:', putErr)
+    } catch (err: any) {
+      console.error('Erro ao salvar o prontuário:', err.response?.data || err)
+      alert(err.response?.data?.message || 'Erro ao salvar as alterações do prontuário.')
+    } finally {
+      setSavingMR(false)
     }
-
-    alert('Erro ao salvar as alterações do prontuário. Verifique os campos.')
-  } finally {
-    setSavingMR(false)
   }
-}
 
   function formatDate(dt?: string) {
     if (!dt) return '—'
@@ -178,7 +169,6 @@ export default function PerfilPacientePage() {
     return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
   }
 
-  // Estilos rápidos para as tags interativas
   const getTagStyle = (active: boolean): React.CSSProperties => ({
     padding: '4px 10px',
     borderRadius: '16px',
@@ -294,7 +284,7 @@ export default function PerfilPacientePage() {
             <div>
               <h3 className={styles.sectionTitle} style={{ margin: 0 }}>Anamnese & Prontuário Base</h3>
             </div>
-            {!isEditingMR && mr && (
+            {!isEditingMR && (
               <button 
                 type="button"
                 onClick={() => setIsEditingMR(true)}
@@ -313,9 +303,7 @@ export default function PerfilPacientePage() {
             )}
           </div>
 
-          {!mr ? (
-            <p className={styles.empty}>Prontuário não encontrado.</p>
-          ) : isEditingMR ? (
+          {isEditingMR ? (
             /* Formulário com Seleção Rápida */
             <form onSubmit={handleSaveMedicalRecord} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               
@@ -483,6 +471,8 @@ export default function PerfilPacientePage() {
                 </button>
               </div>
             </form>
+          ) : !mr ? (
+            <p className={styles.empty}>Prontuário ainda não preenchido. Clique em "Preencher Anamnese" acima para cadastrar.</p>
           ) : (
             /* Modo Leitura Padrão */
             <div className={styles.prontuarioGrid}>
@@ -612,11 +602,12 @@ export default function PerfilPacientePage() {
       />
 
       <AddEvolutionModal
-        patientId={id}
+        patientId={id as string}
         isOpen={isAddEvolutionOpen}
         onClose={() => setIsAddEvolutionOpen(false)}
         onSuccess={() => {
           setIsAddEvolutionOpen(false)
+          load() // Recarrega o paciente para garantir sincronização do prontuário
           setReloadEvolutionsTrigger(prev => prev + 1)
         }}
       />
