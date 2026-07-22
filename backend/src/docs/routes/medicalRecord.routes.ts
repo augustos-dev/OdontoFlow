@@ -3,6 +3,7 @@
 import { Router } from "express"
 import {
   getMedicalRecordByPatientController,
+  getEvolutionsByPatientController,
   getOdontogramController,
   lockEvolutionController,
   CreateEvolutionController,
@@ -71,6 +72,45 @@ medicalRecordRouter.put('/evolutions/:evolutionId', authorize('DENTIST'), update
  *         $ref: '#/components/responses/NotFound'
  */
 medicalRecordRouter.patch('/evolutions/:evolutionId/lock', authorize('DENTIST', 'ADMIN'), lockEvolutionController)
+
+/**
+ * @openapi
+ * /medical-records/{patientId}/evolutions:
+ *   get:
+ *     summary: Retorna o histórico de evoluções clínicas do paciente
+ *     tags: [Medical Records]
+ *     parameters:
+ *       - in: path
+ *         name: patientId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Lista de evoluções ordenadas da mais recente para a mais antiga
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id: { type: string }
+ *                   description: { type: string }
+ *                   isLocked: { type: boolean }
+ *                   lockedAt: { type: string, format: date-time, nullable: true }
+ *                   createdAt: { type: string, format: date-time }
+ *                   dentist:
+ *                     type: object
+ *                     properties:
+ *                       id: { type: string }
+ *                       name: { type: string }
+ *                       cro: { type: string }
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+medicalRecordRouter.get('/:patientId/evolutions', getEvolutionsByPatientController)
 
 /**
  * @openapi
