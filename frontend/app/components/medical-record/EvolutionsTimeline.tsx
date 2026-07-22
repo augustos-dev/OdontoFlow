@@ -1,6 +1,7 @@
-import React from 'react';
-import './EvolutionsTimeline.css';
+import React, { useEffect, useState } from 'react';
+import api from '@/lib/api'; // Certifique-se de que o caminho do seu axios/api está correto
 import { Stethoscope, ClipboardList, FileText, Paperclip, User } from 'lucide-react';
+import './EvolutionsTimeline.css'; // Ajuste a extensão para .module.css se usar CSS Modules
 
 // Tipagem dos tipos de evolução
 export type EvolutionType = 'PROCEDURE' | 'ANAMNESIS' | 'NOTE' | 'FILE' | string;
@@ -8,7 +9,8 @@ export type EvolutionType = 'PROCEDURE' | 'ANAMNESIS' | 'NOTE' | 'FILE' | string
 export interface Evolution {
   id: string;
   medicalRecordId: string;
-  dentistName: string;
+  dentistName?: string;
+  dentist?: { name: string };
   type: EvolutionType;
   title: string;
   description: string;
@@ -16,10 +18,11 @@ export interface Evolution {
 }
 
 interface EvolutionsTimelineProps {
-  evolutions: Evolution[];
+  patientId?: string;
+  medicalRecordId?: string;
+  evolutions?: Evolution[]; // Mantido como opcional caso queira passar manualmente
 }
 
-// Tipando explicitamente o 'type: EvolutionType'
 const getIcon = (type: EvolutionType) => {
   switch (type) {
     case 'PROCEDURE':
@@ -48,7 +51,45 @@ const getBadgeClass = (type: EvolutionType) => {
   }
 };
 
-export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({ evolutions }) => {
+export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
+  patientId,
+  medicalRecordId,
+  evolutions: initialEvolutions,
+}) => {
+  const [evolutions, setEvolutions] = useState<Evolution[]>(initialEvolutions || []);
+  const [loading, setLoading] = useState(!initialEvolutions);
+
+  useEffect(() => {
+    // Se já foi passado o array via props, não faz busca externa
+    if (initialEvolutions) return;
+
+    async function loadEvolutions() {
+      try {
+        setLoading(true);
+        // Se tiver medicalRecordId usa ele direto, senão busca pelo patientId ou rota genérica
+        const targetId = medicalRecordId || patientId;
+        if (!targetId) return;
+
+        const endpoint = medicalRecordId 
+          ? `/medical-records/${medicalRecordId}/evolutions`
+          : `/patients/${patientId}/evolutions`;
+
+        const { data } = await api.get(endpoint);
+        setEvolutions(Array.isArray(data) ? data : data.evolutions || []);
+      } catch (err) {
+        console.error('Erro ao carregar evoluções:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadEvolutions();
+  }, [patientId, medicalRecordId, initialEvolutions]);
+
+  if (loading) {
+    return <div className="timeline-empty">Carregando evoluções clínicas...</div>;
+  }
+
   if (!evolutions || evolutions.length === 0) {
     return (
       <div className="timeline-empty">
@@ -67,6 +108,8 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({ evolutio
           hour: '2-digit',
           minute: '2-digit',
         });
+
+        const authorName = item.dentistName || item.dentist?.name || 'Profissional da Saúde';
 
         return (
           <div key={item.id} className="timeline-item">
@@ -91,7 +134,7 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({ evolutio
 
               <div className="timeline-footer">
                 <User size={12} />
-                <span>Registrado por: <strong className="timeline-author">{item.dentistName}</strong></span>
+                <span>Registrado por: <strong className="timeline-author">{authorName}</strong></span>
               </div>
             </div>
           </div>
