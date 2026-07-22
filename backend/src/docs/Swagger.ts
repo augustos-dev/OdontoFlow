@@ -17,11 +17,11 @@ const options: swaggerJsdoc.Options = {
     },
     servers: [
       {
-        url: 'http://localhost:3333/api',
+        url: 'http://localhost:3333/',
         description: 'Servidor local de desenvolvimento',
       },
       {
-        url: 'https://odontoflow-api.onrender.com/api',
+        url: 'https://odontoflow-api.onrender.com/',
         description: 'Servidor de produção (Render)',
       },
     ],
