@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import api from '@/lib/api';
+import { Odontogram, OdontogramData } from '../tooth/Odontogram'; // 🦷 Import do Odontograma e Tipagem
 import './AddEvolutionModal.css';
 
 interface AddEvolutionModalProps {
@@ -19,6 +20,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   const [title, setTitle] = useState('');
   const [type, setType] = useState('NOTE');
   const [description, setDescription] = useState('');
+  const [odontogramSnapshot, setOdontogramSnapshot] = useState<OdontogramData>({}); // 📸 Estado do Snapshot
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
@@ -34,17 +36,19 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
     setLoading(true);
 
     try {
-      // 🎯 Bate na rota refatorada usando o UUID do PACIENTE
+      // 🎯 Bate na rota passando também o snapshot do Odontograma
       const response = await api.post(`/medical-records/${patientId}/evolutions`, {
         title,
         type,
         description,
+        odontogramSnapshot, // 💾 Salva o estado exato dos dentes neste atendimento
       });
 
       if (response.status === 200 || response.status === 201) {
         setTitle('');
         setDescription('');
         setType('NOTE');
+        setOdontogramSnapshot({});
         if (onSuccess) onSuccess();
       }
     } catch (err: any) {
@@ -57,7 +61,11 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div 
+        className="modal-content" 
+        onClick={(e) => e.stopPropagation()} 
+        style={{ maxWidth: '900px', width: '95%', maxHeight: '90vh', overflowY: 'auto' }} // Ajuste de tamanho para acomodar o Odontograma
+      >
         <form onSubmit={handleSubmit} className="add-evolution-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 className="add-evolution-title" style={{ margin: 0 }}>Nova Evolução / Anotação Clínica</h3>
@@ -102,7 +110,23 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
             />
           </div>
 
-          <div className="form-actions" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+          {/* 🦷 Seção Interativa do Odontograma */}
+          <div style={{ marginTop: '1.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+            <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.95rem', color: '#334155' }}>
+              Registro Anatômico do Atendimento (Odontograma)
+            </h4>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.8rem', color: '#64748b' }}>
+              Marque os procedimentos ou intercorrências realizadas nesta consulta para registrar o histórico inalterável.
+            </p>
+            
+            <Odontogram 
+              patientId={patientId}
+              value={odontogramSnapshot}
+              onChange={setOdontogramSnapshot}
+            />
+          </div>
+
+          <div className="form-actions" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
             <button
               type="button"
               onClick={onClose}

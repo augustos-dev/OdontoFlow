@@ -1,0 +1,76 @@
+.odontogram-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  background-color: #1e1e2e;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid #313244;
+}
+
+/* Barra de Ferramentas */
+.odontogram-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #313244;
+}
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #181825;
+  color: #cdd6f4;
+  border: 1px solid #313244;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toolbar-btn:hover {
+  background-color: #313244;
+}
+
+.toolbar-btn.active {
+  border-color: #89b4fa;
+  background-color: rgba(137, 180, 250, 0.1);
+  font-weight: 600;
+}
+
+.color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* Arcadas */
+.arch-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.arch-title {
+  font-size: 0.85rem;
+  color: #a6adc8;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.teeth-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.25rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.arch-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #313244, transparent);
+}

@@ -1,0 +1,88 @@
+/* Container do Dente */
+.tooth-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 42px;
+  user-select: none;
+}
+
+.tooth-number {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #a6adc8;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.tooth-number:hover {
+  color: #89b4fa;
+}
+
+/* SVG do Dente */
+.tooth-svg-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.tooth-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Estilo Base das Faces */
+.face {
+  fill: #181825; /* Cor neutra/fundo */
+  stroke: #45475a; /* Borda do dente */
+  stroke-width: 2;
+  cursor: pointer;
+  transition: fill 0.15s ease, stroke 0.15s ease;
+}
+
+/* Hover na face */
+.face:hover {
+  fill: #313244;
+  stroke: #89b4fa;
+}
+
+/* 🎨 MAPA DE CORES DOS PROCEDIMENTOS / STATUS */
+
+/* Cárie (Vermelho) */
+.face.carie {
+  fill: #f38ba8 !important;
+}
+
+/* Restaurado (Azul) */
+.face.restaurado {
+  fill: #89b4fa !important;
+}
+
+/* Tratamento de Canal / Selante (Roxo) */
+.face.canal {
+  fill: #cba6f7 !important;
+}
+
+/* Prótese / Coroa (Laranja) */
+.face.coroa {
+  fill: #fab387 !important;
+}
+
+/* Dente Ausente / Extraído */
+.tooth-wrapper.missing .face {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.missing-cross {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #f38ba8;
+  pointer-events: none;
+}

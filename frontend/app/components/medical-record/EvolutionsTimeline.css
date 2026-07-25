@@ -85,11 +85,15 @@
 }
 
 .timeline-description {
+  display: -webkit-box;
+  -webkit-line-clamp: 2; /* Número máximo de linhas */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0.5rem 0;
+  line-height: 1.4;
+  color: #475569; /* Cor discreta para o preview */
   font-size: 0.875rem;
-  color: #475569;
-  white-space: pre-line;
-  margin: 0 0 0.75rem 0;
-  line-height: 1.5;
 }
 
 .timeline-footer {
@@ -139,4 +143,15 @@
   background-color: #f8fafc;
   color: #334155;
   border-color: #e2e8f0;
+}
+/* Adicione essa classe no seu CSS da timeline para dar o efeito de clique */
+.timeline-card.clickable {
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.timeline-card.clickable:hover {
+  border-color: #45475a;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }

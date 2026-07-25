@@ -1,4 +1,3 @@
-// app/(dashboard)/pacientes/[id]/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -10,6 +9,7 @@ import styles from './perfil.module.css'
 import DetalhesAgendamentoModal from '@/app/components/DetalhesAgendamentoModal'
 import { EvolutionsTimeline } from '../../../components/medical-record/EvolutionsTimeline'
 import { AddEvolutionModal } from '../../../components/medical-record/AddEvolutionModal'
+import { Odontogram } from '../../../components/tooth/Odontogram' // 🦷 Import do Odontograma
 
 // Import de Tipos Globais
 import { Patient, MedicalRecord } from '../../../../types/patient.types'
@@ -56,7 +56,7 @@ export default function PerfilPacientePage() {
   
   const [patient, setPatient] = useState<Patient | null>(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'info' | 'prontuario' | 'evolucoes' | 'agenda' | 'planos'>('info')
+  const [tab, setTab] = useState<'info' | 'prontuario' | 'evolucoes' | 'agenda' | 'planos'>('prontuario')
   
   // Modais & Timeline State
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
@@ -126,9 +126,7 @@ export default function PerfilPacientePage() {
 
     setSavingMR(true)
     try {
-      // Bate exatamente na rota PUT /medical-records/:patientId
       await api.put(`/medical-records/${id}`, mrForm)
-
       await load()
       setIsEditingMR(false)
     } catch (err: any) {
@@ -277,223 +275,237 @@ export default function PerfilPacientePage() {
         </div>
       )}
 
-      {/* ─── Prontuário Base (Com Suporte a Tags + Edição) ─── */}
+      {/* ─── Prontuário Base + Odontograma ─── */}
       {tab === 'prontuario' && (
-        <div className={styles.card}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <div>
-              <h3 className={styles.sectionTitle} style={{ margin: 0 }}>Anamnese & Prontuário Base</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* 1. Bloco de Anamnese */}
+          <div className={styles.card}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div>
+                <h3 className={styles.sectionTitle} style={{ margin: 0 }}>Anamnese & Prontuário Base</h3>
+              </div>
+              {!isEditingMR && (
+                <button 
+                  type="button"
+                  onClick={() => setIsEditingMR(true)}
+                  style={{ 
+                    background: '#0284c7', 
+                    color: '#fff', 
+                    border: 'none', 
+                    padding: '0.5rem 1rem', 
+                    borderRadius: '6px',
+                    fontWeight: '600',
+                    cursor: 'pointer' 
+                  }}
+                >
+                  ✏️ Preencher Anamnese
+                </button>
+              )}
             </div>
-            {!isEditingMR && (
-              <button 
-                type="button"
-                onClick={() => setIsEditingMR(true)}
-                style={{ 
-                  background: '#0284c7', 
-                  color: '#fff', 
-                  border: 'none', 
-                  padding: '0.5rem 1rem', 
-                  borderRadius: '6px',
-                  fontWeight: '600',
-                  cursor: 'pointer' 
-                }}
-              >
-                ✏️ Preencher Anamnese
-              </button>
+
+            {isEditingMR ? (
+              <form onSubmit={handleSaveMedicalRecord} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {/* Queixa Principal */}
+                <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <span className={styles.infoLabel}>QUEIXA PRINCIPAL</span>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', margin: '8px 0' }}>
+                    {['Dor de Dente', 'Limpeza / Check-up', 'Estética / Clareamento', 'Aparelho / Ortodontia', 'Prótese / Implante'].map((tag) => {
+                      const active = mrForm.chiefComplaint.includes(tag)
+                      return (
+                        <button
+                          type="button"
+                          key={tag}
+                          onClick={() => toggleTag('chiefComplaint', tag)}
+                          style={getTagStyle(active)}
+                        >
+                          {active ? '✓ ' : '+ '} {tag}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="Observação ou detalhamento..."
+                    value={mrForm.chiefComplaint}
+                    onChange={(e) => setMrForm({ ...mrForm, chiefComplaint: e.target.value })}
+                    style={inputStyle}
+                  />
+                </div>
+
+                {/* Alergias e Doenças Sistêmicas */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span className={styles.infoLabel}>ALERGIAS</span>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '8px 0' }}>
+                      {['Penicilina', 'Dipirona', 'Anestésicos', 'Látex', 'Nenhuma'].map((tag) => {
+                        const active = mrForm.allergies.includes(tag)
+                        return (
+                          <button
+                            type="button"
+                            key={tag}
+                            onClick={() => toggleTag('allergies', tag)}
+                            style={getTagStyle(active)}
+                          >
+                            {active ? '✓ ' : '+ '} {tag}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <input 
+                      type="text" 
+                      placeholder="Outras alergias..."
+                      value={mrForm.allergies}
+                      onChange={(e) => setMrForm({ ...mrForm, allergies: e.target.value })}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span className={styles.infoLabel}>DOENÇAS SISTÊMICAS</span>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '8px 0' }}>
+                      {['Hipertensão', 'Diabetes', 'Cardiopatia', 'Gestante', 'Nenhuma'].map((tag) => {
+                        const active = mrForm.systemicDiseases.includes(tag)
+                        return (
+                          <button
+                            type="button"
+                            key={tag}
+                            onClick={() => toggleTag('systemicDiseases', tag)}
+                            style={getTagStyle(active)}
+                          >
+                            {active ? '✓ ' : '+ '} {tag}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <input 
+                      type="text" 
+                      placeholder="Outras condições..."
+                      value={mrForm.systemicDiseases}
+                      onChange={(e) => setMrForm({ ...mrForm, systemicDiseases: e.target.value })}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+
+                {/* Medicamentos e Hábitos */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span className={styles.infoLabel}>MEDICAMENTOS EM USO</span>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Losartana 50mg, Anticoncepcional..."
+                      value={mrForm.medications}
+                      onChange={(e) => setMrForm({ ...mrForm, medications: e.target.value })}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span className={styles.infoLabel}>HÁBITOS</span>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '8px 0' }}>
+                      {['Fumante', 'Bruxismo', 'Consome Álcool', 'Fio Dental Diário'].map((tag) => {
+                        const active = mrForm.habits.includes(tag)
+                        return (
+                          <button
+                            type="button"
+                            key={tag}
+                            onClick={() => toggleTag('habits', tag)}
+                            style={getTagStyle(active)}
+                          >
+                            {active ? '✓ ' : '+ '} {tag}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <input 
+                      type="text" 
+                      placeholder="Outros hábitos..."
+                      value={mrForm.habits}
+                      onChange={(e) => setMrForm({ ...mrForm, habits: e.target.value })}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span className={styles.infoLabel}>TIPO SANGUÍNEO</span>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: O+, A-, B+"
+                      value={mrForm.bloodType}
+                      onChange={(e) => setMrForm({ ...mrForm, bloodType: e.target.value })}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span className={styles.infoLabel}>HISTÓRICO MÉDICO / OBSERVAÇÕES</span>
+                    <input 
+                      type="text" 
+                      placeholder="Observações adicionais relevantes..."
+                      value={mrForm.historyNotes}
+                      onChange={(e) => setMrForm({ ...mrForm, historyNotes: e.target.value })}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => setIsEditingMR(false)}
+                    style={{ padding: '0.6rem 1.2rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={savingMR}
+                    style={{ padding: '0.6rem 1.2rem', borderRadius: '6px', border: 'none', background: '#0284c7', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    {savingMR ? 'Salvando...' : 'Salvar Anamnese'}
+                  </button>
+                </div>
+              </form>
+            ) : !mr ? (
+              <p className={styles.empty}>Prontuário ainda não preenchido. Clique em "Preencher Anamnese" acima para cadastrar.</p>
+            ) : (
+              <div className={styles.prontuarioGrid}>
+                {[
+                  { label: 'Queixa principal', value: mr.chiefComplaint },
+                  { label: 'Histórico médico', value: mr.historyNotes },
+                  { label: 'Alergias', value: mr.allergies },
+                  { label: 'Medicamentos em uso', value: mr.medications },
+                  { label: 'Tipo sanguíneo', value: mr.bloodType },
+                  { label: 'Hábitos', value: mr.habits },
+                  { label: 'Doenças sistêmicas', value: mr.systemicDiseases },
+                ].map((item) => (
+                  <div key={item.label} className={styles.prontuarioItem}>
+                    <span className={styles.infoLabel}>{item.label}</span>
+                    <span className={`${styles.infoValue} ${!item.value ? styles.infoEmpty : ''}`}>
+                      {item.value || 'Não informado'}
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
-          {isEditingMR ? (
-            /* Formulário com Seleção Rápida */
-            <form onSubmit={handleSaveMedicalRecord} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              
-              {/* Queixa Principal */}
-              <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <span className={styles.infoLabel}>QUEIXA PRINCIPAL</span>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', margin: '8px 0' }}>
-                  {['Dor de Dente', 'Limpeza / Check-up', 'Estética / Clareamento', 'Aparelho / Ortodontia', 'Prótese / Implante'].map((tag) => {
-                    const active = mrForm.chiefComplaint.includes(tag)
-                    return (
-                      <button
-                        type="button"
-                        key={tag}
-                        onClick={() => toggleTag('chiefComplaint', tag)}
-                        style={getTagStyle(active)}
-                      >
-                        {active ? '✓ ' : '+ '} {tag}
-                      </button>
-                    )
-                  })}
-                </div>
-                <input 
-                  type="text" 
-                  placeholder="Observação ou detalhamento..."
-                  value={mrForm.chiefComplaint}
-                  onChange={(e) => setMrForm({ ...mrForm, chiefComplaint: e.target.value })}
-                  style={inputStyle}
-                />
-              </div>
-
-              {/* Alergias e Doenças Sistêmicas */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <span className={styles.infoLabel}>ALERGIAS</span>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '8px 0' }}>
-                    {['Penicilina', 'Dipirona', 'Anestésicos', 'Látex', 'Nenhuma'].map((tag) => {
-                      const active = mrForm.allergies.includes(tag)
-                      return (
-                        <button
-                          type="button"
-                          key={tag}
-                          onClick={() => toggleTag('allergies', tag)}
-                          style={getTagStyle(active)}
-                        >
-                          {active ? '✓ ' : '+ '} {tag}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <input 
-                    type="text" 
-                    placeholder="Outras alergias..."
-                    value={mrForm.allergies}
-                    onChange={(e) => setMrForm({ ...mrForm, allergies: e.target.value })}
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <span className={styles.infoLabel}>DOENÇAS SISTÊMICAS</span>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '8px 0' }}>
-                    {['Hipertensão', 'Diabetes', 'Cardiopatia', 'Gestante', 'Nenhuma'].map((tag) => {
-                      const active = mrForm.systemicDiseases.includes(tag)
-                      return (
-                        <button
-                          type="button"
-                          key={tag}
-                          onClick={() => toggleTag('systemicDiseases', tag)}
-                          style={getTagStyle(active)}
-                        >
-                          {active ? '✓ ' : '+ '} {tag}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <input 
-                    type="text" 
-                    placeholder="Outras condições..."
-                    value={mrForm.systemicDiseases}
-                    onChange={(e) => setMrForm({ ...mrForm, systemicDiseases: e.target.value })}
-                    style={inputStyle}
-                  />
-                </div>
-              </div>
-
-              {/* Medicamentos, Hábitos, Tipo Sanguíneo & Histórico */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <span className={styles.infoLabel}>MEDICAMENTOS EM USO</span>
-                  <input 
-                    type="text" 
-                    placeholder="Ex: Losartana 50mg, Anticoncepcional..."
-                    value={mrForm.medications}
-                    onChange={(e) => setMrForm({ ...mrForm, medications: e.target.value })}
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <span className={styles.infoLabel}>HÁBITOS</span>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '8px 0' }}>
-                    {['Fumante', 'Bruxismo', 'Consome Álcool', 'Fio Dental Diário'].map((tag) => {
-                      const active = mrForm.habits.includes(tag)
-                      return (
-                        <button
-                          type="button"
-                          key={tag}
-                          onClick={() => toggleTag('habits', tag)}
-                          style={getTagStyle(active)}
-                        >
-                          {active ? '✓ ' : '+ '} {tag}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <input 
-                    type="text" 
-                    placeholder="Outros hábitos..."
-                    value={mrForm.habits}
-                    onChange={(e) => setMrForm({ ...mrForm, habits: e.target.value })}
-                    style={inputStyle}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
-                <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <span className={styles.infoLabel}>TIPO SANGUÍNEO</span>
-                  <input 
-                    type="text" 
-                    placeholder="Ex: O+, A-, B+"
-                    value={mrForm.bloodType}
-                    onChange={(e) => setMrForm({ ...mrForm, bloodType: e.target.value })}
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <span className={styles.infoLabel}>HISTÓRICO MÉDICO / OBSERVAÇÕES</span>
-                  <input 
-                    type="text" 
-                    placeholder="Observações adicionais relevantes..."
-                    value={mrForm.historyNotes}
-                    onChange={(e) => setMrForm({ ...mrForm, historyNotes: e.target.value })}
-                    style={inputStyle}
-                  />
-                </div>
-              </div>
-
-              {/* Botões do Formulário */}
-              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                <button 
-                  type="button" 
-                  onClick={() => setIsEditingMR(false)}
-                  style={{ padding: '0.6rem 1.2rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={savingMR}
-                  style={{ padding: '0.6rem 1.2rem', borderRadius: '6px', border: 'none', background: '#0284c7', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
-                >
-                  {savingMR ? 'Salvando...' : 'Salvar Anamnese'}
-                </button>
-              </div>
-            </form>
-          ) : !mr ? (
-            <p className={styles.empty}>Prontuário ainda não preenchido. Clique em "Preencher Anamnese" acima para cadastrar.</p>
-          ) : (
-            /* Modo Leitura Padrão */
-            <div className={styles.prontuarioGrid}>
-              {[
-                { label: 'Queixa principal', value: mr.chiefComplaint },
-                { label: 'Histórico médico', value: mr.historyNotes },
-                { label: 'Alergias', value: mr.allergies },
-                { label: 'Medicamentos em uso', value: mr.medications },
-                { label: 'Tipo sanguíneo', value: mr.bloodType },
-                { label: 'Hábitos', value: mr.habits },
-                { label: 'Doenças sistêmicas', value: mr.systemicDiseases },
-              ].map((item) => (
-                <div key={item.label} className={styles.prontuarioItem}>
-                  <span className={styles.infoLabel}>{item.label}</span>
-                  <span className={`${styles.infoValue} ${!item.value ? styles.infoEmpty : ''}`}>
-                    {item.value || 'Não informado'}
-                  </span>
-                </div>
-              ))}
+          {/* 2. Bloco do Odontograma */}
+          <div className={styles.card}>
+            <div style={{ marginBottom: '1.25rem' }}>
+              <h3 className={styles.sectionTitle} style={{ margin: 0 }}>Mapa Bucal (Odontograma)</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                Selecione um procedimento na barra de ferramentas e clique nas faces anatômicas para registrar o estado dos dentes.
+              </p>
             </div>
-          )}
+            
+            {/* Componente do Odontograma renderizado aqui */}
+            <Odontogram patientId={id as string} />
+          </div>
+
         </div>
       )}
 
@@ -607,7 +619,7 @@ export default function PerfilPacientePage() {
         onClose={() => setIsAddEvolutionOpen(false)}
         onSuccess={() => {
           setIsAddEvolutionOpen(false)
-          load() // Recarrega o paciente para garantir sincronização do prontuário
+          load()
           setReloadEvolutionsTrigger(prev => prev + 1)
         }}
       />

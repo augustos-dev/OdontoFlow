@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { Stethoscope, ClipboardList, FileText, Paperclip, User } from 'lucide-react';
+import { EvolutionDetailsModal } from './EvolutionDetailsModal'; // 👈 Importando o modal
+import { Tooth } from '../tooth/Tooth';
 import './EvolutionsTimeline.css';
 
 export type EvolutionType = 'PROCEDURE' | 'ANAMNESIS' | 'NOTE' | 'FILE' | string;
@@ -57,6 +59,9 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
   const [evolutions, setEvolutions] = useState<Evolution[]>(initialEvolutions || []);
   const [loading, setLoading] = useState(!initialEvolutions);
 
+  // 🎯 Estado para controlar qual evolução está selecionada para o modal
+  const [selectedEvolution, setSelectedEvolution] = useState<Evolution | null>(null);
+
   useEffect(() => {
     if (initialEvolutions) return;
 
@@ -65,7 +70,6 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
 
       try {
         setLoading(true);
-        // 🎯 Rota unificada no padrão /medical-records/:patientId/evolutions
         const { data } = await api.get(`/medical-records/${patientId}/evolutions`);
         setEvolutions(Array.isArray(data) ? data : data.evolutions || []);
       } catch (err) {
@@ -91,47 +95,69 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
   }
 
   return (
-    <div className="timeline-container">
-      {evolutions.map((item) => {
-        const formattedDate = new Date(item.createdAt).toLocaleDateString('pt-BR', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
+    <>
+      <div className="timeline-container">
+        {evolutions.map((item) => {
+          const formattedDate = new Date(item.createdAt).toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
 
-        const authorName = item.dentistName || item.dentist?.name || 'Profissional da Saúde';
+          const authorName = item.dentistName || item.dentist?.name || 'Profissional da Saúde';
 
-        return (
-          <div key={item.id} className="timeline-item">
-            <div className="timeline-icon-badge">
-              {getIcon(item.type)}
-            </div>
+          return (
+            <div key={item.id} className="timeline-item">
+              <div className="timeline-icon-badge">
+                {getIcon(item.type)}
+              </div>
 
-            <div className="timeline-card">
-              <div className="timeline-header">
-                <div className="timeline-header-left">
-                  <span className={getBadgeClass(item.type)}>
-                    {item.type}
-                  </span>
-                  <h4 className="timeline-title">{item.title}</h4>
+              {/* 🎯 Adicionado evento de clique para abrir o modal com o item atual */}
+              <div 
+                className="timeline-card clickable" 
+                onClick={() => setSelectedEvolution(item)}
+              >
+                <div className="timeline-header">
+                  <div className="timeline-header-left">
+                    <span className={getBadgeClass(item.type)}>
+                      {item.type}
+                    </span>
+                    <h4 className="timeline-title">{item.title}</h4>
+                  </div>
+                  <time className="timeline-date">{formattedDate}</time>
                 </div>
-                <time className="timeline-date">{formattedDate}</time>
-              </div>
 
-              <p className="timeline-description">
-                {item.description}
-              </p>
+                <p className="timeline-description">
+                  {item.description}
+                </p>
 
-              <div className="timeline-footer">
-                <User size={12} />
-                <span>Registrado por: <strong className="timeline-author">{authorName}</strong></span>
+                <div className="timeline-footer">
+                  <User size={12} />
+                  <span>Registrado por: <strong className="timeline-author">{authorName}</strong></span>
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+
+      {/* 🎯 Renderização do Modal com CSS puro */}
+      <EvolutionDetailsModal
+        evolution={selectedEvolution}
+        onClose={() => setSelectedEvolution(null)}
+      />
+      <Tooth 
+  number={16} 
+  faces={{
+    oclusal: 'carie',      // Vermelho
+    mesial: 'restaurado',  // Azul
+  }}
+  onFaceClick={(toothNumber, face) => {
+    console.log(`Dente ${toothNumber}, Face clicada: ${face}`)
+  }}
+/>
+    </>
   );
 };
