@@ -16,11 +16,18 @@ process.on('unhandledRejection', (reason) => {
   process.exit(1)
 })
 
-
 const app = express()
 const PORT = process.env.PORT ?? 3333
 
-app.use(cors())
+// Ajuste Fino de CORS
+app.use(
+  cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'accept'],
+  })
+)
+
 app.use(express.json())
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {

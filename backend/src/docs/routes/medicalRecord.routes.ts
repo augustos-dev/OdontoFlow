@@ -1,271 +1,87 @@
-// backend/src/routes/medicalRecord.routes.ts
-
 import { Router } from "express"
+import { EvolutionController } from "../../controllers/evolutionController"
 import {
   getMedicalRecordByPatientController,
   getOdontogramController,
   lockEvolutionController,
-  CreateEvolutionController,
   updateEvolutionController,
   upsertToothConditionController,
   UpdateMedicalRecordController,
-  deleteToothConditionController,
+  deleteToothConditionController
 } from '../../controllers/medicalRecordController'
 import { authenticate, authorize } from "../../middlewares/authMiddlewares"
 
 const medicalRecordRouter = Router()
+const evolutionController = new EvolutionController()
 
+// Aplica autenticação JWT para todas as rotas
 medicalRecordRouter.use(authenticate)
 
-/**
- * @openapi
- * /medical-records/evolutions/{evolutionId}:
- *   put:
- *     summary: Edita uma evolução clínica não travada (apenas DENTIST)
- *     tags: [Medical Records]
- *     parameters:
- *       - in: path
- *         name: evolutionId
- *         required: true
- *         schema: { type: string, format: uuid }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [description]
- *             properties:
- *               description: { type: string, example: 'Realizada extração do dente 48 sem intercorrências.' }
- *     responses:
- *       200:
- *         description: Evolução atualizada com sucesso
- *       400:
- *         description: Evolução já travada não pode ser editada
- *       403:
- *         $ref: '#/components/responses/Forbidden'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
-medicalRecordRouter.put('/evolutions/:evolutionId', authorize('DENTIST'), updateEvolutionController)
+// ─── 1. EVOLUÇÕES CLÍNICAS ───────────────────────────────────────────────────
 
-/**
- * @openapi
- * /medical-records/evolutions/{evolutionId}/lock:
- *   patch:
- *     summary: Trava uma evolução clínica (registro legal imutável)
- *     tags: [Medical Records]
- *     parameters:
- *       - in: path
- *         name: evolutionId
- *         required: true
- *         schema: { type: string, format: uuid }
- *     responses:
- *       200:
- *         description: Evolução travada com sucesso
- *       400:
- *         description: Evolução já está travada
- *       403:
- *         $ref: '#/components/responses/Forbidden'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
-medicalRecordRouter.patch('/evolutions/:evolutionId/lock', authorize('DENTIST', 'ADMIN'), lockEvolutionController)
+// GET /api/medical-records/:medicalRecordId/evolutions — buscar histórico
+medicalRecordRouter.get(
+  '/:medicalRecordId/evolutions', 
+  evolutionController.getEvolutions
+)
 
-/**
- * @openapi
- * /medical-records/{patientId}/evolutions:
- *   post:
- *     summary: Registra uma nova evolução clínica no prontuário (apenas DENTIST)
- *     tags: [Medical Records]
- *     parameters:
- *       - in: path
- *         name: patientId
- *         required: true
- *         schema: { type: string, format: uuid }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [description]
- *             properties:
- *               description: { type: string, example: 'Profilaxia realizada. Orientações de higiene bucal fornecidas.' }
- *     responses:
- *       201:
- *         description: Evolução registrada com sucesso
- *       403:
- *         $ref: '#/components/responses/Forbidden'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
-medicalRecordRouter.post('/:patientId/evolutions', authorize('DENTIST'), CreateEvolutionController)
+// POST /api/medical-records/:patientId/evolutions — registrar nova evolução
+// ⚠️ Aponta para evolutionController.create e permite DENTIST / ADMIN
+medicalRecordRouter.post(
+  '/:patientId/evolutions', 
+  authorize('DENTIST', 'ADMIN'), 
+  evolutionController.create
+)
 
-/**
- * @openapi
- * /medical-records/{patientId}:
- *   get:
- *     summary: Retorna o prontuário clínico completo do paciente
- *     tags: [Medical Records]
- *     parameters:
- *       - in: path
- *         name: patientId
- *         required: true
- *         schema: { type: string, format: uuid }
- *     responses:
- *       200:
- *         description: Prontuário com anamnese, evoluções e odontograma
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id: { type: string }
- *                 chiefComplaint: { type: string }
- *                 historyNotes: { type: string }
- *                 allergies: { type: string }
- *                 medications: { type: string }
- *                 bloodType: { type: string }
- *                 habits: { type: string }
- *                 systemicDiseases: { type: string }
- *                 evolutions:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id: { type: string }
- *                       description: { type: string }
- *                       isLocked: { type: boolean }
- *                       createdAt: { type: string, format: date-time }
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
-medicalRecordRouter.get('/:patientId', getMedicalRecordByPatientController)
+// PUT /api/medical-records/evolutions/:evolutionId — editar evolução não travada
+medicalRecordRouter.put(
+  '/evolutions/:evolutionId', 
+  authorize('DENTIST', 'ADMIN'), 
+  updateEvolutionController
+)
 
-/**
- * @openapi
- * /medical-records/{patientId}:
- *   put:
- *     summary: Atualiza a anamnese do prontuário (ADMIN ou DENTIST)
- *     tags: [Medical Records]
- *     parameters:
- *       - in: path
- *         name: patientId
- *         required: true
- *         schema: { type: string, format: uuid }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               chiefComplaint: { type: string }
- *               historyNotes: { type: string }
- *               allergies: { type: string }
- *               medications: { type: string }
- *               bloodType: { type: string }
- *               habits: { type: string }
- *               systemicDiseases: { type: string }
- *     responses:
- *       200:
- *         description: Prontuário atualizado com sucesso
- *       403:
- *         $ref: '#/components/responses/Forbidden'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
-medicalRecordRouter.put('/:patientId', authorize('ADMIN', 'DENTIST'), UpdateMedicalRecordController)
+// PATCH /api/medical-records/evolutions/:evolutionId/lock — travar evolução
+medicalRecordRouter.patch(
+  '/evolutions/:evolutionId/lock', 
+  authorize('DENTIST', 'ADMIN'), 
+  lockEvolutionController
+)
 
-/**
- * @openapi
- * /medical-records/{patientId}/odontogram:
- *   get:
- *     summary: Retorna o odontograma completo do paciente (mapa dos 32 dentes)
- *     tags: [Medical Records]
- *     parameters:
- *       - in: path
- *         name: patientId
- *         required: true
- *         schema: { type: string, format: uuid }
- *     responses:
- *       200:
- *         description: Lista de condições por dente
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   toothNumber: { type: integer, example: 11 }
- *                   condition: { type: string, example: 'CARIE' }
- *                   faces: { type: array, items: { type: string } }
- *                   notes: { type: string }
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
-medicalRecordRouter.get('/:patientId/odontogram', getOdontogramController)
+// ─── 2. ODONTOGRAMA ──────────────────────────────────────────────────────────
 
-/**
- * @openapi
- * /medical-records/{patientId}/odontogram:
- *   put:
- *     summary: Cria ou atualiza a condição de um dente no odontograma (upsert)
- *     tags: [Medical Records]
- *     parameters:
- *       - in: path
- *         name: patientId
- *         required: true
- *         schema: { type: string, format: uuid }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [toothNumber, condition]
- *             properties:
- *               toothNumber: { type: integer, example: 16 }
- *               condition: { type: string, example: 'RESTAURADO' }
- *               faces: { type: array, items: { type: string }, example: ['OCLUSAL', 'MESIAL'] }
- *               notes: { type: string }
- *     responses:
- *       200:
- *         description: Condição do dente atualizada com sucesso
- *       403:
- *         $ref: '#/components/responses/Forbidden'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
-medicalRecordRouter.put('/:patientId/odontogram', authorize('ADMIN', 'DENTIST'), upsertToothConditionController)
+// GET /api/medical-records/:medicalRecordId/odontogram — snapshot atual
+medicalRecordRouter.get(
+  '/:medicalRecordId/odontogram', 
+  evolutionController.getCurrentOdontogram
+)
 
-/**
- * @openapi
- * /medical-records/{patientId}/odontogram/{toothNumber}:
- *   delete:
- *     summary: Remove o registro de condição de um dente do odontograma
- *     tags: [Medical Records]
- *     parameters:
- *       - in: path
- *         name: patientId
- *         required: true
- *         schema: { type: string, format: uuid }
- *       - in: path
- *         name: toothNumber
- *         required: true
- *         schema: { type: integer, example: 16 }
- *     responses:
- *       204:
- *         description: Registro removido com sucesso
- *       403:
- *         $ref: '#/components/responses/Forbidden'
- *       404:
- *         $ref: '#/components/responses/NotFound'
- */
-medicalRecordRouter.delete('/:patientId/odontogram/:toothNumber', authorize('ADMIN', 'DENTIST'), deleteToothConditionController)
+// PUT /api/medical-records/:patientId/odontogram — criar/atualizar dente
+medicalRecordRouter.put(
+  '/:patientId/odontogram', 
+  authorize('ADMIN', 'DENTIST'), 
+  upsertToothConditionController
+)
+
+// DELETE /api/medical-records/:patientId/odontogram/:toothNumber
+medicalRecordRouter.delete(
+  '/:patientId/odontogram/:toothNumber', 
+  authorize('ADMIN', 'DENTIST'), 
+  deleteToothConditionController
+)
+
+// ─── 3. PRONTUÁRIO ───────────────────────────────────────────────────────────
+
+// GET /api/medical-records/:patientId — prontuário completo
+medicalRecordRouter.get(
+  '/:patientId', 
+  getMedicalRecordByPatientController
+)
+
+// PUT /api/medical-records/:patientId — atualizar anamnese
+medicalRecordRouter.put(
+  '/:patientId', 
+  authorize('ADMIN', 'DENTIST'), 
+  UpdateMedicalRecordController
+)
 
 export default medicalRecordRouter

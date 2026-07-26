@@ -21,7 +21,7 @@ router.use('/products', productRouter)
 router.use('/medical-records', medicalRecordRouter)
 router.use('/procedures', procedureRoutes)
 router.use('/treatment-plans', treatmentPlanRoutes)
-router.use('user',userRoutes)
+router.use('/users',userRoutes)
 router.use('/clinics', clinicRoutes)
 router.use('/dashboard', dashboardRoutes)
  

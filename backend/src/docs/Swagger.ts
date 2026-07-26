@@ -16,15 +16,15 @@ const options: swaggerJsdoc.Options = {
       },
     },
     servers: [
-      {
-        url: 'http://localhost:3333/api',
-        description: 'Servidor local de desenvolvimento',
-      },
-      {
-        url: 'https://odontoflow-api.onrender.com/api',
-        description: 'Servidor de produção (Render)',
-      },
-    ],
+  {
+    url: 'https://odontoflow-bbcl.onrender.com/api',
+    description: 'Servidor de produção (Render)',
+  },
+  {
+    url: 'http://localhost:3333/api',
+    description: 'Servidor local de desenvolvimento',
+  },
+],
     components: {
       securitySchemes: {
         bearerAuth: {
