@@ -37,7 +37,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
 
     try {
       // 🎯 Bate na rota passando também o snapshot do Odontograma
-      const response = await api.post(`/medical-records/${patientId}/evolutions`, {
+      const response = await api.post('/medical-records/evolutions', {
         title,
         type,
         description,
