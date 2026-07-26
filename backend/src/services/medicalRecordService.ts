@@ -135,30 +135,32 @@ export async function CreateEvolution(
   dentistId: string,
   data: CreateEvolutionDTO
 ) {
-  // 1. Busca o prontuário
+  // 1. Busca o prontuário de forma flexível
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-  // 2. Valida se o dentista pertence à clínica/tenant e está ativo
+  // 2. Valida se o profissional existe no tenant e está ativo 
+  // (Permite DENTIST, ADMIN ou outros perfis com permissão)
   const dentist = await prisma.user.findFirst({
     where: {
       id: dentistId,
       tenantId,
-      clinicId,
-      role: 'DENTIST',
-      isActive: true
+      isActive: true,
+      role: {
+        in: ['DENTIST', 'ADMIN',] // Flexibiliza as roles permitidas
+      }
     }
   })
 
   if (!dentist) {
-    throw new AppError('Dentista não encontrado ou inativo.', 404)
+    throw new AppError('Dentista/Profissional não encontrado ou inativo.', 404)
   }
 
-  // 3. Cria a evolução salvando a descrição e o snapshot do odontograma (se fornecido)
+  // 3. Cria a evolução salvando a descrição e o snapshot do odontograma
   return prisma.evolution.create({
     data: {
       tenantId,
       medicalRecordId: medicalRecord.id,
-      dentistId,
+      dentistId: dentist.id,
       description: data.description,
       ...(data.odontogramSnapshot && { odontogramSnapshot: data.odontogramSnapshot }),
     },
@@ -167,7 +169,6 @@ export async function CreateEvolution(
     },
   })
 }
-
 // -----------------------------------------------------------------------------
 // LOCK EVOLUTION (Trava Legal / LGPD)
 // -----------------------------------------------------------------------------
