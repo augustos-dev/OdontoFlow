@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import api from '@/lib/api';
+import api from '../../../lib/api';
 import { Odontogram, OdontogramData } from '../tooth/Odontogram';
 import './AddEvolutionModal.css';
 
@@ -42,17 +42,15 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
     setLoading(true);
 
     try {
-      // ─── Monta a descrição completa com título e tipo ───
-      const fullDescription = [
-        title ? `[${title}]` : null,
-        type !== 'NOTE' ? `Tipo: ${type === 'PROCEDURE' ? 'Procedimento' : 'Anamnese'}` : null,
+      // ─── ✅ Payload Corrigido: Envia o Snapshot JSONB e campos estruturados ───
+      const payload = {
+        title: title.trim() || undefined,
+        type,
         description,
-      ].filter(Boolean).join('\n')
+        odontogramSnapshot: Object.keys(odontogramSnapshot).length > 0 ? odontogramSnapshot : null,
+      };
 
-      // ─── Rota correta: POST /medical-records/:patientId/evolutions ───
-      const response = await api.post(`/medical-records/${patientId}/evolutions`, {
-        description: fullDescription,
-      });
+      const response = await api.post(`/medical-records/${patientId}/evolutions`, payload);
 
       if (response.status === 200 || response.status === 201) {
         setTitle('');

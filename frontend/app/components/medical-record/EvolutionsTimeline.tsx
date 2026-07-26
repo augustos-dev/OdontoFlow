@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import api from '@/lib/api';
+import api from '../../../lib/api';
 import { Stethoscope, ClipboardList, FileText, Paperclip, User } from 'lucide-react';
 import { EvolutionDetailsModal } from './EvolutionDetailsModal'; // 👈 Importando o modal
+import { OdontogramData } from '../tooth/Odontogram';
 import { Tooth } from '../tooth/Tooth';
 import './EvolutionsTimeline.css';
 
@@ -13,8 +14,9 @@ export interface Evolution {
   dentistName?: string;
   dentist?: { name: string };
   type: EvolutionType;
-  title: string;
+  title?: string;
   description: string;
+  odontogramSnapshot?: OdontogramData | null; // 📸 ✅ Adicionado para a timeline aceitar e repassar pro modal
   createdAt: string;
 }
 
