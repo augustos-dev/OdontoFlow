@@ -109,15 +109,25 @@ export async function CreateEvolution(
     dentistId: string,
     data: CreateEvolutionDTO
 ) {
+    // 🔍 COLOCE O LOG LOGO AQUI NO INÍCIO DA FUNÇÃO:
+    console.log('--- DEBUG EVOLUTION ---')
+    console.log('Params recebidos:', { tenantId, clinicId, patientId, dentistId })
+
     const medicalRecord = await prisma.medicalRecord.findUnique({
         where: { tenantId_patientId: { tenantId, patientId } },
     })
 
     if (!medicalRecord) {
-        throw new AppError('Prontuário não encontrado', 404)
+        console.log('❌ FALHOU: Prontuário não existe no banco para este patientId!')
+        throw new AppError('Prontuario nao encontrado', 404)
     }
+
     if (medicalRecord.clinicId !== clinicId) {
-        throw new AppError('Prontuário não encontrado', 404)
+        console.log('❌ FALHOU: clinicId do prontuário é diferente do token!', {
+            recordClinic: medicalRecord.clinicId,
+            tokenClinic: clinicId
+        })
+        throw new AppError('Prontuario nao encontrado', 404)
     }
 
     const dentist = await prisma.user.findFirst({
@@ -125,8 +135,11 @@ export async function CreateEvolution(
     })
 
     if (!dentist) {
-        throw new AppError('Dentista não encontrado ou inativo', 404)
+        console.log('❌ FALHOU: Dentista não encontrado no banco com esses critérios!')
+        throw new AppError('Dentista nao encontrado ou inativo', 404)
     }
+
+    console.log('✅ PASSOU POR TODAS AS VALIDAÇÕES!')
 
     return prisma.evolution.create({
         data: {
