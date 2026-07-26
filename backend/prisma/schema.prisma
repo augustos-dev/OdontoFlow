@@ -226,6 +226,10 @@ model Evolution {
   medicalRecordId String
   dentistId       String
   description     String    @db.Text
+
+  // 📸 Snapshot em JSON do estado do odontograma no momento DESTA evolução
+  odontogramSnapshot Json?
+
   isLocked        Boolean   @default(false)
   lockedAt        DateTime?
   createdAt       DateTime  @default(now())

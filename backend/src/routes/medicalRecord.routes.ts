@@ -1,85 +1,88 @@
-import { Router } from "express";
+import { Router } from "express"
+import { EvolutionController } from "../controllers/evolutionController"
 import {
-    getMedicalRecordByPatientController,
-    getOdontogramController,
-    lockEvolutionController,
-    CreateEvolutionController,
-    updateEvolutionController,
-    getEvolutionsByPatientController, // <-- Certifique-se de importar o controller de listagem
-    upsertToothConditionController,
-    UpdateMedicalRecordController,
-    deleteToothConditionController
+  getMedicalRecordByPatientController,
+  getOdontogramController,
+  lockEvolutionController,
+  updateEvolutionController,
+  upsertToothConditionController,
+  UpdateMedicalRecordController,
+  deleteToothConditionController
 } from '../controllers/medicalRecordController'
-import { authenticate, authorize } from "../middlewares/authMiddlewares";
+import { authenticate, authorize } from "../middlewares/authMiddlewares"
 
 const medicalRecordRouter = Router()
 
+// Instância do controller de evoluções
+const evolutionController = new EvolutionController()
+
+// Exige autenticação em todas as rotas do prontuário
 medicalRecordRouter.use(authenticate)
 
 // ─── Evoluções Clínicas ──────────────────────────────────────────────────────
 
-// GET /medical-records/:patientId/evolutions — buscar histórico de evoluções do paciente
+// GET /medical-records/:medicalRecordId/evolutions — buscar histórico de evoluções
 medicalRecordRouter.get(
-    '/:patientId/evolutions', 
-    getEvolutionsByPatientController
+  '/:medicalRecordId/evolutions', 
+  evolutionController.getEvolutions
 )
 
-// POST /medical-records/:patientId/evolutions — registrar nova evolução (apenas DENTIST)
+// POST /medical-records/evolutions — registrar nova evolução (apenas DENTIST)
 medicalRecordRouter.post(
-    '/:patientId/evolutions', 
-    authorize('DENTIST'), 
-    CreateEvolutionController
+  '/evolutions', 
+  authorize('DENTIST'), 
+  evolutionController.create
 )
 
 // PUT /medical-records/evolutions/:evolutionId — editar evolução não travada (apenas DENTIST)
 medicalRecordRouter.put(
-    '/evolutions/:evolutionId', 
-    authorize('DENTIST'), 
-    updateEvolutionController
+  '/evolutions/:evolutionId', 
+  authorize('DENTIST'), 
+  updateEvolutionController
 )
 
 // PATCH /medical-records/evolutions/:evolutionId/lock — travar evolução (registro legal imutável)
 medicalRecordRouter.patch(
-    '/evolutions/:evolutionId/lock', 
-    authorize('DENTIST', 'ADMIN'), 
-    lockEvolutionController
+  '/evolutions/:evolutionId/lock', 
+  authorize('DENTIST', 'ADMIN'), 
+  lockEvolutionController
 )
 
 // ─── Prontuário (Anamnese Base) ──────────────────────────────────────────────
 
 // GET /medical-records/:patientId — visualizar prontuário completo do paciente
 medicalRecordRouter.get(
-    '/:patientId', 
-    getMedicalRecordByPatientController
+  '/:patientId', 
+  getMedicalRecordByPatientController
 )
 
 // PUT /medical-records/:patientId — atualizar anamnese (ADMIN e DENTIST)
 medicalRecordRouter.put(
-    '/:patientId', 
-    authorize('ADMIN', 'DENTIST'), 
-    UpdateMedicalRecordController
+  '/:patientId', 
+  authorize('ADMIN', 'DENTIST'), 
+  UpdateMedicalRecordController
 )
 
 // ─── Odontograma ─────────────────────────────────────────────────────────────
 
-// GET /medical-records/:patientId/odontogram — mapa completo dos dentes
+// GET /medical-records/:medicalRecordId/odontogram — mapa atual/snapshot do odontograma
 medicalRecordRouter.get(
-    '/:patientId/odontogram', 
-    getOdontogramController
+  '/:medicalRecordId/odontogram', 
+  evolutionController.getCurrentOdontogram
 )
 
 // PUT /medical-records/:patientId/odontogram — criar/atualizar condição de um dente
 medicalRecordRouter.put(
-    '/:patientId/odontogram', 
-    authorize('ADMIN', 'DENTIST'), 
-    upsertToothConditionController
+  '/:patientId/odontogram', 
+  authorize('ADMIN', 'DENTIST'), 
+  upsertToothConditionController
 )
 
 // DELETE /medical-records/:patientId/odontogram/:toothNumber — remover registro do dente
 medicalRecordRouter.delete(
-    '/:patientId/odontogram/:toothNumber', 
-    authorize('ADMIN', 'DENTIST'), 
-    deleteToothConditionController
+  '/:patientId/odontogram/:toothNumber', 
+  authorize('ADMIN', 'DENTIST'), 
+  deleteToothConditionController
 )
 
 export default medicalRecordRouter

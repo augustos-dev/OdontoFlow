@@ -1,12 +1,8 @@
-// backend/src/routes/medicalRecord.routes.ts
-
 import { Router } from "express"
+import { EvolutionController } from "../../controllers/evolutionController"
 import {
   getMedicalRecordByPatientController,
-  getEvolutionsByPatientController,
-  getOdontogramController,
   lockEvolutionController,
-  CreateEvolutionController,
   updateEvolutionController,
   upsertToothConditionController,
   UpdateMedicalRecordController,
@@ -15,6 +11,7 @@ import {
 import { authenticate, authorize } from "../../middlewares/authMiddlewares"
 
 const medicalRecordRouter = Router()
+const evolutionController = new EvolutionController()
 
 medicalRecordRouter.use(authenticate)
 
@@ -75,18 +72,18 @@ medicalRecordRouter.patch('/evolutions/:evolutionId/lock', authorize('DENTIST', 
 
 /**
  * @openapi
- * /medical-records/{patientId}/evolutions:
+ * /medical-records/{medicalRecordId}/evolutions:
  *   get:
- *     summary: Retorna o histórico de evoluções clínicas do paciente
+ *     summary: Retorna o histórico de evoluções clínicas do prontuário
  *     tags: [Medical Records]
  *     parameters:
  *       - in: path
- *         name: patientId
+ *         name: medicalRecordId
  *         required: true
  *         schema: { type: string, format: uuid }
  *     responses:
  *       200:
- *         description: Lista de evoluções ordenadas da mais recente para a mais antiga
+ *         description: Lista de evoluções ordenadas da mais recente para a mais antiga (incluindo o snapshot do odontograma)
  *         content:
  *           application/json:
  *             schema:
@@ -96,6 +93,9 @@ medicalRecordRouter.patch('/evolutions/:evolutionId/lock', authorize('DENTIST', 
  *                 properties:
  *                   id: { type: string }
  *                   description: { type: string }
+ *                   odontogramSnapshot: 
+ *                     type: object
+ *                     description: Snapshot do estado visual do odontograma no momento do atendimento
  *                   isLocked: { type: boolean }
  *                   lockedAt: { type: string, format: date-time, nullable: true }
  *                   createdAt: { type: string, format: date-time }
@@ -110,37 +110,37 @@ medicalRecordRouter.patch('/evolutions/:evolutionId/lock', authorize('DENTIST', 
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-medicalRecordRouter.get('/:patientId/evolutions', getEvolutionsByPatientController)
+medicalRecordRouter.get('/:medicalRecordId/evolutions', evolutionController.getEvolutions)
 
 /**
  * @openapi
- * /medical-records/{patientId}/evolutions:
+ * /medical-records/evolutions:
  *   post:
- *     summary: Registra uma nova evolução clínica no prontuário (apenas DENTIST)
+ *     summary: Registra uma nova evolução clínica com snapshot do odontograma (apenas DENTIST)
  *     tags: [Medical Records]
- *     parameters:
- *       - in: path
- *         name: patientId
- *         required: true
- *         schema: { type: string, format: uuid }
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [description]
+ *             required: [medicalRecordId, description]
  *             properties:
- *               description: { type: string, example: 'Profilaxia realizada. Orientações de higiene bucal fornecidas.' }
+ *               medicalRecordId: { type: string, format: uuid, example: 'd3b07384-d113-40e4-a7f1-839f82635336' }
+ *               description: { type: string, example: 'Profilaxia e restauração em resina composta no dente 16.' }
+ *               odontogramSnapshot:
+ *                 type: object
+ *                 example:
+ *                   "16": { "faces": { "O": "RESTORED" } }
  *     responses:
  *       201:
- *         description: Evolução registrada com sucesso
+ *         description: Evolução e estado do odontograma registrados com sucesso
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-medicalRecordRouter.post('/:patientId/evolutions', authorize('DENTIST'), CreateEvolutionController)
+medicalRecordRouter.post('/evolutions', authorize('DENTIST'), evolutionController.create)
 
 /**
  * @openapi
@@ -222,18 +222,18 @@ medicalRecordRouter.put('/:patientId', authorize('ADMIN', 'DENTIST'), UpdateMedi
 
 /**
  * @openapi
- * /medical-records/{patientId}/odontogram:
+ * /medical-records/{medicalRecordId}/odontogram:
  *   get:
- *     summary: Retorna o odontograma completo do paciente (mapa dos 32 dentes)
+ *     summary: Retorna o odontograma atual/vivo do prontuário
  *     tags: [Medical Records]
  *     parameters:
  *       - in: path
- *         name: patientId
+ *         name: medicalRecordId
  *         required: true
  *         schema: { type: string, format: uuid }
  *     responses:
  *       200:
- *         description: Lista de condições por dente
+ *         description: Lista de condições ativas por dente (visão em tempo real)
  *         content:
  *           application/json:
  *             schema:
@@ -241,14 +241,14 @@ medicalRecordRouter.put('/:patientId', authorize('ADMIN', 'DENTIST'), UpdateMedi
  *               items:
  *                 type: object
  *                 properties:
- *                   toothNumber: { type: integer, example: 11 }
- *                   condition: { type: string, example: 'CARIE' }
+ *                   toothNumber: { type: integer, example: 16 }
+ *                   condition: { type: string, example: 'RESTAURADO' }
  *                   faces: { type: array, items: { type: string } }
  *                   notes: { type: string }
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-medicalRecordRouter.get('/:patientId/odontogram', getOdontogramController)
+medicalRecordRouter.get('/:medicalRecordId/odontogram', evolutionController.getCurrentOdontogram)
 
 /**
  * @openapi
