@@ -1,303 +1,294 @@
 import { prisma } from "../lib/prisma"
 import { AppError } from "../shared/AppError"
-import { $Enums } from "@prisma/client"
 import type {
-    UpdateMedicalRecordsDTO,
-    CreateEvolutionDTO,
-    ToothConditionDTO
+  UpdateMedicalRecordsDTO,
+  CreateEvolutionDTO,
+  ToothConditionDTO
 } from "../types/medicalRecord.types"
 
-// Números de dente válidos na notação FDI
+// Números de dentes válidos na notação FDI (11-18, 21-28, 31-38, 41-48)
 const VALID_TOOTH_NUMBERS = [
-    ...Array.from({ length: 8 }, (_, i) => 11 + i),
-    ...Array.from({ length: 8 }, (_, i) => 21 + i),
-    ...Array.from({ length: 8 }, (_, i) => 31 + i),
-    ...Array.from({ length: 8 }, (_, i) => 41 + i),
+  ...Array.from({ length: 8 }, (_, i) => 11 + i),
+  ...Array.from({ length: 8 }, (_, i) => 21 + i),
+  ...Array.from({ length: 8 }, (_, i) => 31 + i),
+  ...Array.from({ length: 8 }, (_, i) => 41 + i),
 ]
 
-// Get Medical Record by Patient
+/**
+ * Auxiliar interno para localizar o Prontuário garantindo o isolamento Multi-tenant
+ * Aceita tanto o ID do Prontuário (medicalRecordId) quanto o ID do Paciente (patientId)
+ */
+async function findMedicalRecord(
+  tenantId: string,
+  clinicId: string,
+  recordOrPatientId: string
+) {
+  const medicalRecord = await prisma.medicalRecord.findFirst({
+    where: {
+      tenantId,
+      clinicId,
+      OR: [
+        { id: recordOrPatientId },
+        { patientId: recordOrPatientId }
+      ]
+    }
+  })
+
+  if (!medicalRecord) {
+    throw new AppError('Prontuário não encontrado para esta clínica.', 404)
+  }
+
+  return medicalRecord
+}
+
+// -----------------------------------------------------------------------------
+// GET BY PATIENT / RECORD
+// -----------------------------------------------------------------------------
 export async function getMedicalRecordByPatient(
-    tenantId: string,
-    clinicId: string,
-    patientId: string
+  tenantId: string,
+  clinicId: string,
+  patientOrRecordId: string
 ) {
-    const patient = await prisma.patient.findFirst({
-        where: { id: patientId, tenantId, clinicId, deletedAt: null },
-    })
-    if (!patient) {
-        throw new AppError('Paciente não encontrado', 404)
-    }
+  // Localiza o prontuário de forma flexível pelo ID do paciente ou do próprio prontuário
+  const targetRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-    const medicalRecord = await prisma.medicalRecord.findUnique({
-        where: { tenantId_patientId: { tenantId, patientId } },
-        include: {
-            evolutions: {
-                orderBy: { createdAt: 'desc' },
-                include: {
-                    dentist: { select: { id: true, name: true, cro: true } }
-                },
-            },
-            toothConditions: {
-                orderBy: { toothNumber: 'asc' }
-            }
-        } 
-    })
-    
-    if (!medicalRecord) {
-        throw new AppError('Prontuário não encontrado', 404)
-    }
-
-    return medicalRecord
-}
-
-// Update Anamnese
-export async function UpdateMedicalRecord(
-    tenantId: string,
-    clinicId: string,
-    patientId: string,
-    data: UpdateMedicalRecordsDTO
-) {
-    const medicalRecord = await prisma.medicalRecord.findUnique({
-        where: { tenantId_patientId: { tenantId, patientId } },
-    })
-
-    if (!medicalRecord) {
-        throw new AppError('Prontuário não encontrado', 404)
-    }
-    if (medicalRecord.clinicId !== clinicId) {
-        throw new AppError('Prontuário não encontrado', 404)
-    }
-
-    return prisma.medicalRecord.update({
-        where: { id: medicalRecord.id },
-        data,
-    })
-}
-
-// Get Evolutions by Patient (NOVO - Para listar a timeline no frontend)
-export async function getEvolutionsByPatient(
-    tenantId: string,
-    clinicId: string,
-    patientId: string
-) {
-    const medicalRecord = await prisma.medicalRecord.findUnique({
-        where: { tenantId_patientId: { tenantId, patientId } },
-    })
-
-    if (!medicalRecord) {
-        throw new AppError('Prontuário não encontrado', 404)
-    }
-
-    if (medicalRecord.clinicId !== clinicId) {
-        throw new AppError('Prontuário não encontrado', 404)
-    }
-
-    return prisma.evolution.findMany({
-        where: { tenantId, medicalRecordId: medicalRecord.id },
+  const medicalRecord = await prisma.medicalRecord.findUnique({
+    where: { id: targetRecord.id },
+    include: {
+      evolutions: {
         orderBy: { createdAt: 'desc' },
         include: {
-            dentist: { select: { id: true, name: true, cro: true } }
-        }
-    })
+          dentist: { select: { id: true, name: true, cro: true } }
+        },
+      },
+      toothConditions: {
+        orderBy: { toothNumber: 'asc' }
+      }
+    }
+  })
+
+  if (!medicalRecord) {
+    throw new AppError('Prontuário não encontrado.', 404)
+  }
+
+  return medicalRecord
 }
 
-// Create Evolution 
+// -----------------------------------------------------------------------------
+// UPDATE ANAMNESE / PRONTUÁRIO
+// -----------------------------------------------------------------------------
+export async function UpdateMedicalRecord(
+  tenantId: string,
+  clinicId: string,
+  patientOrRecordId: string,
+  data: UpdateMedicalRecordsDTO
+) {
+  const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
+
+  return prisma.medicalRecord.update({
+    where: { id: medicalRecord.id },
+    data,
+  })
+}
+
+// -----------------------------------------------------------------------------
+// CREATE EVOLUTION (Com Odontograma Snapshot)
+// -----------------------------------------------------------------------------
 export async function CreateEvolution(
-    tenantId: string,
-    clinicId: string,
-    patientId: string,
-    dentistId: string,
-    data: CreateEvolutionDTO
+  tenantId: string,
+  clinicId: string,
+  patientOrRecordId: string,
+  dentistId: string,
+  data: CreateEvolutionDTO
 ) {
-    const medicalRecord = await prisma.medicalRecord.findUnique({
-        where: { tenantId_patientId: { tenantId, patientId } },
-    })
+  // 1. Busca o prontuário
+  const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-    if (!medicalRecord) {
-        throw new AppError('Prontuário não encontrado', 404)
+  // 2. Valida se o dentista pertence à clínica/tenant e está ativo
+  const dentist = await prisma.user.findFirst({
+    where: {
+      id: dentistId,
+      tenantId,
+      clinicId,
+      role: 'DENTIST',
+      isActive: true
     }
-    if (medicalRecord.clinicId !== clinicId) {
-        throw new AppError('Prontuário não encontrado', 404)
-    }
+  })
 
-    const dentist = await prisma.user.findFirst({
-        where: { id: dentistId, tenantId, clinicId, role: 'DENTIST', isActive: true }
-    })
+  if (!dentist) {
+    throw new AppError('Dentista não encontrado ou inativo.', 404)
+  }
 
-    if (!dentist) {
-        throw new AppError('Dentista não encontrado ou inativo', 404)
-    }
-
-    return prisma.evolution.create({
-        data: {
-            tenantId,
-            medicalRecordId: medicalRecord.id,
-            dentistId,
-            description: data.description
-        },
-        include: {
-            dentist: { select: { id: true, name: true, cro: true } }
-        },
-    })
+  // 3. Cria a evolução salvando a descrição e o snapshot do odontograma (se fornecido)
+  return prisma.evolution.create({
+    data: {
+      tenantId,
+      medicalRecordId: medicalRecord.id,
+      dentistId,
+      description: data.description,
+      ...(data.odontogramSnapshot && { odontogramSnapshot: data.odontogramSnapshot }),
+    },
+    include: {
+      dentist: { select: { id: true, name: true, cro: true } }
+    },
+  })
 }
 
-// Lock Evolution (Trava legal / LGPD)
+// -----------------------------------------------------------------------------
+// LOCK EVOLUTION (Trava Legal / LGPD)
+// -----------------------------------------------------------------------------
 export async function lockEvolution(
-    tenantId: string,
-    evolutionId: string
+  tenantId: string,
+  evolutionId: string
 ) {
-    const evolution = await prisma.evolution.findFirst({
-        where: { id: evolutionId, tenantId }
-    })
+  const evolution = await prisma.evolution.findFirst({
+    where: { id: evolutionId, tenantId }
+  })
 
-    if (!evolution) { 
-        throw new AppError('Evolução não encontrada', 404)
-    }
-    if (evolution.isLocked) {
-        throw new AppError('Evolução já está travada', 400)
-    }
+  if (!evolution) {
+    throw new AppError('Evolução não encontrada.', 404)
+  }
+  if (evolution.isLocked) {
+    throw new AppError('Evolução já está travada.', 400)
+  }
 
-    return prisma.evolution.update({
-        where: { id: evolutionId },
-        data: { isLocked: true, lockedAt: new Date() }
-    })
+  return prisma.evolution.update({
+    where: { id: evolutionId },
+    data: { isLocked: true, lockedAt: new Date() }
+  })
 }
 
-// Update Evolution (Apenas se não travada)
+// -----------------------------------------------------------------------------
+// UPDATE EVOLUTION (Apenas se não travada)
+// -----------------------------------------------------------------------------
 export async function updateEvolution(
-    tenantId: string,
-    evolutionId: string,
-    description: string
+  tenantId: string,
+  evolutionId: string,
+  description: string
 ) {
-    const evolution = await prisma.evolution.findFirst({
-        where: { id: evolutionId, tenantId }
-    })
+  const evolution = await prisma.evolution.findFirst({
+    where: { id: evolutionId, tenantId }
+  })
 
-    if (!evolution) { 
-        throw new AppError('Evolução não encontrada', 404)
-    }
-    if (evolution.isLocked) {
-        throw new AppError('Evolução travada não pode ser editada', 400)
-    }
+  if (!evolution) {
+    throw new AppError('Evolução não encontrada.', 404)
+  }
+  if (evolution.isLocked) {
+    throw new AppError('Evolução travada não pode ser editada.', 400)
+  }
 
-    return prisma.evolution.update({
-        where: { id: evolutionId },
-        data: { description }
-    })
+  return prisma.evolution.update({
+    where: { id: evolutionId },
+    data: { description }
+  })
 }
 
-// Upsert Tooth Condition
+// -----------------------------------------------------------------------------
+// UPSERT TOOTH CONDITION
+// -----------------------------------------------------------------------------
 export async function upsertToothCondition(
-    tenantId: string,
-    clinicId: string,
-    patientId: string,
-    data: ToothConditionDTO
+  tenantId: string,
+  clinicId: string,
+  patientOrRecordId: string,
+  data: ToothConditionDTO
 ) {
-    const { toothNumber, condition, faces, notes } = data 
+  const { toothNumber, condition, faces, notes } = data
 
-    if (!VALID_TOOTH_NUMBERS.includes(toothNumber)) {
-        throw new AppError(
-            `Número de dente inválido: ${toothNumber}. Use a notação FDI (11-18, 21-28, 31-38, 41-48).`, 400
-        )
-    }
-
-    const medicalRecord = await prisma.medicalRecord.findUnique({
-        where: { tenantId_patientId: { tenantId, patientId } }
-    })
-
-    if (!medicalRecord) {
-        throw new AppError('Prontuário não encontrado', 404)
-    }
-
-    if (medicalRecord.clinicId !== clinicId) {
-        throw new AppError('Prontuário não encontrado', 404)
-    }
-
-    return prisma.toothCondition.upsert({
-        where: {
-            medicalRecordId_toothNumber: {
-                medicalRecordId: medicalRecord.id,
-                toothNumber,
-            },
-        },
-        create: {
-            tenantId,
-            medicalRecordId: medicalRecord.id,
-            toothNumber,
-            condition,
-            faces: faces ?? [],
-            notes,
-        },
-        update: {
-            condition,
-            faces: faces ?? [],
-            notes,
-        },
-    })
-}
-
-// Get Odontogram
-export async function getOdontogram(
-    tenantId: string,
-    clinicId: string,
-    patientId: string
-) {
-    const medicalRecord = await prisma.medicalRecord.findUnique({
-        where: { tenantId_patientId: { tenantId, patientId } },
-        include: {
-            toothConditions: {
-                orderBy: { toothNumber: 'asc' }
-            },
-        },
-    })
-
-    if (!medicalRecord) {
-        throw new AppError('Prontuário não encontrado', 404)
-    }
-
-    if (medicalRecord.clinicId !== clinicId) {
-        throw new AppError('Prontuário não encontrado', 404)
-    }
-
-    const conditionMap = new Map(
-        medicalRecord.toothConditions.map((tc) => [tc.toothNumber, tc])
+  if (!VALID_TOOTH_NUMBERS.includes(toothNumber)) {
+    throw new AppError(
+      `Número de dente inválido: ${toothNumber}. Use a notação FDI (11-18, 21-28, 31-38, 41-48).`,
+      400
     )
+  }
 
-    return VALID_TOOTH_NUMBERS.map((toothNumber) => {
-        const existing = conditionMap.get(toothNumber)
-        return existing ?? {
-            toothNumber,
-            condition: 'SAUDAVEL',
-            faces: [],
-            notes: null
-        }
-    })
+  const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
+
+  return prisma.toothCondition.upsert({
+    where: {
+      medicalRecordId_toothNumber: {
+        medicalRecordId: medicalRecord.id,
+        toothNumber,
+      },
+    },
+    create: {
+      tenantId,
+      medicalRecordId: medicalRecord.id,
+      toothNumber,
+      condition,
+      faces: faces ?? [],
+      notes,
+    },
+    update: {
+      condition,
+      faces: faces ?? [],
+      notes,
+    },
+  })
 }
 
-// Delete Tooth Condition
-export async function deleteToothCondition(
-    tenantId: string,
-    clinicId: string,
-    patientId: string,
-    toothNumber: number
+// -----------------------------------------------------------------------------
+// GET ODONTOGRAM (Visão Completa dos 32 dentes)
+// -----------------------------------------------------------------------------
+export async function getOdontogram(
+  tenantId: string,
+  clinicId: string,
+  patientOrRecordId: string
 ) {
-    const medicalRecord = await prisma.medicalRecord.findUnique({
-        where: { tenantId_patientId: { tenantId, patientId } },
-    })
+  const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-    if (!medicalRecord) throw new AppError('Prontuário não encontrado.', 404)
-    if (medicalRecord.clinicId !== clinicId) throw new AppError('Prontuário não encontrado.', 404)
+  const fullRecord = await prisma.medicalRecord.findUnique({
+    where: { id: medicalRecord.id },
+    include: {
+      toothConditions: {
+        orderBy: { toothNumber: 'asc' }
+      },
+    },
+  })
 
-    const toothCondition = await prisma.toothCondition.findUnique({
-        where: {
-            medicalRecordId_toothNumber: {
-                medicalRecordId: medicalRecord.id,
-                toothNumber,
-            },
-        },
-    })
+  const conditions = fullRecord?.toothConditions ?? []
 
-    if (!toothCondition) throw new AppError('Registro do dente não encontrado.', 404)
+  const conditionMap = new Map(
+    conditions.map((tc) => [tc.toothNumber, tc])
+  )
 
-    await prisma.toothCondition.delete({ where: { id: toothCondition.id } })
+  const fullOdontogram = VALID_TOOTH_NUMBERS.map((toothNumber) => {
+    const existing = conditionMap.get(toothNumber)
+    return existing ?? {
+      toothNumber,
+      condition: 'SAUDAVEL',
+      faces: [],
+      notes: null
+    }
+  })
+
+  return fullOdontogram
+}
+
+// -----------------------------------------------------------------------------
+// DELETE TOOTH CONDITION
+// -----------------------------------------------------------------------------
+export async function deleteToothCondition(
+  tenantId: string,
+  clinicId: string,
+  patientOrRecordId: string,
+  toothNumber: number
+) {
+  const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
+
+  const toothCondition = await prisma.toothCondition.findUnique({
+    where: {
+      medicalRecordId_toothNumber: {
+        medicalRecordId: medicalRecord.id,
+        toothNumber,
+      },
+    },
+  })
+
+  if (!toothCondition) {
+    throw new AppError('Registro do dente não encontrado.', 404)
+  }
+
+  await prisma.toothCondition.delete({
+    where: { id: toothCondition.id }
+  })
 }
