@@ -12,6 +12,7 @@ export interface  UpdateMedicalRecordsDTO{
 
 export interface CreateEvolutionDTO {
     description:string
+    odontogramSnapshot?: Record<string, any> | any[] | string // ou Prisma.InputJsonValue / unknown
 }
 
 export interface ToothConditionDTO {
