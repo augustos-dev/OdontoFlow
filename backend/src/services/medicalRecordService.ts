@@ -6,6 +6,40 @@ import type {
   ToothConditionDTO
 } from "../types/medicalRecord.types"
 
+// Get Evolutions by Patient / Medical Record
+export async function getEvolutionsByPatient(
+  tenantId: string,
+  clinicId: string,
+  patientOrRecordId: string
+) {
+  // Busca flexível por ID do prontuário OU por ID do paciente
+  const medicalRecord = await prisma.medicalRecord.findFirst({
+    where: {
+      tenantId,
+      clinicId,
+      OR: [
+        { id: patientOrRecordId },
+        { patientId: patientOrRecordId }
+      ]
+    }
+  })
+
+  if (!medicalRecord) {
+    throw new AppError('Prontuário não encontrado.', 404)
+  }
+
+  return prisma.evolution.findMany({
+    where: {
+      tenantId,
+      medicalRecordId: medicalRecord.id,
+    },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      dentist: { select: { id: true, name: true, cro: true } },
+    },
+  })
+}
+
 // Números de dentes válidos na notação FDI (11-18, 21-28, 31-38, 41-48)
 const VALID_TOOTH_NUMBERS = [
   ...Array.from({ length: 8 }, (_, i) => 11 + i),
