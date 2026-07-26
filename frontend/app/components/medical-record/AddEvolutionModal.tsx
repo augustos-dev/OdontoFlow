@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import api from '@/lib/api';
-import { Odontogram, OdontogramData } from '../tooth/Odontogram'; // 🦷 Import do Odontograma e Tipagem
+import { Odontogram, OdontogramData } from '../tooth/Odontogram';
 import './AddEvolutionModal.css';
 
 interface AddEvolutionModalProps {
@@ -13,6 +13,7 @@ interface AddEvolutionModalProps {
 
 export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   patientId,
+  medicalRecordId,
   isOpen,
   onClose,
   onSuccess,
@@ -20,7 +21,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   const [title, setTitle] = useState('');
   const [type, setType] = useState('NOTE');
   const [description, setDescription] = useState('');
-  const [odontogramSnapshot, setOdontogramSnapshot] = useState<OdontogramData>({}); // 📸 Estado do Snapshot
+  const [odontogramSnapshot, setOdontogramSnapshot] = useState<OdontogramData>({});
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
@@ -28,20 +29,29 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!patientId) {
-      alert('ID do paciente não informado.');
+    if (!medicalRecordId) {
+      alert('Atenção: Este paciente ainda não possui um prontuário cadastrado!');
+      return;
+    }
+
+    if (!description.trim()) {
+      alert('A descrição da evolução é obrigatória.');
       return;
     }
 
     setLoading(true);
 
     try {
-      // 🎯 Bate na rota passando também o snapshot do Odontograma
-      const response = await api.post('/medical-records/evolutions', {
-        title,
-        type,
+      // ─── Monta a descrição completa com título e tipo ───
+      const fullDescription = [
+        title ? `[${title}]` : null,
+        type !== 'NOTE' ? `Tipo: ${type === 'PROCEDURE' ? 'Procedimento' : 'Anamnese'}` : null,
         description,
-        odontogramSnapshot, // 💾 Salva o estado exato dos dentes neste atendimento
+      ].filter(Boolean).join('\n')
+
+      // ─── Rota correta: POST /medical-records/:patientId/evolutions ───
+      const response = await api.post(`/medical-records/${patientId}/evolutions`, {
+        description: fullDescription,
       });
 
       if (response.status === 200 || response.status === 201) {
@@ -50,6 +60,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
         setType('NOTE');
         setOdontogramSnapshot({});
         if (onSuccess) onSuccess();
+        onClose();
       }
     } catch (err: any) {
       console.error('Erro ao adicionar evolução:', err);
@@ -61,14 +72,16 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div 
-        className="modal-content" 
-        onClick={(e) => e.stopPropagation()} 
-        style={{ maxWidth: '900px', width: '95%', maxHeight: '90vh', overflowY: 'auto' }} // Ajuste de tamanho para acomodar o Odontograma
+      <div
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '900px', width: '95%', maxHeight: '90vh', overflowY: 'auto' }}
       >
         <form onSubmit={handleSubmit} className="add-evolution-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3 className="add-evolution-title" style={{ margin: 0 }}>Nova Evolução / Anotação Clínica</h3>
+            <h3 className="add-evolution-title" style={{ margin: 0 }}>
+              Nova Evolução / Anotação Clínica
+            </h3>
             <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}>
               ✕
             </button>
@@ -81,7 +94,6 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
                 placeholder="Título (ex: Restauração Resina Dente 16)"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                required
                 className="form-input"
               />
             </div>
@@ -104,13 +116,13 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
               placeholder="Descreva os detalhes da evolução clínica..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={3}
+              rows={4}
               required
               className="form-textarea"
             />
           </div>
 
-          {/* 🦷 Seção Interativa do Odontograma */}
+          {/* 🦷 Odontograma */}
           <div style={{ marginTop: '1.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
             <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.95rem', color: '#334155' }}>
               Registro Anatômico do Atendimento (Odontograma)
@@ -118,8 +130,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
             <p style={{ margin: '0 0 1rem 0', fontSize: '0.8rem', color: '#64748b' }}>
               Marque os procedimentos ou intercorrências realizadas nesta consulta para registrar o histórico inalterável.
             </p>
-            
-            <Odontogram 
+            <Odontogram
               patientId={patientId}
               value={odontogramSnapshot}
               onChange={setOdontogramSnapshot}
@@ -127,18 +138,10 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
           </div>
 
           <div className="form-actions" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn-secondary"
-            >
+            <button type="button" onClick={onClose} className="btn-secondary">
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary"
-            >
+            <button type="submit" disabled={loading} className="btn-primary">
               {loading ? 'Salvando...' : 'Adicionar Registro'}
             </button>
           </div>
