@@ -40,13 +40,17 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
     }
 
     setLoading(true);
+    const fullDescription = [
+      title ? `[${title}]` : null,
+      type !== 'NOTE' ? `Tipo: ${type === 'PROCEDURE' ? 'Procedimento' : 'Anamnese'}` : null,
+      description,
+    ].filter(Boolean).join('\n');
 
     try {
       // ─── ✅ Payload Corrigido: Envia o Snapshot JSONB e campos estruturados ───
       const payload = {
-        title: title.trim() || undefined,
-        type,
-        description,
+        medicalRecordId, // 👈 Obrigatório para a controller!
+        description: fullDescription,
         odontogramSnapshot: Object.keys(odontogramSnapshot).length > 0 ? odontogramSnapshot : null,
       };
 
