@@ -7,16 +7,14 @@ import {
   updateEvolutionController,
   upsertToothConditionController,
   UpdateMedicalRecordController,
-  deleteToothConditionController
+  deleteToothConditionController,
+  CreateEvolutionController // <--- 1. Importe aqui
 } from '../controllers/medicalRecordController'
 import { authenticate, authorize } from "../middlewares/authMiddlewares"
 
 const medicalRecordRouter = Router()
-
-// Instância do controller de evoluções
 const evolutionController = new EvolutionController()
 
-// Exige autenticação em todas as rotas do prontuário
 medicalRecordRouter.use(authenticate)
 
 // ─── Evoluções Clínicas ──────────────────────────────────────────────────────
@@ -27,11 +25,12 @@ medicalRecordRouter.get(
   evolutionController.getEvolutions
 )
 
-// POST /medical-records/evolutions — registrar nova evolução (apenas DENTIST)
+// POST /medical-records/:patientId/evolutions — registrar nova evolução (apenas DENTIST)
+// 2. Corrigida a URL (adicionado o parâmetro) e o Controller chamado!
 medicalRecordRouter.post(
-  '/evolutions', 
+  '/:patientId/evolutions', 
   authorize('DENTIST'), 
-  evolutionController.create
+  CreateEvolutionController
 )
 
 // PUT /medical-records/evolutions/:evolutionId — editar evolução não travada (apenas DENTIST)
