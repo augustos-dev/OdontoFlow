@@ -615,6 +615,7 @@ export default function PerfilPacientePage() {
 
       <AddEvolutionModal
         patientId={id as string}
+        medicalRecordId={patient?.medicalRecord?.id} // 👈 ADICIONE ESTA LINHA AQUI!
         isOpen={isAddEvolutionOpen}
         onClose={() => setIsAddEvolutionOpen(false)}
         onSuccess={() => {
