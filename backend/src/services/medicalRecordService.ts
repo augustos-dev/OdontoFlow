@@ -17,6 +17,38 @@ const VALID_TOOTH_NUMBERS = [
 ]
 
 //  Get by Patient
+export async function getEvolutionsByPatient(
+  tenantId: string,
+  clinicId: string,
+  patientOrRecordId: string
+) {
+  // Busca flexível por ID do prontuário OU por ID do paciente
+  const medicalRecord = await prisma.medicalRecord.findFirst({
+    where: {
+      tenantId,
+      clinicId,
+      OR: [
+        { id: patientOrRecordId },
+        { patientId: patientOrRecordId }
+      ]
+    }
+  })
+
+  if (!medicalRecord) {
+    throw new AppError('Prontuário não encontrado.', 404)
+  }
+
+  return prisma.evolution.findMany({
+    where: {
+      tenantId,
+      medicalRecordId: medicalRecord.id,
+    },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      dentist: { select: { id: true, name: true, cro: true } },
+    },
+  })
+}
 
 export async function getMedicalRecordByPatient(
     tenantId:string,
