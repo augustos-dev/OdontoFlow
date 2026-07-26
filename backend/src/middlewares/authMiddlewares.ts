@@ -38,6 +38,12 @@ export function authorize(...roles: string[]) {
       res.status(401).json({ message: 'Não autenticado.' })
       return
     }
+
+    // 🔴 LOG DE DIAGNÓSTICO
+    console.log('--- CHECK AUTHORIZE ---')
+    console.log('Role do Usuário no Token:', req.user.role)
+    console.log('Roles permitidas na Rota:', roles)
+
     if (!roles.includes(req.user.role)) {
       res.status(403).json({ message: 'Acesso negado. Permissão insuficiente.' })
       return
