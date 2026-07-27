@@ -60,7 +60,7 @@ async function findMedicalRecord(
   const medicalRecord = await prisma.medicalRecord.findFirst({
     where: {
       tenantId,
-      clinicId,
+      // Se clinicId puder variar ou for opcional no prontuário, garantimos busca pelo tenant:
       OR: [
         { id: recordOrPatientId },
         { patientId: recordOrPatientId }
@@ -69,10 +69,11 @@ async function findMedicalRecord(
   })
 
   if (!medicalRecord) {
-    throw new AppError('Prontuário não encontrado para esta clínica.', 404)
+    throw new AppError('Prontuário não encontrado.', 404)
   }
 
   return medicalRecord
+
 }
 
 // -----------------------------------------------------------------------------
