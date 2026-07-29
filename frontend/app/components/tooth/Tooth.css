@@ -66,6 +66,7 @@
 }
 
 /* Prótese / Coroa (Laranja) */
+.face.protese,
 .face.coroa {
   fill: #fab387 !important;
 }

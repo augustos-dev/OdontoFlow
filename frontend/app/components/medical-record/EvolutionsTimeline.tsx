@@ -150,7 +150,7 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
         evolution={selectedEvolution}
         onClose={() => setSelectedEvolution(null)}
       />
-      <Tooth 
+      {/* <Tooth 
   number={16} 
   faces={{
     oclusal: 'carie',      // Vermelho
@@ -159,7 +159,7 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
   onFaceClick={(toothNumber, face) => {
     console.log(`Dente ${toothNumber}, Face clicada: ${face}`)
   }}
-/>
+/> */}
     </>
   );
 };
