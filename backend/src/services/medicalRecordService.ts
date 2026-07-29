@@ -213,6 +213,26 @@ export async function CreateEvolution(
     return evolution
   })
 }
+export async function lockEvolution(
+  tenantId: string,
+  evolutionId: string
+) {
+  const evolution = await prisma.evolution.findFirst({
+    where: { id: evolutionId, tenantId }
+  })
+
+  if (!evolution) {
+    throw new AppError('Evolução não encontrada.', 404)
+  }
+  if (evolution.isLocked) {
+    throw new AppError('Evolução já está travada.', 400)
+  }
+
+  return prisma.evolution.update({
+    where: { id: evolutionId },
+    data: { isLocked: true, lockedAt: new Date() }
+  })
+}
 // -----------------------------------------------------------------------------
 // UPDATE EVOLUTION (Apenas se não travada)
 // -----------------------------------------------------------------------------
