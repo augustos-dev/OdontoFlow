@@ -197,9 +197,10 @@ export async function updateAppointment(
   const newDentistId = data.dentistId ?? appointment.dentistId
   const endTime = calcEndTime(newDateTime, newDuration)
 
-  if (data.dateTime && newDateTime < new Date()) {
-    throw new AppError('Não é possível agendar em uma data/hora passada.', 400)
-  }
+  // COMENTADO OU REMOVIDO: Permite remarcar no dia atual mesmo se o horário já passou um pouco
+  // if (data.dateTime && newDateTime < new Date()) {
+  //   throw new AppError('Não é possível agendar em uma data/hora passada.', 400)
+  // }
 
   await checkConflicts(clinicId, newRoom, newDentistId, newDateTime, endTime, appointmentId)
 
@@ -212,7 +213,6 @@ export async function updateAppointment(
     },
   })
 }
-
 // ─── Update Status ────────────────────────────────────────────────────────────
 
 export async function updateAppointmentStatus(
