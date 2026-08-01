@@ -38,7 +38,7 @@ const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => {
 })
 
 // 32px a cada 15 min -> 128px por hora
-const SLOT_15MIN_HEIGHT = 32
+const SLOT_15MIN_HEIGHT = 40
 
 export default function AgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -104,13 +104,19 @@ export default function AgendaPage() {
   }
 
   // --- POSICIONAMENTO COM BASE NA DIFERENÇA EM MINUTOS ---
-  function getAppointmentStyle(dateTimeStr: string, durationMin: number = 30) {
+function getAppointmentStyle(dateTimeStr: string, durationMin: number = 15) {
     const { hours, minutes } = parseTimeComponents(dateTimeStr)
     const minutesFromStart = (hours - START_HOUR) * 60 + minutes
 
+    // Calcula a posição no topo com base na distância em blocos de 15min
     const top = (minutesFromStart / 15) * SLOT_15MIN_HEIGHT
-    const calculatedHeight = (durationMin / 15) * SLOT_15MIN_HEIGHT
-    const height = Math.max(calculatedHeight, 44)
+
+    // Calcula a altura exata do card de acordo com a duração da consulta
+    // Subtrai 2px para deixar um respiro visual (gap) entre cards colados
+    const calculatedHeight = (durationMin / 15) * SLOT_15MIN_HEIGHT - 2
+
+    // Garante que a altura não seja negativa caso venha duração 0
+    const height = Math.max(calculatedHeight, 18)
 
     return {
       top: `${top}px`,
@@ -136,7 +142,7 @@ export default function AgendaPage() {
     e.dataTransfer.dropEffect = 'move'
   }
 
-  function handleDrop(e: React.DragEvent, room: string) {
+ function handleDrop(e: React.DragEvent, room: string) {
     e.preventDefault()
 
     if (!draggedAppt) return
@@ -148,17 +154,30 @@ export default function AgendaPage() {
     const rect = roomBodyEl.getBoundingClientRect()
     const offsetY = e.clientY - rect.top
 
-    // 1. Calcula os blocos de 15 min (32px cada)
+    // 1. Calcula os blocos de 15 min
     const slotIndex = Math.floor(offsetY / SLOT_15MIN_HEIGHT)
 
-    // 2. Converte para minutos e horas a partir do START_HOUR
+    // 2. Converte para minutos totais
     const totalMinutes = START_HOUR * 60 + slotIndex * 15
 
     const newHourNum = Math.floor(totalMinutes / 60)
     const newMinuteNum = totalMinutes % 60
 
-    // Trava para não permitir soltar fora do horário de funcionamento (08:00 - 18:00)
+    // Trava 1: Não permite soltar fora da grade comercial (08:00 - 18:00)
     if (newHourNum < START_HOUR || newHourNum > END_HOUR) return
+
+    // Trava 2: Impedir reagendamento para horários passados no dia de hoje
+    const isToday = selectedDate === new Date().toISOString().slice(0, 10)
+    if (isToday) {
+      const dropTimeInMinutes = newHourNum * 60 + newMinuteNum
+      const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes()
+
+      if (dropTimeInMinutes < currentTimeInMinutes) {
+        setTimeErrorAlert('Não é possível mover um agendamento para um horário que já passou.')
+        setDraggedAppt(null)
+        return
+      }
+    }
 
     const formattedHour = String(newHourNum).padStart(2, '0')
     const formattedMinute = String(newMinuteNum).padStart(2, '0')
@@ -177,12 +196,17 @@ export default function AgendaPage() {
     if (!pendingMove) return
     const { appt, newHour, newRoom } = pendingMove
 
+    // 1. Snapshot do estado atual para Rollback instantâneo em caso de falha de rede
+    const previousAppointments = [...appointments]
+
     const [hours, minutes] = newHour.split(':')
     const [year, month, day] = selectedDate.split('-').map(Number)
 
+    // Constrói a data sem sofrer distorção de fuso horário
     const updatedDate = new Date(year, month - 1, day, parseInt(hours), parseInt(minutes || '0'))
     const newISOString = updatedDate.toISOString()
 
+    // 2. ATUALIZA A TELA E FECHA O MODAL NA HORA (Sensação de 0ms)
     setAppointments((prev) =>
       prev.map((a) =>
         a.id === appt.id
@@ -197,8 +221,10 @@ export default function AgendaPage() {
       )
     )
 
+    // Limpa o modal imediatamente
     setPendingMove(null)
 
+    // 3. PERSISTÊNCIA EM BACKGROUND
     try {
       await api.put(`/appointments/${appt.id}`, {
         dateTime: newISOString,
@@ -206,8 +232,11 @@ export default function AgendaPage() {
         status: appt.status === 'ESPERA' ? 'AGENDADO' : appt.status,
       })
     } catch (err) {
-      console.error('Erro ao remarcar agendamento:', err)
-      loadAppointments(selectedDate)
+      console.error('Erro de rede/servidor ao remarcar:', err)
+
+      // 4. Se a internet falhar, REVERTE o card na tela na hora (Rollback)
+      setAppointments(previousAppointments)
+      setTimeErrorAlert('Sem conexão com o servidor. A alteração foi desfeita.')
     }
   }
 
