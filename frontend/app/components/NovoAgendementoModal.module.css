@@ -1,163 +1,244 @@
-/* app/components/NovoAgendamentoModal.module.css */
+/* app/components/NovoAgendementoModal.module.css */
 
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 16px;
+  padding: 20px;
 }
 
 .modal {
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
+  background: var(--bg-card, #ffffff);
+  border-radius: 16px;
   width: 100%;
-  max-width: 580px;
+  max-width: 720px; /* Largura expandida para não espremer */
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: var(--shadow-lg);
+  overflow-x: hidden; /* Remove o scrollbar horizontal */
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  animation: fadeIn 0.2s ease-out;
 }
 
-.modalHeader {
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ─── ABAS & CABEÇALHO ─── */
+
+.headerRow {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  padding: 24px 24px 0;
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--border, #e2e8f0);
   position: sticky;
   top: 0;
-  background: var(--bg-card);
-  z-index: 1;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
+  background: var(--bg-card, #ffffff);
+  z-index: 10;
 }
 
-.modalTitle {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 8px;
 }
 
-.modalSub {
+.tabBtn {
+  border: none;
+  background: transparent;
+  padding: 8px 18px;
   font-size: 13px;
-  color: var(--text-secondary);
-  margin-top: 3px;
+  font-weight: 600;
+  color: #64748b;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.activeTab {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 .closeBtn {
   background: none;
   border: none;
-  font-size: 18px;
-  color: var(--text-muted);
-  padding: 4px;
-  border-radius: 4px;
+  font-size: 20px;
+  color: #94a3b8;
+  padding: 4px 8px;
+  border-radius: 6px;
   line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.closeBtn:hover { color: var(--text-primary); background: var(--bg-page); }
+.closeBtn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+/* ─── FORMULÁRIO PRINCIPAL ─── */
 
 .form {
-  padding: 20px 24px 24px;
+  padding: 24px 28px 28px;
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.sectionTitle {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-muted);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border-light);
-}
-
 .field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   position: relative;
+  width: 100%;
 }
 
 .label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #475569;
 }
 
 .input, .select, .textarea {
-  padding: 9px 12px;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   font-size: 14px;
-  color: var(--text-primary);
-  background: var(--bg-card);
+  color: #0f172a;
+  background: #ffffff;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
   font-family: inherit;
+  box-sizing: border-box;
 }
 
 .input:focus, .select:focus, .textarea:focus {
-  border-color: var(--primary);
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1);
 }
 
-.textarea { resize: vertical; }
+.textarea {
+  resize: vertical;
+  min-height: 80px;
+}
 
 .row2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 16px;
 }
 
-.row3 {
+/* ─── GRID DE DATA / HORÁRIO / DURAÇÃO E BOTÃO DE ENCONTRAR ─── */
+
+.dateSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rowGridDate {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 16px;
 }
 
-/* ─── Dropdown de pacientes ─── */
+.btnFindSlot {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0284c7;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.btnFindSlot:hover {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+}
+
+/* ─── CAMPO PACIENTE + BUSCA ─── */
+
+.patientRow {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.searchWrapper {
+  position: relative;
+  flex: 1;
+}
+
+.btnRegister {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #2563eb;
+  padding: 0 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  height: 43px; /* Alinhado com a altura do input */
+  transition: background 0.15s ease;
+}
+
+.btnRegister:hover {
+  background: #dbeafe;
+}
 
 .dropdown {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: var(--bg-card);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-md);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   z-index: 100;
-  max-height: 200px;
+  max-height: 220px;
   overflow-y: auto;
 }
 
 .dropdownItem {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 10px 14px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s ease;
 }
 
-.dropdownItem:hover { background: var(--bg-page); }
+.dropdownItem:hover {
+  background: #f8fafc;
+}
 
 .dropdownAvatar {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--primary-light);
-  color: var(--primary);
-  font-size: 11px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 12px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -165,61 +246,235 @@
   flex-shrink: 0;
 }
 
-.dropdownName { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-.dropdownSub { font-size: 11px; color: var(--text-secondary); }
+.dropdownName {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
 
-.selectedPatient {
+.dropdownSub {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.selectedPatientTag {
   font-size: 12px;
-  color: var(--status-em-atendimento-text);
-  background: var(--status-em-atendimento-bg);
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
+  color: #0369a1;
+  background: #e0f2fe;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* ─── RADIOS & RETORNO ─── */
+
+.radioGroup {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  height: 42px;
+}
+
+.radioGroup label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #334155;
   font-weight: 500;
 }
 
-/* ─── Erro ─── */
+/* ─── ETIQUETAS / PROCEDIMENTOS ─── */
+
+.tagWrapper {
+  position: relative;
+}
+
+.tagSelectBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #0f172a;
+  text-align: left;
+}
+
+.tagDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.tagDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.tagOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #0f172a;
+  transition: background 0.15s ease;
+}
+
+.tagOption:hover {
+  background: #f8fafc;
+}
+
+/* ─── AÇÕES & MENSAGEM DE ERRO ─── */
 
 .error {
   font-size: 13px;
-  color: var(--status-cancelado-text);
-  background: var(--status-cancelado-bg);
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 10px 14px;
+  border-radius: 8px;
 }
-
-/* ─── Ações ─── */
 
 .actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding-top: 4px;
-  border-top: 1px solid var(--border);
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #f1f5f9;
 }
 
 .cancelBtn {
-  background: none;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   padding: 10px 20px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--text-secondary);
-  transition: all 0.15s;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.cancelBtn:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+.cancelBtn:hover {
+  border-color: #94a3b8;
+  color: #0f172a;
+}
 
 .submitBtn {
-  background: var(--primary);
-  color: white;
+  background: #0284c7;
+  color: #ffffff;
   border: none;
-  border-radius: var(--radius-sm);
-  padding: 10px 20px;
-  font-size: 14px;
+  border-radius: 8px;
+  padding: 10px 24px;
+  font-size: 13px;
   font-weight: 600;
-  transition: background 0.2s;
+  cursor: pointer;
+  transition: background 0.2s ease;
 }
 
-.submitBtn:hover:not(:disabled) { background: var(--primary-hover); }
-.submitBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+.submitBtn:hover:not(:disabled) {
+  background: #0369a1;
+}
+
+.submitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ─── SUB-MODAL DE HORÁRIOS DISPONÍVEIS ─── */
+
+.subModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+}
+
+.subModal {
+  background: #ffffff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 520px;
+  padding: 24px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.subHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.subHeader h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.subHeader button {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.subTitleSection {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  margin: 14px 0 8px;
+}
+
+.slotsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.slotBtn {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 8px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.slotBtn:hover {
+  border-color: #0284c7;
+  color: #0284c7;
+  background: #ffffff;
+}
+
+.subFooter {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}

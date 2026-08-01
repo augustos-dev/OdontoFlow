@@ -25,24 +25,15 @@ interface Props {
   onSuccess: () => void
 }
 
-const STATUS_OPTIONS = [
-  { value: 'AGENDADO', label: 'Agendado' },
-  { value: 'CONFIRMADO', label: 'Confirmado' },
-  { value: 'EM_ATENDIMENTO', label: 'Em Atendimento' },
-  { value: 'FINALIZADO', label: 'Finalizado' },
-  { value: 'FALTOU', label: 'Faltou' },
-  { value: 'CANCELADO', label: 'Cancelado' },
+const STATUS_LIST = [
+  { value: 'AGENDADO', label: 'Agendada', color: '#2563eb' },
+  { value: 'CONFIRMADO', label: 'Confirmada', color: '#16a34a' },
+  { value: 'AGUARDANDO', label: 'Paciente aguardando', color: '#ea580c' },
+  { value: 'EM_ATENDIMENTO', label: 'Paciente em atendimento', color: '#9333ea' },
+  { value: 'FINALIZADO', label: 'Finalizada', color: '#52525b' },
+  { value: 'FALTOU', label: 'Faltou', color: '#dc2626' },
+  { value: 'CANCELADO', label: 'Cancelada', color: '#dc2626' },
 ]
-
-const STATUS_CLASS: Record<string, string> = {
-  AGENDADO: 'agendado',
-  CONFIRMADO: 'confirmado',
-  EM_ATENDIMENTO: 'emAtendimento',
-  FINALIZADO: 'finalizado',
-  CANCELADO: 'cancelado',
-  FALTOU: 'cancelado',
-  ESPERA: 'espera',
-}
 
 const PAYMENT_LABEL: Record<string, string> = {
   PIX: 'Pix',
@@ -53,48 +44,66 @@ const PAYMENT_LABEL: Record<string, string> = {
 }
 
 export default function DetalhesAgendamentoModal({ appointment, onClose, onSuccess }: Props) {
-  const [newStatus, setNewStatus] = useState('')
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [cancellationReason, setCancellationReason] = useState('')
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null)
+  
   const [loadingStatus, setLoadingStatus] = useState(false)
   const [loadingDelete, setLoadingDelete] = useState(false)
-  const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [error, setError] = useState('')
 
   if (!appointment) return null
 
   const isFinished = ['FINALIZADO', 'CANCELADO', 'FALTOU'].includes(appointment.status)
 
-  function formatDateTime(dt: string) {
-    return new Date(dt).toLocaleString('pt-BR', {
-      weekday: 'long',
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
+  // Datas
+  const dt = new Date(appointment.dateTime)
+  const dateFormatted = dt.toLocaleDateString('pt-BR', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+
+  const endDt = new Date(dt.getTime() + (appointment.durationMin || 30) * 60000)
+  const timeFormatted = `${dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - ${endDt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+
+  const currentStatusObj = STATUS_LIST.find((s) => s.value === appointment.status) || STATUS_LIST[0]
 
   function getInitials(name: string) {
     return name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()
   }
 
-  async function handleStatusChange() {
-    if (!appointment) return
-    if (!newStatus) { setError('Selecione um status.'); return }
-    if (newStatus === 'CANCELADO' && !cancellationReason.trim()) {
-      setError('Informe o motivo do cancelamento.')
+  function handleOpenWhatsapp() {
+    const cleanPhone = appointment.patient.phone.replace(/\D/g, '')
+    const msg = encodeURIComponent(`Olá ${appointment.patient.name}, confirmamos sua consulta para ${dateFormatted} às ${timeFormatted}?`)
+    window.open(`https://wa.me/55${cleanPhone}?text=${msg}`, '_blank')
+  }
+
+  async function handleSelectStatus(targetStatus: string) {
+    setShowStatusDropdown(false)
+    setError('')
+
+    // Se for cancelamento, exige motivo antes de salvar
+    if (targetStatus === 'CANCELADO') {
+      setPendingStatus(targetStatus)
       return
     }
-    setError('')
+
+    await executeStatusUpdate(targetStatus)
+  }
+
+  async function executeStatusUpdate(statusToSave: string, reason?: string) {
     setLoadingStatus(true)
+    setError('')
     try {
       await api.patch(`/appointments/${appointment.id}/status`, {
-        status: newStatus,
-        ...(newStatus === 'CANCELADO' && { cancellationReason }),
+        status: statusToSave,
+        ...(reason && { cancellationReason: reason }),
       })
+      setPendingStatus(null)
       onSuccess()
-      onClose()
     } catch (err: any) {
       setError(err.response?.data?.message ?? 'Erro ao atualizar status.')
     } finally {
@@ -103,12 +112,11 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
   }
 
   async function handleDelete() {
-     if (!appointment) return
     setLoadingDelete(true)
     try {
       await api.delete(`/appointments/${appointment.id}`)
       onSuccess()
-      onClose()
+      handleClose()
     } catch (err: any) {
       setError(err.response?.data?.message ?? 'Erro ao deletar agendamento.')
       setConfirmDelete(false)
@@ -118,8 +126,9 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
   }
 
   function handleClose() {
-    setNewStatus('')
+    setShowStatusDropdown(false)
     setCancellationReason('')
+    setPendingStatus(null)
     setError('')
     setConfirmDelete(false)
     onClose()
@@ -127,152 +136,181 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
 
   return (
     <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && handleClose()}>
-      <div className={styles.modal}>
-
-        {/* ─── Header ─── */}
-        <div className={styles.modalHeader}>
-          <div>
-            <h2 className={styles.modalTitle}>Detalhes da Consulta</h2>
-            <p className={styles.modalSub}>{formatDateTime(appointment.dateTime)}</p>
+      <div className={styles.popoverCard}>
+        
+        {/* ─── HEADER: AVATAR, PACIENTE & WHATSAPP ─── */}
+        <div className={styles.header}>
+          <div className={styles.avatar}>{getInitials(appointment.patient.name)}</div>
+          <div className={styles.headerInfo}>
+            <h3 className={styles.patientName}>{appointment.patient.name}</h3>
+            <div className={styles.phoneRow}>
+              <span>{appointment.patient.phone}</span>
+              <button type="button" className={styles.btnWhatsapp} onClick={handleOpenWhatsapp}>
+                💬 Confirmar consulta
+              </button>
+            </div>
+            {appointment.patient.email && (
+              <div className={styles.emailSub}>{appointment.patient.email}</div>
+            )}
           </div>
-          <button className={styles.closeBtn} onClick={handleClose}>✕</button>
+          <button type="button" className={styles.closeBtn} onClick={handleClose}>✕</button>
         </div>
 
-        <div className={styles.body}>
+        {/* ─── ATALHOS RÁPIDOS ─── */}
+        <div className={styles.quickActions}>
+          <button type="button" className={styles.btnOutline}>Abrir prontuário</button>
+          <button type="button" className={styles.btnOutline}>Adicionar evolução</button>
+        </div>
 
-          {/* ─── Status atual ─── */}
-          <div className={styles.statusRow}>
-            <span className={`${styles.statusBadge} ${styles[STATUS_CLASS[appointment.status] ?? 'agendado']}`}>
-              {STATUS_OPTIONS.find(s => s.value === appointment.status)?.label ?? appointment.status}
-            </span>
-            <span className={styles.roomBadge}>{appointment.room?.replace('_', ' ') ?? '—'}</span>
-            <span className={styles.typeBadge}>{appointment.type === 'PARTICULAR' ? 'Particular' : 'Convênio'}</span>
-            <span className={styles.durationBadge}>⏱ {appointment.durationMin ?? '—'} min</span>
+        {/* ─── BOTAO DE AÇÃO PRINCIPAL ─── */}
+        <div className={styles.primaryActionRow}>
+          <button type="button" className={styles.btnEdit}>
+            ✏️ Editar agendamento
+          </button>
+          <button
+            type="button"
+            className={styles.btnIconCopy}
+            title="Copiar detalhes"
+            onClick={() => navigator.clipboard.writeText(`${appointment.patient.name} - ${dateFormatted} às ${timeFormatted}`)}
+          >
+            📋
+          </button>
+        </div>
+
+        {/* ─── DETALHES DO AGENDAMENTO ─── */}
+        <div className={styles.detailsList}>
+          <div className={styles.detailItem}>
+            <span className={styles.icon}>👨‍⚕️</span>
+            <span><strong>{appointment.dentist.name}</strong> • {appointment.room?.replace('_', ' ') ?? '—'}</span>
           </div>
 
-          {/* ─── Paciente ─── */}
-          <div className={styles.section}>
-            <h3 className={styles.sectionTitle}>Paciente</h3>
-            <div className={styles.personCard}>
-              <div className={styles.avatar}>{getInitials(appointment.patient.name)}</div>
-              <div className={styles.personInfo}>
-                <div className={styles.personName}>{appointment.patient.name}</div>
-                <div className={styles.personSub}>📱 {appointment.patient.phone}</div>
-                {appointment.patient.email && (
-                  <div className={styles.personSub}>✉️ {appointment.patient.email}</div>
-                )}
-              </div>
-            </div>
+          <div className={styles.detailItem}>
+            <span className={styles.icon}>📅</span>
+            <span>{dateFormatted}</span>
+            <span className={styles.iconTime}>🕒</span>
+            <span>{timeFormatted}</span>
           </div>
 
-          {/* ─── Dentista ─── */}
-          <div className={styles.section}>
-            <h3 className={styles.sectionTitle}>Dentista</h3>
-            <div className={styles.personCard}>
-              <div className={`${styles.avatar} ${styles.avatarDentist}`}>
-                {getInitials(appointment.dentist.name)}
-              </div>
-              <div className={styles.personInfo}>
-                <div className={styles.personName}>{appointment.dentist.name}</div>
-                {appointment.dentist.cro && (
-                  <div className={styles.personSub}>CRO: {appointment.dentist.cro}</div>
-                )}
-              </div>
-            </div>
+          <div className={styles.detailItem}>
+            <span className={styles.icon}>🏷️</span>
+            <span>{appointment.type === 'PARTICULAR' ? 'Particular' : 'Convênio'} ({appointment.durationMin} min)</span>
           </div>
 
-          {/* ─── Observações ─── */}
           {appointment.notes && (
-            <div className={styles.section}>
-              <h3 className={styles.sectionTitle}>Observações</h3>
-              <p className={styles.notes}>{appointment.notes}</p>
+            <div className={styles.notesBox}>
+              <strong>Observações:</strong> {appointment.notes}
             </div>
           )}
 
-          {/* ─── Motivo cancelamento ─── */}
           {appointment.cancellationReason && (
-            <div className={styles.section}>
-              <h3 className={styles.sectionTitle}>Motivo do Cancelamento</h3>
-              <p className={styles.cancelReason}>{appointment.cancellationReason}</p>
+            <div className={styles.cancelReasonBox}>
+              <strong>Motivo do Cancelamento:</strong> {appointment.cancellationReason}
             </div>
           )}
 
-          {/* ─── Transação ─── */}
           {appointment.transaction && (
-            <div className={styles.section}>
-              <h3 className={styles.sectionTitle}>Pagamento</h3>
-              <div className={styles.transactionCard}>
-                <span className={styles.transactionAmount}>
-                  {Number(appointment.transaction.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </span>
-                <span className={styles.transactionMethod}>
-                  {PAYMENT_LABEL[appointment.transaction.paymentMethod] ?? appointment.transaction.paymentMethod}
-                </span>
-              </div>
+            <div className={styles.transactionCard}>
+              <span className={styles.transactionAmount}>
+                {Number(appointment.transaction.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+              <span className={styles.transactionMethod}>
+                {PAYMENT_LABEL[appointment.transaction.paymentMethod] ?? appointment.transaction.paymentMethod}
+              </span>
             </div>
           )}
-
-          {/* ─── Alterar Status ─── */}
-          {!isFinished && (
-            <div className={styles.section}>
-              <h3 className={styles.sectionTitle}>Alterar Status</h3>
-              <div className={styles.statusChangeRow}>
-                <select
-                  className={styles.select}
-                  value={newStatus}
-                  onChange={(e) => { setNewStatus(e.target.value); setError('') }}
-                >
-                  <option value="">Selecione o novo status...</option>
-                  {STATUS_OPTIONS.filter((s) => s.value !== appointment.status).map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-                <button
-                  className={styles.updateBtn}
-                  onClick={handleStatusChange}
-                  disabled={loadingStatus || !newStatus}
-                >
-                  {loadingStatus ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-
-              {newStatus === 'CANCELADO' && (
-                <textarea
-                  className={styles.textarea}
-                  placeholder="Informe o motivo do cancelamento..."
-                  value={cancellationReason}
-                  onChange={(e) => setCancellationReason(e.target.value)}
-                  rows={2}
-                />
-              )}
-            </div>
-          )}
-
-          {error && <p className={styles.error}>{error}</p>}
         </div>
 
-        {/* ─── Footer ─── */}
+        {/* ─── SELECT DE STATUS COM DROPDOWN FLUTUANTE ─── */}
+        {!isFinished && (
+          <div className={styles.statusSection}>
+            <button
+              type="button"
+              className={styles.statusSelectTrigger}
+              onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+              disabled={loadingStatus}
+            >
+              <div className={styles.statusLeft}>
+                <span className={styles.dot} style={{ background: currentStatusObj.color }} />
+                <span>{currentStatusObj.label}</span>
+              </div>
+              <span className={styles.arrow}>{showStatusDropdown ? '▲' : '▼'}</span>
+            </button>
+
+            {showStatusDropdown && (
+              <div className={styles.statusDropdownMenu}>
+                {STATUS_LIST.map((st) => (
+                  <div
+                    key={st.value}
+                    className={`${styles.statusOption} ${st.value === appointment.status ? styles.selectedOption : ''}`}
+                    onClick={() => handleSelectStatus(st.value)}
+                  >
+                    <div className={styles.statusLeft}>
+                      <span className={styles.dot} style={{ background: st.color }} />
+                      <span>{st.label}</span>
+                    </div>
+                    {st.value === appointment.status && <span className={styles.check}>✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Campo para preencher o motivo caso o usuário selecione CANCELADO */}
+        {pendingStatus === 'CANCELADO' && (
+          <div className={styles.cancelReasonField}>
+            <textarea
+              className={styles.textarea}
+              placeholder="Informe o motivo do cancelamento..."
+              value={cancellationReason}
+              onChange={(e) => setCancellationReason(e.target.value)}
+              rows={2}
+            />
+            <div className={styles.cancelActions}>
+              <button
+                type="button"
+                className={styles.btnConfirmCancel}
+                disabled={loadingStatus || !cancellationReason.trim()}
+                onClick={() => executeStatusUpdate('CANCELADO', cancellationReason)}
+              >
+                {loadingStatus ? 'Salvando...' : 'Confirmar Cancelamento'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {error && <p className={styles.error}>{error}</p>}
+
+        {/* ─── FOOTER (EXCLUSÃO / FECHAR) ─── */}
         <div className={styles.footer}>
           {!isFinished && !confirmDelete && (
-            <button className={styles.deleteBtn} onClick={() => setConfirmDelete(true)}>
+            <button type="button" className={styles.deleteBtn} onClick={() => setConfirmDelete(true)}>
               🗑 Excluir
             </button>
           )}
+
           {confirmDelete && (
-            <div className={styles.confirmDelete}>
-              <span>Confirmar exclusão?</span>
-              <button className={styles.confirmYes} onClick={handleDelete} disabled={loadingDelete}>
-                {loadingDelete ? 'Excluindo...' : 'Sim, excluir'}
+            <div className={styles.confirmDeleteRow}>
+              <span>Excluir?</span>
+              <button
+                type="button"
+                className={styles.confirmYes}
+                onClick={handleDelete}
+                disabled={loadingDelete}
+              >
+                {loadingDelete ? '...' : 'Sim'}
               </button>
-              <button className={styles.confirmNo} onClick={() => setConfirmDelete(false)}>
-                Cancelar
+              <button type="button" className={styles.confirmNo} onClick={() => setConfirmDelete(false)}>
+                Não
               </button>
             </div>
           )}
-          <button className={styles.closeFooterBtn} onClick={handleClose}>
+
+          <button type="button" className={styles.closeFooterBtn} onClick={handleClose}>
             Fechar
           </button>
         </div>
+
       </div>
     </div>
   )

@@ -29,21 +29,33 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 const ROOMS = ['SALA_1', 'SALA_2', 'SALA_3', 'SALA_4']
-const HOURS = Array.from({ length: 11 }, (_, i) => `${(8 + i).toString().padStart(2, '0')}:00`)
+
+const START_HOUR = 8
+const END_HOUR = 18
+const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => {
+  const h = (START_HOUR + i).toString().padStart(2, '0')
+  return `${h}:00`
+})
+
+// 32px a cada 15 min -> 128px por hora
+const SLOT_15MIN_HEIGHT = 32
 
 export default function AgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
   const [loading, setLoading] = useState(true)
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
-  const [currentHour, setCurrentHour] = useState<string>('')
 
-  // Estados para o Modal de Alerta ao trocar Horário/Sala
+  // Estado para controlar a consulta em Drag & Drop
+  const [draggedAppt, setDraggedAppt] = useState<Appointment | null>(null)
+
+  const [now, setNow] = useState<Date>(new Date())
   const [pendingMove, setPendingMove] = useState<{ appt: Appointment; newHour: string; newRoom: string } | null>(null)
+  const [timeErrorAlert, setTimeErrorAlert] = useState<string | null>(null)
 
   useEffect(() => {
-    const hour = new Date().getHours()
-    setCurrentHour(`${hour.toString().padStart(2, '0')}:00`)
+    const timer = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(timer)
   }, [])
 
   async function loadAppointments(date: string) {
@@ -66,6 +78,14 @@ export default function AgendaPage() {
     return new Date(dt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   }
 
+  function parseTimeComponents(dateTimeStr: string) {
+    const dt = new Date(dateTimeStr)
+    return {
+      hours: dt.getHours(),
+      minutes: dt.getMinutes(),
+    }
+  }
+
   function getApptsByRoom(room: string) {
     return appointments.filter((a) => a.room === room && !a.isWaitingList && a.status !== 'ESPERA')
   }
@@ -83,19 +103,86 @@ export default function AgendaPage() {
     return map[status] ?? styles.agendado
   }
 
-  // Executa a troca real de horário/sala após o usuário confirmar no Modal
+  // --- POSICIONAMENTO COM BASE NA DIFERENÇA EM MINUTOS ---
+  function getAppointmentStyle(dateTimeStr: string, durationMin: number = 30) {
+    const { hours, minutes } = parseTimeComponents(dateTimeStr)
+    const minutesFromStart = (hours - START_HOUR) * 60 + minutes
+
+    const top = (minutesFromStart / 15) * SLOT_15MIN_HEIGHT
+    const calculatedHeight = (durationMin / 15) * SLOT_15MIN_HEIGHT
+    const height = Math.max(calculatedHeight, 44)
+
+    return {
+      top: `${top}px`,
+      height: `${height}px`,
+    }
+  }
+
+  // --- LINHA TEMPO REAL ---
+  const isToday = selectedDate === new Date().toISOString().slice(0, 10)
+  const nowHours = now.getHours()
+  const nowMins = now.getMinutes()
+  const nowMinutesFromStart = (nowHours - START_HOUR) * 60 + nowMins
+  const realTimeTop = (nowMinutesFromStart / 15) * SLOT_15MIN_HEIGHT
+
+  // --- LÓGICA DE DRAG & DROP CORRIGIDA ---
+  function handleDragStart(e: React.DragEvent, appt: Appointment) {
+    setDraggedAppt(appt)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  function handleDrop(e: React.DragEvent, room: string) {
+    e.preventDefault()
+
+    if (!draggedAppt) return
+
+    // Pega as coordenadas exatas relativas ao container da coluna da sala (roomBody)
+    const roomBodyEl = e.currentTarget.closest(`.${styles.roomBody}`)
+    if (!roomBodyEl) return
+
+    const rect = roomBodyEl.getBoundingClientRect()
+    const offsetY = e.clientY - rect.top
+
+    // 1. Calcula os blocos de 15 min (32px cada)
+    const slotIndex = Math.floor(offsetY / SLOT_15MIN_HEIGHT)
+
+    // 2. Converte para minutos e horas a partir do START_HOUR
+    const totalMinutes = START_HOUR * 60 + slotIndex * 15
+
+    const newHourNum = Math.floor(totalMinutes / 60)
+    const newMinuteNum = totalMinutes % 60
+
+    // Trava para não permitir soltar fora do horário de funcionamento (08:00 - 18:00)
+    if (newHourNum < START_HOUR || newHourNum > END_HOUR) return
+
+    const formattedHour = String(newHourNum).padStart(2, '0')
+    const formattedMinute = String(newMinuteNum).padStart(2, '0')
+    const timeString = `${formattedHour}:${formattedMinute}`
+
+    setPendingMove({
+      appt: draggedAppt,
+      newRoom: room,
+      newHour: timeString,
+    })
+
+    setDraggedAppt(null)
+  }
+
   async function confirmMoveAppointment() {
     if (!pendingMove) return
     const { appt, newHour, newRoom } = pendingMove
 
-    // Monta o novo ISO string mantendo o dia e trocando hora/minutos
     const [hours, minutes] = newHour.split(':')
-    const updatedDate = new Date(selectedDate + 'T00:00:00') // evita offset de timezone
-    updatedDate.setHours(parseInt(hours), parseInt(minutes))
+    const [year, month, day] = selectedDate.split('-').map(Number)
 
+    const updatedDate = new Date(year, month - 1, day, parseInt(hours), parseInt(minutes || '0'))
     const newISOString = updatedDate.toISOString()
 
-    // 1. ATUALIZAÇÃO OTIMISTA (Muda a posição na UI na hora!)
     setAppointments((prev) =>
       prev.map((a) =>
         a.id === appt.id
@@ -110,54 +197,34 @@ export default function AgendaPage() {
       )
     )
 
-    setPendingMove(null) // Fecha o modal imediatamente
+    setPendingMove(null)
 
-    // 2. DISPARA PARA O BACKEND
     try {
-      await api.patch(`/appointments/${appt.id}`, {
+      await api.put(`/appointments/${appt.id}`, {
         dateTime: newISOString,
         room: newRoom,
         status: appt.status === 'ESPERA' ? 'AGENDADO' : appt.status,
       })
     } catch (err) {
       console.error('Erro ao remarcar agendamento:', err)
-      // Se der erro na API, recarrega o estado real do banco para reverter
       loadAppointments(selectedDate)
-    }
-  }
-
-  // Eventos de Drag & Drop para arrastar agendamento para novo horário/sala
-  function handleDragStart(e: React.DragEvent, appt: Appointment) {
-    e.dataTransfer.setData('apptId', appt.id)
-  }
-
-  function handleDrop(e: React.DragEvent, targetHour: string, targetRoom: string) {
-    e.preventDefault()
-    const apptId = e.dataTransfer.getData('apptId')
-    const appt = appointments.find((a) => a.id === apptId)
-
-    if (appt) {
-      // Dispara o Modal de aviso pedindo confirmação
-      setPendingMove({ appt, newHour: targetHour, newRoom: targetRoom })
     }
   }
 
   const activeRooms = ROOMS.filter((r) => getApptsByRoom(r).length > 0)
   const displayRooms = activeRooms.length >= 2 ? activeRooms : ROOMS.slice(0, 2)
-
-  // Separar Agendamentos da Fila de Espera / Encaixe
   const waitingList = appointments.filter((a) => a.status === 'ESPERA' || a.isWaitingList)
   const regularAppointments = appointments.filter((a) => a.status !== 'ESPERA' && !a.isWaitingList)
 
   return (
     <div className={styles.page}>
-      {/* BARRA SUPERIOR DE NAVEGAÇÃO E LEGENDA */}
+      {/* NAVBAR */}
       <div className={styles.toolbar}>
         <div className={styles.dateNav}>
           <button
             className={styles.dateBtn}
             onClick={() => {
-              const d = new Date(selectedDate)
+              const d = new Date(selectedDate + 'T00:00:00')
               d.setDate(d.getDate() - 1)
               setSelectedDate(d.toISOString().slice(0, 10))
             }}
@@ -173,7 +240,7 @@ export default function AgendaPage() {
           <button
             className={styles.dateBtn}
             onClick={() => {
-              const d = new Date(selectedDate)
+              const d = new Date(selectedDate + 'T00:00:00')
               d.setDate(d.getDate() + 1)
               setSelectedDate(d.toISOString().slice(0, 10))
             }}
@@ -195,72 +262,109 @@ export default function AgendaPage() {
         </div>
       </div>
 
-      {/* LAYOUT PRINCIPAL */}
       <div className={styles.mainLayout}>
         <div className={styles.card}>
           <div className={styles.cardHeader}>
             <div>
               <h2 className={styles.cardTitle}>Agenda do Dia</h2>
-              <p className={styles.cardSub}>Horários de 08:00 às 18:00</p>
+              <p className={styles.cardSub}>Grade de horários dividida a cada 15 min (08:00 às 18:00)</p>
             </div>
           </div>
 
           {loading ? (
             <div className={styles.loading}>Carregando agenda...</div>
           ) : (
-            <div className={styles.grid}>
-              <div className={styles.timeCol}>
-                <div className={styles.timeColHeader} />
-                {HOURS.map((h) => (
-                  <div
-                    key={h}
-                    className={`${styles.timeSlot} ${h === currentHour ? styles.currentTimeSlot : ''}`}
-                  >
-                    {h}
+            <div className={styles.gridContainer}>
+              <div className={styles.grid}>
+
+                {/* COLUNA DOS HORÁRIOS */}
+                <div className={styles.timeCol}>
+                  <div className={styles.timeColHeader} />
+                  <div className={styles.timeColBody}>
+                    {HOURS.map((h) => (
+                      <div key={h} className={styles.timeSlot}>
+                        {h}
+                      </div>
+                    ))}
+
+                    {isToday && nowHours >= START_HOUR && nowHours <= END_HOUR && (
+                      <span
+                        className={styles.realTimeBadge}
+                        style={{ top: `${realTimeTop}px` }}
+                      >
+                        {formatTime(now.toISOString())}
+                      </span>
+                    )}
                   </div>
-                ))}
-              </div>
+                </div>
 
-              {displayRooms.map((room) => (
-                <div key={room} className={styles.roomCol}>
-                  <div className={styles.roomHeader}>{room.replace('_', ' ')}</div>
-                  <div className={styles.roomBody}>
-                    {HOURS.map((h) => {
-                      const appt = getApptsByRoom(room).find((a) =>
-                        formatTime(a.dateTime).startsWith(h.slice(0, 2))
-                      )
-                      const isCurrentTime = h === currentHour
+                {/* COLUNAS DAS SALAS */}
+                {displayRooms.map((room) => {
+                  const roomAppts = getApptsByRoom(room)
 
-                      return (
-                        <div
-                          key={h}
-                          className={`${styles.slot} ${isCurrentTime ? styles.currentSlotLine : ''}`}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={(e) => handleDrop(e, h, room)}
-                        >
-                          {appt && (
+                  return (
+                    <div key={room} className={styles.roomCol}>
+                      <div className={styles.roomHeader}>{room.replace('_', ' ')}</div>
+
+                      <div 
+                        className={styles.roomBody}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, room)}
+                      >
+                        {HOURS.map((h) => (
+                          <div key={h} className={styles.hourSlot}>
+                            <div className={styles.vagoContent}>
+                              <button
+                                className={styles.btnAddVago}
+                                title={`Agendar para ${h} na ${room.replace('_', ' ')}`}
+                                onClick={() => {}}
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* LINHA DE TEMPO REAL */}
+                        {isToday && nowHours >= START_HOUR && nowHours <= END_HOUR && (
+                          <div
+                            className={styles.realTimeLine}
+                            style={{ top: `${realTimeTop}px` }}
+                          />
+                        )}
+
+                        {/* CARDS POSICIONADOS */}
+                        {roomAppts.map((appt) => {
+                          const cardStyle = getAppointmentStyle(appt.dateTime, appt.durationMin)
+
+                          return (
                             <div
+                              key={appt.id}
                               draggable
                               onDragStart={(e) => handleDragStart(e, appt)}
                               className={`${styles.apptCard} ${getStatusClass(appt.status)}`}
                               onClick={() => setSelectedAppt(appt)}
-                              style={{ cursor: 'grab' }}
+                              style={{
+                                top: cardStyle.top,
+                                height: cardStyle.height,
+                              }}
                             >
-                              <div className={styles.apptName}>{appt.patient.name}</div>
-                              <div className={styles.apptProcedure}>
-                                {appt.notes ?? appt.type}
+                              <div className={styles.apptHeaderRow}>
+                                <div className={styles.apptMainInfo}>
+                                  <span className={styles.apptTime}>{formatTime(appt.dateTime)}</span>
+                                  <span className={styles.apptName}>{appt.patient?.name || 'Paciente não identificado'}</span>
+                                </div>
+                                <span className={styles.apptBadge}>{STATUS_LABEL[appt.status]}</span>
                               </div>
-                              <span className={styles.apptBadge}>
-                                {STATUS_LABEL[appt.status]}
-                              </span>
                             </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
+                          )
+                        })}
+
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -269,7 +373,6 @@ export default function AgendaPage() {
         <aside className={styles.sidePanel}>
           <h3 className={styles.sideTitle}>Resumo da Recepção</h3>
 
-          {/* 1. PRÓXIMOS PACIENTES */}
           <div className={styles.waitingSection}>
             <span className={styles.sectionLabel}>Próximos a Atender</span>
             {regularAppointments.filter((a) => a.status === 'CONFIRMADO' || a.status === 'AGENDADO').length === 0 ? (
@@ -277,7 +380,7 @@ export default function AgendaPage() {
             ) : (
               regularAppointments
                 .filter((a) => a.status === 'CONFIRMADO' || a.status === 'AGENDADO')
-                .slice(0, 3)
+                .slice(0, 4)
                 .map((a) => (
                   <div key={a.id} className={styles.miniCard} onClick={() => setSelectedAppt(a)}>
                     <strong>{a.patient.name}</strong>
@@ -287,7 +390,6 @@ export default function AgendaPage() {
             )}
           </div>
 
-          {/* 2. FILA DE ESPERA E ENCAIXES */}
           <div className={styles.sideSection}>
             <div className={styles.sideHeaderRow}>
               <span className={styles.sectionLabel}>Fila de Espera / Encaixe ({waitingList.length})</span>
@@ -313,17 +415,31 @@ export default function AgendaPage() {
         </aside>
       </div>
 
-      {/* MODAL DE AVISO DE ALTERAÇÃO DE HORÁRIO/SALA */}
+      {/* MODAL DE AVISO */}
+      {timeErrorAlert && (
+        <div className={styles.confirmOverlay}>
+          <div className={styles.confirmBox}>
+            <div className={styles.errorIcon}>!</div>
+            <h3 className={styles.confirmTitle}>Horário Indisponível</h3>
+            <p className={styles.confirmText}>{timeErrorAlert}</p>
+            <div className={styles.confirmActions}>
+              <button className={styles.btnConfirm} onClick={() => setTimeErrorAlert(null)}>
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE TROCA */}
       {pendingMove && (
         <div className={styles.confirmOverlay}>
           <div className={styles.confirmBox}>
             <div className={styles.confirmIcon}>!</div>
             <h3 className={styles.confirmTitle}>Alterar agendamento</h3>
             <p className={styles.confirmText}>
-              Tem certeza que deseja mover <strong>{pendingMove.appt.patient.name}</strong> para as{' '}
+              Tem certeza que deseja mover <strong>{pendingMove.appt.patient?.name || 'Paciente'}</strong> para as{' '}
               <strong>{pendingMove.newHour}</strong> na <strong>{pendingMove.newRoom.replace('_', ' ')}</strong>?
-              <br />
-              Se já tiver sido enviado lembrete, a alteração pode requerer reaviso ao paciente.
             </p>
             <div className={styles.confirmActions}>
               <button className={styles.btnCancel} onClick={() => setPendingMove(null)}>
@@ -337,7 +453,6 @@ export default function AgendaPage() {
         </div>
       )}
 
-      {/* MODAL DE DETALHES DO AGENDAMENTO */}
       <DetalhesAgendamentoModal
         appointment={selectedAppt}
         onClose={() => setSelectedAppt(null)}
