@@ -51,6 +51,7 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [upcoming, setUpcoming] = useState<Appointment[]>([])
   const [waiting, setWaiting] = useState<Appointment[]>([])
+  const [todayAppts, setTodayAppts] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
 
@@ -65,7 +66,10 @@ export default function DashboardPage() {
       ])
       setSummary(summaryRes.data)
       setUpcoming(upcomingRes.data)
-      setWaiting(todayRes.data.data.filter((a: Appointment) => a.status === 'ESPERA'))
+      
+      const allToday = todayRes.data.data || []
+      setTodayAppts(allToday)
+      setWaiting(allToday.filter((a: Appointment) => a.status === 'ESPERA'))
     } catch (err) {
       console.error(err)
     } finally {
@@ -92,6 +96,11 @@ export default function DashboardPage() {
   function formatCurrency(value: number) {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
+
+  // Agendamentos ativos para o resumo operacional (Confirmados, Agendados e Em Atendimento)
+  const activeAppointments = todayAppts.filter(
+    (a) => a.status === 'EM_ATENDIMENTO' || a.status === 'CONFIRMADO' || a.status === 'AGENDADO'
+  )
 
   if (loading) return <div className={styles.loading}>Carregando...</div>
 
@@ -130,7 +139,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ─── Agenda + Fila ─── */}
+      {/* ─── Agenda + Resumo da Recepção ─── */}
       <div className={styles.mainGrid}>
         <div className={styles.agendaCard}>
           <div className={styles.agendaHeader}>
@@ -172,42 +181,83 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ─── Fila de Espera ─── */}
-        <div className={styles.waitingCard}>
-          <div className={styles.waitingHeader}>
-            <div>
-              <h2 className={styles.waitingTitle}>Fila de Espera</h2>
-              <p className={styles.waitingSub}>Encaixe / Aguardando</p>
-            </div>
-            <span className={styles.waitingCount}>{waiting.length}</span>
-          </div>
-          <div className={styles.waitingList}>
-            {waiting.length === 0 && (
-              <p className={styles.emptyWaiting}>Nenhum paciente na fila</p>
-            )}
-            {waiting.map((appt, i) => (
-              <div
-                key={appt.id}
-                className={styles.waitingItem}
-                onClick={() => setSelectedAppt(appt)}
-                style={{ cursor: 'pointer' }}
-              >
-                <div className={styles.waitingAvatar}>
-                  {appt.patient.name.split(' ').slice(0, 2).map(n => n[0]).join('')}
-                </div>
-                <div className={styles.waitingInfo}>
-                  <div className={styles.waitingName}>{appt.patient.name}</div>
-                  <div className={styles.waitingTime}>⏰ {formatTime(appt.dateTime)}</div>
-                  <div className={styles.waitingNote}>{appt.notes ?? 'Aguardando consulta'}</div>
-                </div>
-                <span className={styles.waitingPos}>#{i + 1}</span>
+        {/* ─── PAINEL LATERAL: RESUMO DA RECEPÇÃO ─── */}
+        <div className={styles.sidePanel}>
+          
+          {/* BLOCO 1: EM ATENDIMENTO / PRÓXIMOS */}
+          <div className={styles.waitingCard}>
+            <div className={styles.waitingHeader}>
+              <div>
+                <h2 className={styles.waitingTitle}>Resumo da Recepção</h2>
+                <p className={styles.waitingSub}>Próximos a atender</p>
               </div>
-            ))}
+            </div>
+            <div className={styles.waitingList}>
+              {activeAppointments.length === 0 ? (
+                <p className={styles.emptyWaiting}>Nenhum atendimento pendente hoje.</p>
+              ) : (
+                activeAppointments.slice(0, 4).map((appt) => (
+                  <div
+                    key={appt.id}
+                    className={styles.waitingItem}
+                    onClick={() => setSelectedAppt(appt)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className={styles.waitingAvatar}>
+                      {appt.patient.name.split(' ').slice(0, 2).map(n => n[0]).join('')}
+                    </div>
+                    <div className={styles.waitingInfo}>
+                      <div className={styles.waitingName}>{appt.patient.name}</div>
+                      <div className={styles.waitingTime}>
+                        ⏰ {formatTime(appt.dateTime)} • {appt.room.replace('_', ' ')}
+                      </div>
+                      <div className={styles.waitingNote}>{appt.notes ?? appt.type}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
+
+          {/* BLOCO 2: FILA DE ESPERA / ENCAIXE */}
+          <div className={styles.waitingCard}>
+            <div className={styles.waitingHeader}>
+              <div>
+                <h2 className={styles.waitingTitle}>Fila de Espera</h2>
+                <p className={styles.waitingSub}>Encaixe / Aguardando</p>
+              </div>
+              <span className={styles.waitingCount}>{waiting.length}</span>
+            </div>
+            <div className={styles.waitingList}>
+              {waiting.length === 0 ? (
+                <p className={styles.emptyWaiting}>Nenhum paciente na fila</p>
+              ) : (
+                waiting.map((appt, i) => (
+                  <div
+                    key={appt.id}
+                    className={styles.waitingItem}
+                    onClick={() => setSelectedAppt(appt)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className={styles.waitingAvatar}>
+                      {appt.patient.name.split(' ').slice(0, 2).map(n => n[0]).join('')}
+                    </div>
+                    <div className={styles.waitingInfo}>
+                      <div className={styles.waitingName}>{appt.patient.name}</div>
+                      <div className={styles.waitingTime}>⏰ {formatTime(appt.dateTime)}</div>
+                      <div className={styles.waitingNote}>{appt.notes ?? 'Aguardando consulta'}</div>
+                    </div>
+                    <span className={styles.waitingPos}>#{i + 1}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
 
-      {/* ─── Modal de detalhes — fora de tudo ─── */}
+      {/* ─── Modal de detalhes ─── */}
       <DetalhesAgendamentoModal
         appointment={selectedAppt}
         onClose={() => setSelectedAppt(null)}

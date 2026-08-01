@@ -83,9 +83,16 @@
 
 .mainGrid {
   display: grid;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: 1fr 320px;
   gap: 20px;
   align-items: start;
+}
+
+/* Painel Lateral que empilha o Resumo e a Fila */
+.sidePanel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 /* ─── Agenda ───────────────────────────────────────────────── */
@@ -227,7 +234,7 @@
   padding: 24px 0;
 }
 
-/* ─── Fila de Espera ───────────────────────────────────────── */
+/* ─── Cards do Painel Lateral (Resumo + Fila) ───────────────────────── */
 
 .waitingCard {
   background: var(--bg-card);
@@ -240,7 +247,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 18px 14px;
+  padding: 16px 18px 12px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -259,10 +266,10 @@
 .waitingCount {
   background: var(--primary-light);
   color: var(--primary);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -279,8 +286,8 @@
 .emptyWaiting {
   text-align: center;
   color: var(--text-muted);
-  font-size: 13px;
-  padding: 24px 0;
+  font-size: 12px;
+  padding: 18px 0;
 }
 
 .waitingItem {
@@ -290,15 +297,20 @@
   padding: 10px;
   border-radius: var(--radius-sm);
   background: var(--bg-page);
+  transition: background 0.2s ease;
+}
+
+.waitingItem:hover {
+  background: #f1f5f9;
 }
 
 .waitingAvatar {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: var(--primary-light);
   color: var(--primary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -315,18 +327,24 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .waitingTime {
   font-size: 11px;
   color: var(--text-secondary);
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .waitingNote {
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .waitingPos {

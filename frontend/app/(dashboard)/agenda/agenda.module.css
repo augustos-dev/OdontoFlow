@@ -1,15 +1,10 @@
-/* app/(dashboard)/agenda/agenda.module.css */
-
 .page {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-/* ==========================================================================
-   1. NAVBAR & LEGENDA SUPERIOR
-   ========================================================================== */
-
+/* ─── TOOLBAR & LEGENDA ─── */
 .toolbar {
   display: flex;
   align-items: center;
@@ -73,30 +68,24 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--status-confirmado-border);
-  display: inline-block;
+  background: var(--status-confirmado-border, #16a34a);
 }
 
 .dotEmAtendimento {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--status-em-atendimento-border);
-  display: inline-block;
+  background: var(--status-em-atendimento-border, #9333ea);
 }
 
 .dotFinalizado {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--status-finalizado-border);
-  display: inline-block;
+  background: var(--status-finalizado-border, #52525b);
 }
 
-/* ==========================================================================
-   2. LAYOUT PRINCIPAL (AGENDA + SIDEBAR DA RECEPÇÃO)
-   ========================================================================== */
-
+/* ─── LAYOUT PRINCIPAL ─── */
 .mainLayout {
   display: grid;
   grid-template-columns: 1fr 280px;
@@ -106,7 +95,7 @@
 
 @media (max-width: 1024px) {
   .mainLayout {
-    grid-template-columns: 1fr; /* Em telas menores empilha a sidebar */
+    grid-template-columns: 1fr;
   }
 }
 
@@ -141,16 +130,27 @@
   color: var(--text-muted);
 }
 
-/* ==========================================================================
-   3. GRADE DA AGENDA (HORÁRIOS E SALAS)
-   ========================================================================== */
+/* ─── GRID DA AGENDA ─── */
+.gridContainer {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+}
 
 .grid {
-  display: grid;
-  grid-template-columns: 65px repeat(auto-fit, minmax(180px, 1fr));
+  display: flex;
+  min-width: 100%;
 }
 
 .timeCol {
+  width: 70px;
+  min-width: 70px;
+  flex-shrink: 0;
+  position: sticky;
+  left: 0;
+  background: var(--bg-card);
+  z-index: 12;
   border-right: 1px solid var(--border);
 }
 
@@ -158,27 +158,29 @@
   height: 42px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-page);
+  box-sizing: border-box;
+}
+
+.timeColBody {
+  position: relative;
+  /* 11 horas (08:00 às 18:00) x 128px */
+  height: 1408px;
+  box-sizing: border-box;
 }
 
 .timeSlot {
-  height: 80px;
-  padding: 8px;
+  height: 128px;
+  padding: 6px 8px;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   border-bottom: 1px solid var(--border-light);
-  display: flex;
-  align-items: flex-start;
-  transition: color 0.2s;
-}
-
-/* Destaque para o horário atual */
-.currentTimeSlot {
-  color: #f97316;
-  font-weight: 700;
+  box-sizing: border-box;
 }
 
 .roomCol {
+  flex: 1;
+  min-width: 250px;
   border-right: 1px solid var(--border);
 }
 
@@ -197,131 +199,208 @@
   font-weight: 700;
   color: var(--text-secondary);
   letter-spacing: 0.05em;
+  box-sizing: border-box;
 }
 
 .roomBody {
   position: relative;
+  height: 1408px;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
 }
 
-.slot {
-  height: 80px;
-  padding: 4px 6px;
-  border-bottom: 1px solid var(--border-light);
+.hourSlot {
+  height: 128px;
+  border-bottom: 1px solid #cbd5e1;
   position: relative;
+  background-image: linear-gradient(to bottom, #f1f5f9 1px, transparent 1px);
+  background-size: 100% 32px; /* Divisão perfeita de 15 min */
+  box-sizing: border-box;
 }
 
-/* Linha indicadora de tempo real na célula da agenda */
-.currentSlotLine {
-  border-top: 2px solid #f97316 !important;
+.hourSlot:hover {
+  background-color: rgba(241, 245, 249, 0.5);
 }
 
-/* ==========================================================================
-   4. CARDS DE AGENDAMENTO E STATUS
-   ========================================================================== */
-
-.apptCard {
+.vagoContent {
   height: 100%;
-  padding: 6px 8px;
-  border-radius: var(--radius-sm);
-  border-left: 3px solid;
-  position: relative;
-  overflow: hidden;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 
-.apptCard:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
+.hourSlot:hover .vagoContent {
+  opacity: 1;
+}
+
+.btnAddVago {
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.15s ease;
+}
+
+.btnAddVago:hover {
+  transform: scale(1.1);
+}
+
+/* ─── LINHA DO TEMPO REAL ─── */
+.realTimeLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #f97316;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.realTimeBadge {
+  position: absolute;
+  left: 2px;
+  background: #f97316;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 4px;
+  z-index: 20;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+/* ─── CARDS DE AGENDAMENTO ─── */
+.apptCard {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  padding: 0 8px; /* Padding vertical zerado para focar no alinhamento central */
+  border-radius: 8px;
+  border-left: 4px solid;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  cursor: grab;
+  z-index: 10;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, z-index 0.1s;
+  display: flex;
+  align-items: center; /* Centraliza verticalmente a única linha */
+  box-sizing: border-box;
+}
+
+.apptHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+/* Agrupa Horário + Nome na mesma linha na esquerda */
+.apptMainInfo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden; /* Garante que o texto não atropele a badge */
+  min-width: 0;
+}
+
+.apptTime {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .apptName {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
-  padding-right: 50px; /* Garante espaço para a badge */
-}
-
-.apptProcedure {
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: ellipsis; /* Coloca '...' no nome se a tela for pequena */
+  line-height: 1;
 }
 
 .apptBadge {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
-  padding: 1px 6px;
+  padding: 2px 6px;
   border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0; /* Impede a badge de encolher */
 }
 
-/* Status Mapeados */
+/* Cores por Status */
 .confirmado {
-  background: var(--status-confirmado-bg);
-  border-color: var(--status-confirmado-border);
+  background: #f0fdf4;
+  border-color: #16a34a;
+  color: #15803d;
 }
 .confirmado .apptBadge {
-  background: var(--status-confirmado-bg);
-  color: var(--status-confirmado-text);
+  background: #dcfce7;
+  color: #15803d;
 }
 
 .emAtendimento {
-  background: var(--status-em-atendimento-bg);
-  border-color: var(--status-em-atendimento-border);
+  background: #faf5ff;
+  border-color: #9333ea;
+  color: #7e22ce;
 }
 .emAtendimento .apptBadge {
-  background: var(--status-em-atendimento-bg);
-  color: var(--status-em-atendimento-text);
+  background: #f3e8ff;
+  color: #7e22ce;
 }
 
 .finalizado {
-  background: var(--status-finalizado-bg);
-  border-color: var(--status-finalizado-border);
+  background: #f8fafc;
+  border-color: #64748b;
+  color: #475569;
 }
 .finalizado .apptBadge {
-  background: var(--status-finalizado-bg);
-  color: var(--status-finalizado-text);
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .agendado {
-  background: var(--status-agendado-bg);
-  border-color: var(--status-agendado-border);
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
 }
 .agendado .apptBadge {
-  background: var(--status-agendado-bg);
-  color: var(--status-agendado-text);
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .cancelado {
-  background: var(--status-cancelado-bg);
-  border-color: var(--status-cancelado-border);
+  background: #fef2f2;
+  border-color: #dc2626;
+  color: #b91c1c;
 }
 .cancelado .apptBadge {
-  background: var(--status-cancelado-bg);
-  color: var(--status-cancelado-text);
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
 .espera {
   background: #fdf4ff;
   border-color: #a855f7;
-}
-.espera .apptBadge {
-  background: #fdf4ff;
   color: #7c3aed;
 }
 
-/* ==========================================================================
-   5. PAINEL LATERAL DE RECEPÇÃO / FILA DE ESPERA
-   ========================================================================== */
-
+/* ─── SIDEBAR DA RECEPÇÃO ─── */
 .sidePanel {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -386,10 +465,6 @@
   display: block;
 }
 
-/* ==========================================================================
-   NOVAS SEÇÕES: FILA DE ESPERA & ENCAIXE
-   ========================================================================== */
-
 .sideSection {
   margin-top: 20px;
   padding-top: 16px;
@@ -403,25 +478,8 @@
   margin-bottom: 10px;
 }
 
-.addQuickBtn {
-  background: var(--bg-page);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--primary);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.addQuickBtn:hover {
-  background: var(--primary);
-  color: #fff;
-}
-
 .waitingCard {
-  background: #fefce8; /* Amarelo leve para indicar espera/encaixe */
+  background: #fefce8;
   border: 1px solid #fef08a;
   border-left: 3px solid #eab308;
   padding: 10px;
@@ -447,7 +505,7 @@
   color: #a16207;
 }
 
-/* Modal de Confirmação de Remanejamento */
+/* ─── OVERLAYS ─── */
 .confirmOverlay {
   position: fixed;
   inset: 0;
@@ -468,11 +526,9 @@
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
-.confirmIcon {
+.confirmIcon, .errorIcon {
   width: 48px;
   height: 48px;
-  background: #fef3c7;
-  color: #d97706;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -480,6 +536,16 @@
   font-size: 24px;
   font-weight: bold;
   margin: 0 auto 16px;
+}
+
+.confirmIcon {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.errorIcon {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .confirmTitle {
