@@ -78,4 +78,5 @@ medicalRecordRouter.put(
   updateMedicalRecordController
 )
 
+
 export default medicalRecordRouter
