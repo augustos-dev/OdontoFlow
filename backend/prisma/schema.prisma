@@ -179,6 +179,22 @@ model Patient {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  // 📍 Endereço detalhado
+  zipCode   String?
+  city      String?
+  state     String?
+
+  // 👨‍👩‍👦 Responsável Legal (Pacientes Menores)
+  guardianName      String?
+  guardianCpf       String?
+  guardianBirthDate DateTime?
+
+  // 💳 Dados do Convênio
+  insuranceName       String?  @default("Particular")
+  insuranceCardNumber String?
+  insuranceHolderName String?
+  insuranceHolderCpf  String?
+
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   clinic         Clinic          @relation(fields: [clinicId], references: [id])
   appointments   Appointment[]
