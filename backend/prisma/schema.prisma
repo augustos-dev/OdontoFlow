@@ -237,27 +237,30 @@ model MedicalRecord {
 }
 
 model Evolution {
-  id              String    @id @default(uuid())
+  id              String        @id @default(uuid())
   tenantId        String
   medicalRecordId String
   dentistId       String
-  description     String    @db.Text
+  description     String        @db.Text
 
-  // 📸 Snapshot em JSON do estado do odontograma no momento DESTA evolução
+  // 📸 Snapshot em JSON do estado do odontograma
   odontogramSnapshot Json?
 
-  isLocked        Boolean   @default(false)
-  lockedAt        DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  // 🖼️ NOVO CAMPO: Guardar as URLs das fotos anexadas nesta evolução
+  attachments     String[]      @default([])
 
-  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  medicalRecord MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
-  dentist       User          @relation(fields: [dentistId], references: [id])
+  isLocked        Boolean       @default(false)
+  lockedAt        DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  medicalRecord   MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
+  dentist         User          @relation(fields: [dentistId], references: [id])
 
   @@index([tenantId])
   @@index([medicalRecordId])
-  @@index([medicalRecordId, createdAt]) // Timeline do prontuário ordenada
+  @@index([medicalRecordId, createdAt])
   @@map("evolutions")
 }
 

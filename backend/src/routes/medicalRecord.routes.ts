@@ -3,14 +3,12 @@ import { EvolutionController } from "../controllers/evolutionController"
 import {
   getMedicalRecordByPatientController,
   getOdontogramController,
-  lockEvolutionController,
-  updateEvolutionController,
+  updateMedicalRecordController,
   upsertToothConditionController,
-  UpdateMedicalRecordController,
   deleteToothConditionController,
-  CreateEvolutionController
 } from '../controllers/medicalRecordController'
 import { authenticate, authorize } from "../middlewares/authMiddlewares"
+// import { upload } from "../middlewares/uploadMiddleware" // 👈 Importe seu middleware do Multer se utilizar
 
 const medicalRecordRouter = Router()
 const evolutionController = new EvolutionController()
@@ -30,21 +28,22 @@ medicalRecordRouter.get(
 medicalRecordRouter.post(
   '/:patientId/evolutions', 
   authorize('DENTIST', 'ADMIN'), 
-  CreateEvolutionController
+  // upload.array('files'), // 👈 Descomente se passar o Multer aqui
+  evolutionController.createEvolution
 )
 
 // PUT /api/medical-records/evolutions/:evolutionId
 medicalRecordRouter.put(
   '/evolutions/:evolutionId', 
   authorize('DENTIST', 'ADMIN'), 
-  updateEvolutionController
+  evolutionController.updateEvolution
 )
 
 // PATCH /api/medical-records/evolutions/:evolutionId/lock
 medicalRecordRouter.patch(
   '/evolutions/:evolutionId/lock', 
   authorize('DENTIST', 'ADMIN'), 
-  lockEvolutionController
+  evolutionController.lockEvolution
 )
 
 // ─── 2. SUB-ROTAS ESPECÍFICAS DE ODONTOGRAMA ───────────────────────────────
@@ -52,7 +51,7 @@ medicalRecordRouter.patch(
 // GET /api/medical-records/:medicalRecordId/odontogram
 medicalRecordRouter.get(
   '/:medicalRecordId/odontogram', 
-  evolutionController.getCurrentOdontogram
+  getOdontogramController
 )
 
 // PUT /api/medical-records/:patientId/odontogram
@@ -81,7 +80,7 @@ medicalRecordRouter.get(
 medicalRecordRouter.put(
   '/:patientId', 
   authorize('ADMIN', 'DENTIST'), 
-  UpdateMedicalRecordController
+  updateMedicalRecordController
 )
 
 export default medicalRecordRouter
