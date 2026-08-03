@@ -1,58 +1,84 @@
-/* Backdrop com escurecimento suave */
+/* ==========================================================================
+   DRAWER / SHEET DE DETALHES DA EVOLUÇÃO (AMPLA - 80% DA TELA)
+   ========================================================================== */
+
+/* Backdrop com escurecimento e blur */
 .sheet-backdrop {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(3px);
+  background-color: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
   z-index: 9999;
   display: flex;
-  justify-content: flex-end; /* Alinha a gaveta na direita */
+  justify-content: flex-end;
 }
 
-/* Painel Lateral (Gaveta/Sheet) */
+/* Painel Lateral Drawer (Agora ocupando ~80% da viewport) */
 .sheet-container {
-  width: 100%;
-  max-width: 650px; /* Largura ideal para caber odontograma e texto sem apertar */
+  width: 80vw !important;
+  max-width: 1100px; /* Limite de segurança para monitores ultra-wide */
+  min-width: 320px;
   height: 100%;
-  background-color: #1e1e2e; /* Ajuste para a cor do seu Dark Theme */
+  background-color: #1e1e2e;
   color: #cdd6f4;
-  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.3);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
   animation: slideInRight 0.25s ease-out forwards;
 }
 
+@media (max-width: 768px) {
+  .sheet-container {
+    width: 95vw !important; /* Em dispositivos móveis ou tablets toma quase tudo */
+  }
+}
+
 @keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
 }
 
 /* Header Fixo */
 .sheet-header {
-  padding: 1.5rem;
+  padding: 1.25rem 2rem;
   border-bottom: 1px solid #313244;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  background-color: #181825;
 }
 
 .sheet-meta {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.evolution-badge {
+  background-color: rgba(137, 180, 250, 0.15);
+  color: #89b4fa;
+  border: 1px solid rgba(137, 180, 250, 0.3);
+  padding: 0.2rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.evolution-date {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.775rem;
+  color: #a6adc8;
 }
 
 .sheet-title {
   font-size: 1.35rem;
-  font-weight: 600;
+  font-weight: 700;
   margin: 0;
   color: #f5e0dc;
 }
@@ -71,56 +97,145 @@
 }
 
 .sheet-close-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: #313244;
   color: #fff;
 }
 
-/* Corpo com Rolagem */
+/* Corpo com Rolagem Limpa e Mais Espaço */
 .sheet-body {
   flex: 1;
-  padding: 1.5rem;
+  padding: 2rem;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.75rem;
 }
 
-/* Área Reservada para o Odontograma */
-.odontogram-preview-placeholder {
+.evolution-doctor-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #bac2de;
+  background-color: #181825;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #313244;
+}
+
+.doctor-icon {
+  color: #89b4fa;
+}
+
+/* Seções Gerais */
+.evolution-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.evolution-section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #b4befe;
+}
+
+/* Box da Descrição (Rich Text Suportado) */
+.evolution-description-box {
+  padding: 1.15rem;
+  border: 1px solid #313244;
+  border-radius: 8px;
+  background-color: #181825;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #cdd6f4;
+  word-break: break-word;
+}
+
+.evolution-description-box ul,
+.evolution-description-box ol {
+  padding-left: 1.25rem;
+  margin: 0.5rem 0;
+}
+
+/* Galeria de Fotos / Anexos */
+.attachments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.85rem;
+}
+
+.attachment-thumb-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #313244;
+  cursor: pointer;
+  background-color: #181825;
+}
+
+.attachment-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.attachment-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.attachment-thumb-card:hover .attachment-overlay {
+  opacity: 1;
+}
+
+.attachment-thumb-card:hover .attachment-img {
+  transform: scale(1.05);
+}
+
+/* Odontograma Read-Only Container (Amplo para não espremer os dentes) */
+.odontogram-readonly-box {
+  background-color: #0f172a;
+  padding: 1.25rem;
+  border-radius: 10px;
+  border: 1px solid #313244;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+}
+
+/* Placeholders para Ausência de Dados */
+.evolution-placeholder-box {
   border: 1px dashed #45475a;
   background-color: rgba(255, 255, 255, 0.02);
   border-radius: 8px;
-  padding: 1.5rem;
+  padding: 1.25rem;
   text-align: center;
 }
 
 .placeholder-text {
-  font-size: 0.85rem;
-  color: #89b4fa;
+  font-size: 0.825rem;
+  color: #7f849c;
   margin: 0;
-}
-
-/* Descrição sem caixa minúscula/scroll travado */
-.evolution-description-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.evolution-description-box {
-  padding: 1rem;
-  border: 1px solid #313244;
-  border-radius: 8px;
-  background-color: #181825;
-  white-space: pre-wrap;
-  font-size: 0.9rem;
-  line-height: 1.6;
-  color: #cdd6f4;
 }
 
 /* Rodapé Fixo */
 .sheet-footer {
-  padding: 1rem 1.5rem;
+  padding: 1rem 2rem;
   border-top: 1px solid #313244;
   background-color: #181825;
 }
@@ -129,10 +244,11 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.75rem;
+  font-size: 0.775rem;
   color: #a6e3a1;
 }
-/* Custom Scrollbar para a Sheet */
+
+/* Custom Scrollbar */
 .sheet-body::-webkit-scrollbar {
   width: 6px;
 }
@@ -148,4 +264,48 @@
 
 .sheet-body::-webkit-scrollbar-thumb:hover {
   background: #45475a;
+}
+
+/* Lightbox Modal de Imagem Ampliada */
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background-color: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.lightbox-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+
+.lightbox-image {
+  max-width: 100%;
+  max-height: 85vh;
+  border-radius: 8px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border: 1px solid #313244;
+}
+
+.lightbox-close-btn {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  background-color: #f38ba8;
+  color: #11111b;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
