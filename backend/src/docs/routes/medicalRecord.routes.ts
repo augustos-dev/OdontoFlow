@@ -1,61 +1,56 @@
 import { Router } from "express"
-import { EvolutionController } from "../../controllers/evolutionController"
 import {
   getMedicalRecordByPatientController,
+  updateMedicalRecordController,
   getOdontogramController,
-  lockEvolutionController,
-  updateEvolutionController,
   upsertToothConditionController,
-  UpdateMedicalRecordController,
-  deleteToothConditionController
+  deleteToothConditionController,
+  CreateEvolutionController,
+  updateEvolutionController,
+  lockEvolutionController
 } from '../../controllers/medicalRecordController'
 import { authenticate, authorize } from "../../middlewares/authMiddlewares"
+import { upload } from "../../middlewares/uploadMiddleware"
 
 const medicalRecordRouter = Router()
-const evolutionController = new EvolutionController()
 
-// Aplica autenticação JWT para todas as rotas
+// Aplica autenticação JWT para todas as rotas do prontuário
 medicalRecordRouter.use(authenticate)
 
-// ─── 1. EVOLUÇÕES CLÍNICAS ───────────────────────────────────────────────────
+// ─── 1. SUB-ROTAS ESPECÍFICAS DE EVOLUÇÃO ──────────────────────────────────
 
-// GET /api/medical-records/:medicalRecordId/evolutions — buscar histórico
-medicalRecordRouter.get(
-  '/:medicalRecordId/evolutions', 
-  evolutionController.getEvolutions
-)
-
-// POST /api/medical-records/:patientId/evolutions — registrar nova evolução
-// ⚠️ Aponta para evolutionController.create e permite DENTIST / ADMIN
+// POST /api/medical-records/:patientId/evolutions
+// Intercepta arquivos via multipart/form-data com a chave 'attachments'
 medicalRecordRouter.post(
   '/:patientId/evolutions', 
   authorize('DENTIST', 'ADMIN'), 
-  evolutionController.create
+  upload.array('attachments'), 
+  CreateEvolutionController
 )
 
-// PUT /api/medical-records/evolutions/:evolutionId — editar evolução não travada
+// PUT /api/medical-records/evolutions/:evolutionId
 medicalRecordRouter.put(
   '/evolutions/:evolutionId', 
   authorize('DENTIST', 'ADMIN'), 
   updateEvolutionController
 )
 
-// PATCH /api/medical-records/evolutions/:evolutionId/lock — travar evolução
+// PATCH /api/medical-records/evolutions/:evolutionId/lock
 medicalRecordRouter.patch(
   '/evolutions/:evolutionId/lock', 
   authorize('DENTIST', 'ADMIN'), 
   lockEvolutionController
 )
 
-// ─── 2. ODONTOGRAMA ──────────────────────────────────────────────────────────
+// ─── 2. SUB-ROTAS ESPECÍFICAS DE ODONTOGRAMA ───────────────────────────────
 
-// GET /api/medical-records/:medicalRecordId/odontogram — snapshot atual
+// GET /api/medical-records/:medicalRecordId/odontogram
 medicalRecordRouter.get(
   '/:medicalRecordId/odontogram', 
-  evolutionController.getCurrentOdontogram
+  getOdontogramController
 )
 
-// PUT /api/medical-records/:patientId/odontogram — criar/atualizar dente
+// PUT /api/medical-records/:patientId/odontogram
 medicalRecordRouter.put(
   '/:patientId/odontogram', 
   authorize('ADMIN', 'DENTIST'), 
@@ -69,19 +64,19 @@ medicalRecordRouter.delete(
   deleteToothConditionController
 )
 
-// ─── 3. PRONTUÁRIO ───────────────────────────────────────────────────────────
+// ─── 3. ROTAS GENÉRICAS DO PRONTUÁRIO (Sempre por último) ───────────────────
 
-// GET /api/medical-records/:patientId — prontuário completo
+// GET /api/medical-records/:patientId
 medicalRecordRouter.get(
   '/:patientId', 
   getMedicalRecordByPatientController
 )
 
-// PUT /api/medical-records/:patientId — atualizar anamnese
+// PUT /api/medical-records/:patientId
 medicalRecordRouter.put(
   '/:patientId', 
   authorize('ADMIN', 'DENTIST'), 
-  UpdateMedicalRecordController
+  updateMedicalRecordController
 )
 
 export default medicalRecordRouter
