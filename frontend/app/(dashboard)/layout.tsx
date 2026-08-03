@@ -1,20 +1,31 @@
-// app/(dashboard)/layout.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { 
+  LayoutDashboard, 
+  Calendar, 
+  Users, 
+  Package, 
+  CreditCard, 
+  Settings, 
+  LogOut, 
+  Search, 
+  Bell, 
+  Plus, 
+  Activity 
+} from 'lucide-react'
 import styles from './layout.module.css'
-import { ModalProvider } from '@/app/components/ModalContext'
-import { useModal } from '@/app/components/ModalContext'
+import { ModalProvider, useModal } from '@/app/components/ModalContext'
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: '⊞' },
-  { href: '/agenda', label: 'Agenda', icon: '📅' },
-  { href: '/pacientes', label: 'Pacientes', icon: '👤' },
-  { href: '/estoque', label: 'Estoque', icon: '📦' },
-  { href: '/financeiro', label: 'Financeiro', icon: '💳' },
-  { href: '/configuracoes', label: 'Configurações', icon: '⚙️' },
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/agenda', label: 'Agenda', icon: Calendar },
+  { href: '/pacientes', label: 'Pacientes', icon: Users },
+  { href: '/estoque', label: 'Estoque', icon: Package },
+  { href: '/financeiro', label: 'Financeiro', icon: CreditCard },
+  { href: '/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
 // ─── Componente interno que usa o contexto ────────────────────
@@ -22,7 +33,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState<any>(null)
-  const { openNovoAgendamento } = useModal() // ← agora está DENTRO do Provider
+  const { openNovoAgendamento } = useModal()
 
   useEffect(() => {
     const token = localStorage.getItem('odontoflow_token')
@@ -55,7 +66,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* ─── Sidebar ─── */}
       <aside className={styles.sidebar}>
         <div className={styles.sidebarLogo}>
-          <div className={styles.logoIcon}>🦷</div>
+          <div className={styles.logoIcon}>
+            <Activity size={22} color="#fff" />
+          </div>
           <div>
             <div className={styles.logoName}>OdontoFlow</div>
             <div className={styles.logoSub}>GESTÃO CLÍNICA</div>
@@ -64,16 +77,20 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
         <nav className={styles.nav}>
           <p className={styles.navLabel}>MENU PRINCIPAL</p>
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`${styles.navItem} ${pathname === item.href ? styles.navItemActive : ''}`}
-            >
-              <span className={styles.navIcon}>{item.icon}</span>
-              {item.label}
-            </Link>
-          ))}
+          {navItems.map((item) => {
+            const IconComponent = item.icon
+            const isActive = pathname === item.href
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
+              >
+                <IconComponent size={18} className={styles.navIcon} />
+                <span>{item.label}</span>
+              </Link>
+            )
+          })}
         </nav>
 
         <div className={styles.sidebarFooter}>
@@ -84,7 +101,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               {user?.role === 'ADMIN' ? 'Administrador' : user?.role === 'DENTIST' ? 'Dentista' : 'Secretária'}
             </div>
           </div>
-          <button className={styles.logoutBtn} onClick={handleLogout} title="Sair">⏻</button>
+          <button className={styles.logoutBtn} onClick={handleLogout} title="Sair" aria-label="Sair">
+            <LogOut size={16} />
+          </button>
         </div>
       </aside>
 
@@ -100,12 +119,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <div className={styles.headerRight}>
             <span className={styles.headerDate}>{todayFormatted}</span>
             <div className={styles.headerSearch}>
-              <span>🔍</span>
+              <Search size={16} className={styles.searchIcon} />
               <input placeholder="Buscar paciente, procedimento..." className={styles.searchInput} />
             </div>
-            <button className={styles.notifBtn}>🔔</button>
+            <button className={styles.notifBtn} aria-label="Notificações">
+              <Bell size={18} />
+            </button>
             <button className={styles.newAppointmentBtn} onClick={openNovoAgendamento}>
-              + Novo Agendamento
+              <Plus size={16} />
+              <span>Novo Agendamento</span>
             </button>
           </div>
         </header>
@@ -116,7 +138,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   )
 }
 
-// ─── Layout principal — só envolve com o Provider ─────────────
+// ─── Layout principal ─────────────────────────────────────────
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <ModalProvider>

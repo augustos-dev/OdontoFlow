@@ -1,12 +1,21 @@
-/* app/(dashboard)/page.module.css */
-
 .loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  gap: 10px;
+  height: 60vh;
   color: var(--text-muted);
-  font-size: 15px;
+  font-size: 14px;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+  color: var(--primary);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .page {
@@ -38,15 +47,34 @@
   border: 1.5px solid #fee2e2;
 }
 
-.metricIcon {
-  font-size: 20px;
+.metricIconHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 8px;
 }
 
+.metricIconBg {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.metricIconBgAlert {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: #fee2e2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .alertBadge {
-  position: absolute;
-  top: 14px;
-  right: 14px;
   background: #fee2e2;
   color: #dc2626;
   font-size: 10px;
@@ -88,7 +116,6 @@
   align-items: start;
 }
 
-/* Painel Lateral que empilha o Resumo e a Fila */
 .sidePanel {
   display: flex;
   flex-direction: column;
@@ -185,6 +212,9 @@
   font-weight: 600;
   color: var(--text-muted);
   margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .apptName {
@@ -231,10 +261,18 @@
   text-align: center;
   color: var(--text-muted);
   font-size: 13px;
-  padding: 24px 0;
+  padding: 32px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
 
-/* ─── Cards do Painel Lateral (Resumo + Fila) ───────────────────────── */
+.emptyIcon {
+  opacity: 0.4;
+}
+
+/* ─── Cards do Painel Lateral ───────────────────────── */
 
 .waitingCard {
   background: var(--bg-card);
@@ -336,6 +374,9 @@
   font-size: 11px;
   color: var(--text-secondary);
   margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .waitingNote {

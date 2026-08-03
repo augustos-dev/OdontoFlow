@@ -1,7 +1,14 @@
-// app/(dashboard)/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
+import { 
+  Stethoscope, 
+  Clock, 
+  TrendingUp, 
+  AlertTriangle, 
+  Loader2, 
+  Calendar as CalendarIcon 
+} from 'lucide-react'
 import api from '@/lib/api'
 import styles from './page.module.css'
 import DetalhesAgendamentoModal from '@/app/components/DetalhesAgendamentoModal'
@@ -102,37 +109,63 @@ export default function DashboardPage() {
     (a) => a.status === 'EM_ATENDIMENTO' || a.status === 'CONFIRMADO' || a.status === 'AGENDADO'
   )
 
-  if (loading) return <div className={styles.loading}>Carregando...</div>
+  if (loading) {
+    return (
+      <div className={styles.loading}>
+        <Loader2 size={24} className={styles.spinner} />
+        <span>Carregando informações...</span>
+      </div>
+    )
+  }
 
   return (
     <div className={styles.page}>
       {/* ─── Cards de métricas ─── */}
       <div className={styles.metricsGrid}>
         <div className={styles.metricCard}>
-          <div className={styles.metricIcon}>🩺</div>
+          <div className={styles.metricIconHeader}>
+            <div className={styles.metricIconBg}>
+              <Stethoscope size={20} color="var(--primary)" />
+            </div>
+          </div>
           <p className={styles.metricLabel}>ATENDIMENTOS HOJE</p>
           <p className={styles.metricValue}>{summary?.appointments.today ?? 0}</p>
           <p className={styles.metricSub}>agendamentos no dia</p>
         </div>
+
         <div className={styles.metricCard}>
-          <div className={styles.metricIcon}>⏱</div>
+          <div className={styles.metricIconHeader}>
+            <div className={styles.metricIconBg}>
+              <Clock size={20} color="#0284c7" />
+            </div>
+          </div>
           <p className={styles.metricLabel}>FILA DE ESPERA</p>
           <p className={styles.metricValue}>{waiting.length}</p>
           <p className={styles.metricSub}>Pacientes aguardando</p>
         </div>
+
         <div className={styles.metricCard}>
-          <div className={styles.metricIcon}>📈</div>
+          <div className={styles.metricIconHeader}>
+            <div className={styles.metricIconBg}>
+              <TrendingUp size={20} color="#16a34a" />
+            </div>
+          </div>
           <p className={styles.metricLabel}>RECEITA DO DIA</p>
           <p className={`${styles.metricValue} ${styles.metricValueLarge}`}>
             {formatCurrency(summary?.financial.todayRevenue ?? 0)}
           </p>
           <p className={styles.metricSub}>receita de hoje</p>
         </div>
+
         <div className={`${styles.metricCard} ${(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.metricCardAlert : ''}`}>
-          <div className={styles.metricIcon}>⚠️</div>
-          {(summary?.inventory.lowStockCount ?? 0) > 0 && (
-            <span className={styles.alertBadge}>ATENÇÃO</span>
-          )}
+          <div className={styles.metricIconHeader}>
+            <div className={styles.metricIconBgAlert}>
+              <AlertTriangle size={20} color="#dc2626" />
+            </div>
+            {(summary?.inventory.lowStockCount ?? 0) > 0 && (
+              <span className={styles.alertBadge}>ATENÇÃO</span>
+            )}
+          </div>
           <p className={styles.metricLabel}>INSUMOS CRÍTICOS</p>
           <p className={styles.metricValue}>{summary?.inventory.lowStockCount ?? 0}</p>
           <p className={styles.metricSub}>Reposição necessária</p>
@@ -166,14 +199,20 @@ export default function DashboardPage() {
                       onClick={() => setSelectedAppt(appt)}
                       style={{ cursor: 'pointer' }}
                     >
-                      <div className={styles.apptTime}>{formatTime(appt.dateTime)}</div>
+                      <div className={styles.apptTime}>
+                        <Clock size={12} />
+                        <span>{formatTime(appt.dateTime)}</span>
+                      </div>
                       <div className={styles.apptName}>{appt.patient.name}</div>
                       <div className={styles.apptNote}>{appt.notes ?? appt.dentist.name}</div>
                       <span className={styles.apptStatus}>{STATUS_LABEL[appt.status]}</span>
                     </div>
                   ))}
                   {!byRoom[room]?.length && (
-                    <div className={styles.emptySlot}>Sem agendamentos</div>
+                    <div className={styles.emptySlot}>
+                      <CalendarIcon size={20} className={styles.emptyIcon} />
+                      <span>Sem agendamentos</span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -209,7 +248,8 @@ export default function DashboardPage() {
                     <div className={styles.waitingInfo}>
                       <div className={styles.waitingName}>{appt.patient.name}</div>
                       <div className={styles.waitingTime}>
-                        ⏰ {formatTime(appt.dateTime)} • {appt.room.replace('_', ' ')}
+                        <Clock size={12} />
+                        <span>{formatTime(appt.dateTime)} • {appt.room.replace('_', ' ')}</span>
                       </div>
                       <div className={styles.waitingNote}>{appt.notes ?? appt.type}</div>
                     </div>
@@ -244,7 +284,10 @@ export default function DashboardPage() {
                     </div>
                     <div className={styles.waitingInfo}>
                       <div className={styles.waitingName}>{appt.patient.name}</div>
-                      <div className={styles.waitingTime}>⏰ {formatTime(appt.dateTime)}</div>
+                      <div className={styles.waitingTime}>
+                        <Clock size={12} />
+                        <span>{formatTime(appt.dateTime)}</span>
+                      </div>
                       <div className={styles.waitingNote}>{appt.notes ?? 'Aguardando consulta'}</div>
                     </div>
                     <span className={styles.waitingPos}>#{i + 1}</span>

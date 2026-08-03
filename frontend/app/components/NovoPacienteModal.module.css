@@ -1,9 +1,7 @@
-/* app/components/NovoPacienteModal.module.css */
-
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15,7 +13,7 @@
   background: var(--bg-card);
   border-radius: var(--radius-lg);
   width: 100%;
-  max-width: 520px;
+  max-width: 720px; /* Expandido para acomodar o formulário completo */
   max-height: 90vh;
   display: flex;
   flex-direction: column;
@@ -42,6 +40,7 @@
   padding: 4px;
   border-radius: 4px;
   line-height: 1;
+  cursor: pointer;
 }
 .closeBtn:hover { color: var(--text-primary); background: var(--bg-page); }
 
@@ -62,6 +61,7 @@
   color: var(--text-secondary);
   border-bottom: 2px solid transparent;
   transition: all 0.15s;
+  cursor: pointer;
 }
 
 .tab:hover { color: var(--primary); }
@@ -72,7 +72,7 @@
   font-weight: 600;
 }
 
-/* ─── Form ─── */
+/* ─── Form & Sections ─── */
 .form {
   flex: 1;
   overflow-y: auto;
@@ -88,6 +88,20 @@
   gap: 14px;
 }
 
+.groupTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 4px 0 2px 0;
+}
+
+.divider {
+  border-top: 1px solid var(--border-light, #e2e8f0);
+  margin: 6px 0;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -95,18 +109,18 @@
 }
 
 .label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .required { color: #dc2626; }
 
-.input, .select {
+.input, .select, .textarea {
   padding: 9px 12px;
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-primary);
   background: var(--bg-card);
   outline: none;
@@ -114,22 +128,50 @@
   font-family: inherit;
 }
 
-.input:focus, .select:focus { border-color: var(--primary); }
-.input::placeholder { color: var(--text-muted); }
+.input:focus, .select:focus, .textarea:focus { border-color: var(--primary); }
+.input::placeholder, .textarea::placeholder { color: var(--text-muted); }
 
+/* ─── Grids ─── */
 .row2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
-.infoBox {
-  background: var(--primary-light);
-  color: var(--primary);
-  font-size: 12px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  line-height: 1.5;
+.row3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .row2, .row3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cityStateGroup {
+  display: flex;
+  gap: 6px;
+}
+
+.cityStateGroup .input:first-child {
+  flex: 1;
+}
+
+.checkboxField {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 8px;
+}
+
+.checkboxLabel {
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
 }
 
 /* ─── Error ─── */
@@ -146,7 +188,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding-top: 4px;
+  padding-top: 12px;
   border-top: 1px solid var(--border);
   margin-top: 4px;
 }
@@ -155,10 +197,11 @@
   background: none;
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 10px 20px;
-  font-size: 14px;
+  padding: 9px 18px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
+  cursor: pointer;
   transition: all 0.15s;
 }
 
@@ -168,10 +211,11 @@
   background: var(--bg-page);
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 10px 20px;
-  font-size: 14px;
+  padding: 9px 18px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+  cursor: pointer;
   transition: all 0.15s;
 }
 
@@ -182,11 +226,44 @@
   color: white;
   border: none;
   border-radius: var(--radius-sm);
-  padding: 10px 20px;
-  font-size: 14px;
+  padding: 9px 20px;
+  font-size: 13px;
   font-weight: 600;
+  cursor: pointer;
   transition: background 0.2s;
 }
 
 .submitBtn:hover:not(:disabled) { background: var(--primary-hover); }
 .submitBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+/* Garante alinhamento dos ícones nas tabs */
+.tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Garante alinhamento nos botões do rodapé */
+.nextBtn, .submitBtn, .closeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Títulos das seções de formulário com ícone */
+.groupTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Animação do Spinner de carregamento */
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

@@ -161,21 +161,23 @@
   box-sizing: border-box;
 }
 
+/* 11 horas (08:00 às 18:00 inclusive) x 160px/hora = 1760px */
 .timeColBody {
   position: relative;
-  /* 11 horas (08:00 às 18:00) x 128px */
-  height: 1408px;
+  height: 1760px;
   box-sizing: border-box;
 }
 
 .timeSlot {
-  height: 128px;
-  padding: 6px 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border-light);
+  height: 160px; /* 4 slots de 15 min * 40px */
   box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  padding-top: 4px;
+  padding-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 .roomCol {
@@ -202,20 +204,22 @@
   box-sizing: border-box;
 }
 
+/* Container do corpo da sala estendido para 1760px */
 .roomBody {
   position: relative;
-  height: 1408px;
+  height: 1760px;
   box-sizing: border-box;
   padding: 0;
   margin: 0;
 }
 
+/* Cada hora inteira possui 160px, dividida visualmente a cada 40px */
 .hourSlot {
-  height: 128px;
+  height: 160px;
   border-bottom: 1px solid #cbd5e1;
   position: relative;
   background-image: linear-gradient(to bottom, #f1f5f9 1px, transparent 1px);
-  background-size: 100% 32px; /* Divisão perfeita de 15 min */
+  background-size: 100% 40px; /* Divisão visual perfeita de 15 min (40px) */
   box-sizing: border-box;
 }
 
@@ -287,8 +291,8 @@
   position: absolute;
   left: 6px;
   right: 6px;
-  padding: 0 8px; /* Padding vertical zerado para focar no alinhamento central */
-  border-radius: 8px;
+  padding: 0 8px; /* Mantém zerado nas extremidades verticais */
+  border-radius: 6px;
   border-left: 4px solid;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
@@ -296,8 +300,13 @@
   z-index: 10;
   transition: transform 0.1s ease, box-shadow 0.1s ease, z-index 0.1s;
   display: flex;
-  align-items: center; /* Centraliza verticalmente a única linha */
+  align-items: center; /* Centralização vertical precisa do conteúdo no card */
   box-sizing: border-box;
+}
+
+.apptCard:hover {
+  z-index: 25;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 .apptHeaderRow {
@@ -305,15 +314,15 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  gap: 8px;
+  gap: 6px;
 }
 
-/* Agrupa Horário + Nome na mesma linha na esquerda */
+/* Agrupa Horário + Nome na mesma linha */
 .apptMainInfo {
   display: flex;
   align-items: center;
   gap: 6px;
-  overflow: hidden; /* Garante que o texto não atropele a badge */
+  overflow: hidden;
   min-width: 0;
 }
 
@@ -330,17 +339,18 @@
   color: #0f172a;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis; /* Coloca '...' no nome se a tela for pequena */
+  text-overflow: ellipsis;
   line-height: 1;
 }
 
 .apptBadge {
   font-size: 9px;
   font-weight: 600;
-  padding: 2px 6px;
+  padding: 2px 5px;
   border-radius: 4px;
   white-space: nowrap;
-  flex-shrink: 0; /* Impede a badge de encolher */
+  flex-shrink: 0;
+  line-height: 1;
 }
 
 /* Cores por Status */
