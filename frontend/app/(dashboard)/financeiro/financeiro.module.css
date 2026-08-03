@@ -1,7 +1,10 @@
-    /* app/(dashboard)/financeiro/financeiro.module.css */
+.page { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 20px; 
+}
 
-.page { display: flex; flex-direction: column; gap: 16px; }
-
+/* ─── Métricas ─── */
 .metricsGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -13,6 +16,26 @@
   border-radius: var(--radius-lg);
   padding: 20px 24px;
   box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metricHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.metricIconBg {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .metricLabel {
@@ -20,13 +43,19 @@
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: 0.06em;
-  margin-bottom: 8px;
 }
 
-.metricValue { font-size: 22px; font-weight: 700; color: var(--text-primary); }
-.lucroPositivo { color: var(--stock-ok); }
-.lucroNegativo { color: var(--stock-critico); }
+.metricValue { 
+  font-size: 24px; 
+  font-weight: 700; 
+  color: var(--text-primary); 
+  line-height: 1.1;
+}
 
+.lucroPositivo { color: var(--stock-ok, #16a34a); }
+.lucroNegativo { color: var(--stock-critico, #dc2626); }
+
+/* ─── Tabela e Card Principal ─── */
 .card {
   background: var(--bg-card);
   border-radius: var(--radius-lg);
@@ -44,9 +73,27 @@
   gap: 12px;
 }
 
-.cardTitle { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.titleWrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
-.tabs { display: flex; gap: 4px; }
+.titleIcon {
+  color: var(--primary);
+}
+
+.cardTitle { 
+  font-size: 16px; 
+  font-weight: 700; 
+  color: var(--text-primary); 
+}
+
+/* ─── Tabs ─── */
+.tabs { 
+  display: flex; 
+  gap: 6px; 
+}
 
 .tab {
   background: none;
@@ -56,18 +103,51 @@
   font-size: 13px;
   color: var(--text-secondary);
   transition: all 0.15s;
+  cursor: pointer;
 }
 
-.tab:hover { border-color: var(--primary); color: var(--primary); }
-.tabActive { background: var(--primary-light); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.tab:hover { 
+  border-color: var(--primary); 
+  color: var(--primary); 
+}
 
-.loading { padding: 48px; text-align: center; color: var(--text-muted); }
+.tabActive { 
+  background: var(--primary-light); 
+  border-color: var(--primary); 
+  color: var(--primary); 
+  font-weight: 600; 
+}
 
-.table { width: 100%; border-collapse: collapse; }
+/* ─── Loading & Spinners ─── */
+.loading { 
+  padding: 60px; 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-muted); 
+  font-size: 14px;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+  color: var(--primary);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Tabela ─── */
+.table { 
+  width: 100%; 
+  border-collapse: collapse; 
+}
 
 .table th {
   text-align: left;
-  padding: 10px 24px;
+  padding: 12px 24px;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
@@ -77,7 +157,7 @@
 }
 
 .row {
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light, #f1f5f9);
   transition: background 0.15s;
 }
 
@@ -85,14 +165,40 @@
 .row:last-child { border-bottom: none; }
 .row td { padding: 14px 24px; font-size: 14px; }
 
-.nameCell { font-weight: 500; color: var(--text-primary); }
-.category { color: var(--text-secondary); }
-.method { color: var(--text-secondary); }
+.typeBadgeWrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.iconReceita {
+  color: #16a34a;
+  background: #dcfce7;
+  padding: 2px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.iconDespesa {
+  color: #dc2626;
+  background: #fee2e2;
+  padding: 2px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.nameCell { font-weight: 600; color: var(--text-primary); }
+.category { color: var(--text-secondary); font-size: 13px; }
+.method { color: var(--text-secondary); font-size: 13px; }
 
 .amount { font-weight: 700; }
-.receita { color: var(--stock-ok); }
-.despesa { color: var(--stock-critico); }
+.receita { color: #16a34a; }
+.despesa { color: #dc2626; }
 
 .when { color: var(--text-muted); font-size: 13px; }
 
-.empty { text-align: center; color: var(--text-muted); padding: 48px; }
+.empty { 
+  text-align: center; 
+  color: var(--text-muted); 
+  padding: 48px; 
+}

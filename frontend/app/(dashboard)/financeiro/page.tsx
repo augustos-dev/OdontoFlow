@@ -1,7 +1,16 @@
-// app/(dashboard)/financeiro/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
+import { 
+  DollarSign, 
+  TrendingUp, 
+  Calendar, 
+  PieChart, 
+  ArrowUpRight, 
+  ArrowDownLeft, 
+  Loader2, 
+  Receipt 
+} from 'lucide-react'
 import api from '@/lib/api'
 import styles from './financeiro.module.css'
 
@@ -81,20 +90,45 @@ export default function FinanceiroPage() {
 
   return (
     <div className={styles.page}>
+      
+      {/* ─── Cards de métricas ─── */}
       <div className={styles.metricsGrid}>
         <div className={styles.metricCard}>
+          <div className={styles.metricHeader}>
+            <div className={styles.metricIconBg}>
+              <DollarSign size={20} color="var(--primary)" />
+            </div>
+          </div>
           <p className={styles.metricLabel}>RECEITA DO DIA</p>
           <p className={styles.metricValue}>{formatCurrency(report?.summary.todayRevenue ?? 0)}</p>
         </div>
+
         <div className={styles.metricCard}>
+          <div className={styles.metricHeader}>
+            <div className={styles.metricIconBg}>
+              <Calendar size={20} color="#0284c7" />
+            </div>
+          </div>
           <p className={styles.metricLabel}>RECEITA DA SEMANA</p>
           <p className={styles.metricValue}>{formatCurrency(report?.summary.weekRevenue ?? 0)}</p>
         </div>
+
         <div className={styles.metricCard}>
+          <div className={styles.metricHeader}>
+            <div className={styles.metricIconBg}>
+              <TrendingUp size={20} color="#16a34a" />
+            </div>
+          </div>
           <p className={styles.metricLabel}>RECEITA DO MÊS</p>
           <p className={styles.metricValue}>{formatCurrency(report?.summary.totalReceitas ?? 0)}</p>
         </div>
+
         <div className={styles.metricCard}>
+          <div className={styles.metricHeader}>
+            <div className={styles.metricIconBg}>
+              <PieChart size={20} color={(report?.summary.lucro ?? 0) >= 0 ? '#16a34a' : '#dc2626'} />
+            </div>
+          </div>
           <p className={styles.metricLabel}>LUCRO DO MÊS</p>
           <p className={`${styles.metricValue} ${(report?.summary.lucro ?? 0) >= 0 ? styles.lucroPositivo : styles.lucroNegativo}`}>
             {formatCurrency(report?.summary.lucro ?? 0)}
@@ -102,9 +136,13 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
+      {/* ─── Tabela de Transações ─── */}
       <div className={styles.card}>
         <div className={styles.cardHeader}>
-          <h2 className={styles.cardTitle}>Transações Recentes</h2>
+          <div className={styles.titleWrapper}>
+            <Receipt size={18} className={styles.titleIcon} />
+            <h2 className={styles.cardTitle}>Transações Recentes</h2>
+          </div>
           <div className={styles.tabs}>
             <button className={`${styles.tab} ${filter === 'all' ? styles.tabActive : ''}`} onClick={() => setFilter('all')}>Todas</button>
             <button className={`${styles.tab} ${filter === 'RECEITA' ? styles.tabActive : ''}`} onClick={() => setFilter('RECEITA')}>Receitas</button>
@@ -113,7 +151,10 @@ export default function FinanceiroPage() {
         </div>
 
         {loading ? (
-          <div className={styles.loading}>Carregando transações...</div>
+          <div className={styles.loading}>
+            <Loader2 size={24} className={styles.spinner} />
+            <span>Carregando transações...</span>
+          </div>
         ) : (
           <table className={styles.table}>
             <thead>
@@ -127,18 +168,29 @@ export default function FinanceiroPage() {
             </thead>
             <tbody>
               {displayed.length === 0 && (
-                <tr><td colSpan={5} className={styles.empty}>Nenhuma transação encontrada</td></tr>
+                <tr>
+                  <td colSpan={5} className={styles.empty}>
+                    Nenhuma transação encontrada
+                  </td>
+                </tr>
               )}
               {displayed.map((t) => (
                 <tr key={t.id} className={styles.row}>
                   <td className={styles.nameCell}>
-                    {t.appointment?.patient.name ?? t.description ?? '—'}
+                    <div className={styles.typeBadgeWrapper}>
+                      {t.type === 'RECEITA' ? (
+                        <ArrowUpRight size={16} className={styles.iconReceita} />
+                      ) : (
+                        <ArrowDownLeft size={16} className={styles.iconDespesa} />
+                      )}
+                      <span>{t.appointment?.patient.name ?? t.description ?? '—'}</span>
+                    </div>
                   </td>
                   <td className={styles.category}>{t.category ?? '—'}</td>
                   <td className={styles.method}>{PAYMENT_LABEL[t.paymentMethod] ?? t.paymentMethod}</td>
                   <td>
                     <span className={`${styles.amount} ${t.type === 'RECEITA' ? styles.receita : styles.despesa}`}>
-                      {t.type === 'DESPESA' ? '- ' : ''}{formatCurrency(t.amount)}
+                      {t.type === 'DESPESA' ? '- ' : '+ '}{formatCurrency(t.amount)}
                     </span>
                   </td>
                   <td className={styles.when}>{formatDateRelative(t.paidAt)}</td>

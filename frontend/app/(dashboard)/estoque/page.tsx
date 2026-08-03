@@ -1,7 +1,13 @@
-// app/(dashboard)/estoque/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
+import { 
+  Package, 
+  AlertTriangle, 
+  CheckCircle2, 
+  Box, 
+  Loader2 
+} from 'lucide-react'
 import api from '@/lib/api'
 import styles from './estoque.module.css'
 
@@ -59,32 +65,55 @@ export default function EstoquePage() {
   }
 
   function getAlertLabel(p: Product) {
-    if (p.stockStatus === 'CRITICO') return { label: 'COMPRAR URGENTE', cls: styles.alertCritico }
-    if (p.stockStatus === 'BAIXO') return { label: 'COMPRAR URGENTE', cls: styles.alertCritico }
-    return { label: 'OK', cls: styles.alertOk }
+    if (p.stockStatus === 'CRITICO' || p.stockStatus === 'BAIXO') {
+      return { label: 'COMPRAR URGENTE', cls: styles.alertCritico, isAlert: true }
+    }
+    return { label: 'OK', cls: styles.alertOk, isAlert: false }
   }
 
   return (
     <div className={styles.page}>
+      
+      {/* ─── Cards de métricas ─── */}
       <div className={styles.metricsGrid}>
         <div className={styles.metricCard}>
+          <div className={styles.metricHeader}>
+            <div className={styles.metricIconBg}>
+              <Box size={20} color="var(--primary)" />
+            </div>
+          </div>
           <p className={styles.metricLabel}>TOTAL DE ITENS</p>
           <p className={styles.metricValue}>{products.length}</p>
         </div>
+
         <div className={styles.metricCard}>
+          <div className={styles.metricHeader}>
+            <div className={styles.metricIconBgAlert}>
+              <AlertTriangle size={20} color="#dc2626" />
+            </div>
+          </div>
           <p className={styles.metricLabel}>ITENS CRÍTICOS</p>
           <p className={`${styles.metricValue} ${styles.metricCritico}`}>{totalCritico}</p>
         </div>
+
         <div className={styles.metricCard}>
+          <div className={styles.metricHeader}>
+            <div className={styles.metricIconBgSuccess}>
+              <CheckCircle2 size={20} color="#16a34a" />
+            </div>
+          </div>
           <p className={styles.metricLabel}>EM ESTOQUE</p>
           <p className={`${styles.metricValue} ${styles.metricOk}`}>{totalOk}</p>
         </div>
       </div>
 
+      {/* ─── Tabela de Produtos ─── */}
       <div className={styles.card}>
         <div className={styles.cardHeader}>
           <div className={styles.cardTitleRow}>
-            <div className={styles.cardIcon}>📦</div>
+            <div className={styles.titleIconBg}>
+              <Package size={20} color="var(--primary)" />
+            </div>
             <div>
               <h2 className={styles.cardTitle}>Controle de Estoque</h2>
               <p className={styles.cardSub}>Materiais monitorados em tempo real</p>
@@ -104,7 +133,10 @@ export default function EstoquePage() {
         </div>
 
         {loading ? (
-          <div className={styles.loading}>Carregando estoque...</div>
+          <div className={styles.loading}>
+            <Loader2 size={24} className={styles.spinner} />
+            <span>Carregando estoque...</span>
+          </div>
         ) : (
           <table className={styles.table}>
             <thead>
@@ -118,7 +150,11 @@ export default function EstoquePage() {
             </thead>
             <tbody>
               {displayed.length === 0 && (
-                <tr><td colSpan={5} className={styles.empty}>Nenhum produto encontrado</td></tr>
+                <tr>
+                  <td colSpan={5} className={styles.empty}>
+                    Nenhum produto encontrado
+                  </td>
+                </tr>
               )}
               {displayed.map((p) => {
                 const alert = getAlertLabel(p)
@@ -134,7 +170,8 @@ export default function EstoquePage() {
                     <td className={styles.expiry}>{formatDate(p.expiryDate)}</td>
                     <td>
                       <span className={`${styles.alertBadge} ${alert.cls}`}>
-                        {alert.label !== 'OK' && '⚠ '}{alert.label}
+                        {alert.isAlert && <AlertTriangle size={12} />}
+                        <span>{alert.label}</span>
                       </span>
                     </td>
                   </tr>

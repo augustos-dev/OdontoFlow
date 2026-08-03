@@ -2,6 +2,22 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { 
+  ArrowLeft, 
+  AlertTriangle, 
+  Cake, 
+  Phone, 
+  Mail, 
+  MapPin, 
+  Stethoscope, 
+  FileText, 
+  Calendar, 
+  ClipboardList, 
+  Pencil, 
+  Check, 
+  Plus, 
+  Loader2 
+} from 'lucide-react'
 import api from '@/lib/api'
 import styles from './perfil.module.css'
 
@@ -9,10 +25,10 @@ import styles from './perfil.module.css'
 import DetalhesAgendamentoModal from '@/app/components/DetalhesAgendamentoModal'
 import { EvolutionsTimeline } from '../../../components/medical-record/EvolutionsTimeline'
 import { AddEvolutionModal } from '../../../components/medical-record/AddEvolutionModal'
-import { Odontogram } from '../../../components/tooth/Odontogram' // 🦷 Import do Odontograma
+import { Odontogram } from '../../../components/tooth/Odontogram'
 
 // Import de Tipos Globais
-import { Patient, MedicalRecord } from '../../../../types/patient.types'
+import { Patient } from '../../../../types/patient.types'
 import { Appointment } from '../../../../types/appointment.types'
 
 const GENDER_LABEL: Record<string, string> = {
@@ -53,17 +69,17 @@ const PLAN_STATUS_LABEL: Record<string, string> = {
 export default function PerfilPacientePage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  
+
   const [patient, setPatient] = useState<Patient | null>(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'info' | 'prontuario' | 'evolucoes' | 'agenda' | 'planos'>('prontuario')
-  
+  const [tab, setTab] = useState<'visao_geral' | 'evolucoes' | 'agenda' | 'planos'>('visao_geral')
+
   // Modais & Timeline State
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
   const [isAddEvolutionOpen, setIsAddEvolutionOpen] = useState(false)
   const [reloadEvolutionsTrigger, setReloadEvolutionsTrigger] = useState(0)
 
-  // Estados de Edição do Prontuário Base
+  // Estados de Edição do Prontuário Base / Anamnese
   const [isEditingMR, setIsEditingMR] = useState(false)
   const [savingMR, setSavingMR] = useState(false)
   const [mrForm, setMrForm] = useState({
@@ -98,15 +114,13 @@ export default function PerfilPacientePage() {
     }
   }
 
-  useEffect(() => { 
-    if (id) load() 
+  useEffect(() => {
+    if (id) load()
   }, [id])
 
-  // Lógica para alternar seleção de tags no formulário
   function toggleTag(field: keyof typeof mrForm, tag: string) {
     setMrForm((prev) => {
       const currentValue = prev[field] || ''
-      
       if (currentValue.includes(tag)) {
         const updated = currentValue
           .split(',')
@@ -114,8 +128,7 @@ export default function PerfilPacientePage() {
           .filter((s) => s !== tag)
           .join(', ')
         return { ...prev, [field]: updated }
-      } 
-      
+      }
       const updated = currentValue ? `${currentValue}, ${tag}` : tag
       return { ...prev, [field]: updated }
     })
@@ -123,7 +136,6 @@ export default function PerfilPacientePage() {
 
   async function handleSaveMedicalRecord(e: React.FormEvent) {
     e.preventDefault()
-
     setSavingMR(true)
     try {
       await api.put(`/medical-records/${id}`, mrForm)
@@ -163,448 +175,486 @@ export default function PerfilPacientePage() {
     return age
   }
 
+  function isBirthdayToday(birthDate?: string) {
+    if (!birthDate) return false
+    const birth = new Date(birthDate)
+    const today = new Date()
+    return birth.getDate() === today.getDate() && birth.getMonth() === today.getMonth()
+  }
+
   function getInitials(name: string) {
-    return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
+    return name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()
   }
 
-  const getTagStyle = (active: boolean): React.CSSProperties => ({
-    padding: '4px 10px',
-    borderRadius: '16px',
-    fontSize: '0.78rem',
-    border: active ? '1px solid #0284c7' : '1px solid #cbd5e1',
-    background: active ? '#e0f2fe' : '#ffffff',
-    color: active ? '#0369a1' : '#475569',
-    fontWeight: active ? '600' : 'normal',
-    cursor: 'pointer',
-    transition: 'all 0.15s ease'
-  })
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '8px 12px',
-    borderRadius: '6px',
-    border: '1px solid #cbd5e1',
-    fontSize: '0.85rem',
-    outline: 'none',
-    marginTop: '6px'
+  if (loading) {
+    return (
+      <div className={styles.loading}>
+        <Loader2 size={24} className={styles.spinner} />
+        <span>Carregando perfil...</span>
+      </div>
+    )
   }
 
-  if (loading) return <div className={styles.loading}>Carregando perfil...</div>
   if (!patient) return <div className={styles.loading}>Paciente não encontrado.</div>
 
   const age = calcAge(patient.birthDate)
   const mr = patient.medicalRecord
+  const isBirthday = isBirthdayToday(patient.birthDate)
 
   return (
     <div className={styles.page}>
-      {/* ─── Header do perfil ─── */}
+      
+      {/* ─── Header do Perfil ─── */}
       <div className={styles.profileHeader}>
-        <button className={styles.backBtn} onClick={() => router.back()}>← Voltar</button>
+        <button className={styles.backBtn} onClick={() => router.back()}>
+          <ArrowLeft size={16} />
+          <span>Voltar</span>
+        </button>
         <div className={styles.profileInfo}>
           <div className={styles.profileAvatar}>{getInitials(patient.name)}</div>
           <div>
-            <h1 className={styles.profileName}>{patient.name}</h1>
+            <div className={styles.profileTitleRow}>
+              <h1 className={styles.profileName}>{patient.name}</h1>
+              
+              {/* Badges de Alerta em Destaque no Topo */}
+              {mr?.allergies && mr.allergies.toLowerCase() !== 'nenhuma' && (
+                <span className={styles.badgeAllergy}>
+                  <AlertTriangle size={14} />
+                  <span>Alergia: {mr.allergies}</span>
+                </span>
+              )}
+              {isBirthday && (
+                <span className={styles.badgeBirthday}>
+                  <Cake size={14} />
+                  <span>Aniversário Hoje!</span>
+                </span>
+              )}
+            </div>
+
             <div className={styles.profileMeta}>
-              {age !== null && <span>🎂 {age} anos</span>}
+              {age !== null && (
+                <span className={styles.metaItem}>
+                  <Cake size={13} />
+                  <span>{age} anos</span>
+                </span>
+              )}
               {patient.gender !== 'NAO_INFORMADO' && <span>· {GENDER_LABEL[patient.gender]}</span>}
               {patient.cpf && <span>· CPF: {patient.cpf}</span>}
               <span>· Cadastrado em {formatDate(patient.createdAt)}</span>
             </div>
+            
             <div className={styles.profileContacts}>
-              <span>📱 {patient.phone}</span>
-              {patient.email && <span>✉️ {patient.email}</span>}
-              {patient.address && <span>📍 {patient.address}</span>}
+              <a href={`https://wa.me/55${patient.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className={styles.contactLink}>
+                <Phone size={14} />
+                <span>{patient.phone}</span>
+              </a>
+              {patient.email && (
+                <span className={styles.contactItem}>
+                  <Mail size={14} />
+                  <span>{patient.email}</span>
+                </span>
+              )}
+              {patient.address && (
+                <span className={styles.contactItem}>
+                  <MapPin size={14} />
+                  <span>{patient.address}</span>
+                </span>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ─── Tabs ─── */}
+      {/* ─── Navegação por Abas ─── */}
       <div className={styles.tabs}>
-        <button className={`${styles.tab} ${tab === 'info' ? styles.tabActive : ''}`} onClick={() => setTab('info')}>
-          👤 Informações
-        </button>
-        <button className={`${styles.tab} ${tab === 'prontuario' ? styles.tabActive : ''}`} onClick={() => setTab('prontuario')}>
-          🩺 Prontuário Base
+        <button className={`${styles.tab} ${tab === 'visao_geral' ? styles.tabActive : ''}`} onClick={() => setTab('visao_geral')}>
+          <Stethoscope size={16} />
+          <span>Visão Geral & Odontograma</span>
         </button>
         <button className={`${styles.tab} ${tab === 'evolucoes' ? styles.tabActive : ''}`} onClick={() => setTab('evolucoes')}>
-          📝 Evoluções Clínicas
+          <FileText size={16} />
+          <span>Evoluções Clínicas</span>
         </button>
         <button className={`${styles.tab} ${tab === 'agenda' ? styles.tabActive : ''}`} onClick={() => setTab('agenda')}>
-          📅 Agendamentos ({patient.appointments.length})
+          <Calendar size={16} />
+          <span>Agendamentos ({patient.appointments.length})</span>
         </button>
         <button className={`${styles.tab} ${tab === 'planos' ? styles.tabActive : ''}`} onClick={() => setTab('planos')}>
-          📋 Planos ({patient.treatmentPlans?.length ?? 0})
+          <ClipboardList size={16} />
+          <span>Planos ({patient.treatmentPlans?.length ?? 0})</span>
         </button>
       </div>
 
-      {/* ─── Informações ─── */}
-      {tab === 'info' && (
-        <div className={styles.card}>
-          <h3 className={styles.sectionTitle}>Dados Pessoais</h3>
-          <div className={styles.infoGrid}>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>Nome completo</span>
-              <span className={styles.infoValue}>{patient.name}</span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>Telefone</span>
-              <span className={styles.infoValue}>{patient.phone}</span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>E-mail</span>
-              <span className={styles.infoValue}>{patient.email ?? '—'}</span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>CPF</span>
-              <span className={styles.infoValue}>{patient.cpf ?? '—'}</span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>Data de nascimento</span>
-              <span className={styles.infoValue}>{patient.birthDate ? `${formatDate(patient.birthDate)} (${age} anos)` : '—'}</span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>Gênero</span>
-              <span className={styles.infoValue}>{GENDER_LABEL[patient.gender]}</span>
-            </div>
-            <div className={styles.infoItem} style={{ gridColumn: '1 / -1' }}>
-              <span className={styles.infoLabel}>Endereço</span>
-              <span className={styles.infoValue}>{patient.address ?? '—'}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Prontuário Base + Odontograma ─── */}
-      {tab === 'prontuario' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          
-          {/* 1. Bloco de Anamnese */}
+      {/* ─── Grid Principal (2 Colunas) ─── */}
+      <div className={styles.gridContainer}>
+        
+        {/* ================= COLUNA ESQUERDA (ANAMNESE COMPLETA) ================= */}
+        <div className={styles.column}>
           <div className={styles.card}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <div>
-                <h3 className={styles.sectionTitle} style={{ margin: 0 }}>Anamnese & Prontuário Base</h3>
-              </div>
+            <div className={styles.cardHeader}>
+              <h3 className={styles.sectionTitle}>Anamnese & Saúde Base</h3>
               {!isEditingMR && (
-                <button 
-                  type="button"
-                  onClick={() => setIsEditingMR(true)}
-                  style={{ 
-                    background: '#0284c7', 
-                    color: '#fff', 
-                    border: 'none', 
-                    padding: '0.5rem 1rem', 
-                    borderRadius: '6px',
-                    fontWeight: '600',
-                    cursor: 'pointer' 
-                  }}
-                >
-                  ✏️ Preencher Anamnese
+                <button type="button" onClick={() => setIsEditingMR(true)} className={styles.btnEdit}>
+                  <Pencil size={14} />
+                  <span>Editar Anamnese</span>
                 </button>
               )}
             </div>
 
             {isEditingMR ? (
-              <form onSubmit={handleSaveMedicalRecord} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <form onSubmit={handleSaveMedicalRecord} className={styles.anamneseForm}>
+                
                 {/* Queixa Principal */}
-                <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div className={styles.formGroup}>
                   <span className={styles.infoLabel}>QUEIXA PRINCIPAL</span>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', margin: '8px 0' }}>
-                    {['Dor de Dente', 'Limpeza / Check-up', 'Estética / Clareamento', 'Aparelho / Ortodontia', 'Prótese / Implante'].map((tag) => {
-                      const active = mrForm.chiefComplaint.includes(tag)
+                  <div className={styles.tagsWrapper}>
+                    {['Dor de Dente', 'Limpeza / Check-up', 'Estética / Clareamento', 'Ortodontia', 'Prótese / Implante'].map((tag) => {
+                      const isActive = mrForm.chiefComplaint.includes(tag)
                       return (
                         <button
                           type="button"
                           key={tag}
                           onClick={() => toggleTag('chiefComplaint', tag)}
-                          style={getTagStyle(active)}
+                          className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
                         >
-                          {active ? '✓ ' : '+ '} {tag}
+                          {isActive ? <Check size={12} /> : <Plus size={12} />}
+                          <span>{tag}</span>
                         </button>
                       )
                     })}
                   </div>
-                  <input 
-                    type="text" 
-                    placeholder="Observação ou detalhamento..."
+                  <input
+                    type="text"
+                    placeholder="Detalhamento da queixa..."
                     value={mrForm.chiefComplaint}
                     onChange={(e) => setMrForm({ ...mrForm, chiefComplaint: e.target.value })}
-                    style={inputStyle}
+                    className={styles.input}
                   />
                 </div>
 
-                {/* Alergias e Doenças Sistêmicas */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <span className={styles.infoLabel}>ALERGIAS</span>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '8px 0' }}>
-                      {['Penicilina', 'Dipirona', 'Anestésicos', 'Látex', 'Nenhuma'].map((tag) => {
-                        const active = mrForm.allergies.includes(tag)
-                        return (
-                          <button
-                            type="button"
-                            key={tag}
-                            onClick={() => toggleTag('allergies', tag)}
-                            style={getTagStyle(active)}
-                          >
-                            {active ? '✓ ' : '+ '} {tag}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    <input 
-                      type="text" 
-                      placeholder="Outras alergias..."
-                      value={mrForm.allergies}
-                      onChange={(e) => setMrForm({ ...mrForm, allergies: e.target.value })}
-                      style={inputStyle}
-                    />
+                {/* Alergias */}
+                <div className={styles.formGroup}>
+                  <span className={styles.infoLabel}>ALERGIAS & REAÇÕES</span>
+                  <div className={styles.tagsWrapper}>
+                    {['Penicilina', 'AAS / Aspirina', 'Dipirona', 'Anestésicos', 'Látex', 'Nenhuma'].map((tag) => {
+                      const isActive = mrForm.allergies.includes(tag)
+                      return (
+                        <button
+                          type="button"
+                          key={tag}
+                          onClick={() => toggleTag('allergies', tag)}
+                          className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
+                        >
+                          {isActive ? <Check size={12} /> : <Plus size={12} />}
+                          <span>{tag}</span>
+                        </button>
+                      )
+                    })}
                   </div>
-
-                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <span className={styles.infoLabel}>DOENÇAS SISTÊMICAS</span>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '8px 0' }}>
-                      {['Hipertensão', 'Diabetes', 'Cardiopatia', 'Gestante', 'Nenhuma'].map((tag) => {
-                        const active = mrForm.systemicDiseases.includes(tag)
-                        return (
-                          <button
-                            type="button"
-                            key={tag}
-                            onClick={() => toggleTag('systemicDiseases', tag)}
-                            style={getTagStyle(active)}
-                          >
-                            {active ? '✓ ' : '+ '} {tag}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    <input 
-                      type="text" 
-                      placeholder="Outras condições..."
-                      value={mrForm.systemicDiseases}
-                      onChange={(e) => setMrForm({ ...mrForm, systemicDiseases: e.target.value })}
-                      style={inputStyle}
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    placeholder="Outras alergias (anestésicos, medicamentos)..."
+                    value={mrForm.allergies}
+                    onChange={(e) => setMrForm({ ...mrForm, allergies: e.target.value })}
+                    className={styles.input}
+                  />
                 </div>
 
-                {/* Medicamentos e Hábitos */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <span className={styles.infoLabel}>MEDICAMENTOS EM USO</span>
-                    <input 
-                      type="text" 
-                      placeholder="Ex: Losartana 50mg, Anticoncepcional..."
-                      value={mrForm.medications}
-                      onChange={(e) => setMrForm({ ...mrForm, medications: e.target.value })}
-                      style={inputStyle}
-                    />
+                {/* Doenças Sistêmicas & Condições Clínicas */}
+                <div className={styles.formGroup}>
+                  <span className={styles.infoLabel}>DOENÇAS SISTÊMICAS & CONDIÇÕES</span>
+                  <div className={styles.tagsWrapper}>
+                    {[
+                      'Pressão Alta', 'Diabetes', 'Cardiopatia', 'Hemorragia', 'Anemia',
+                      'Asma/Respiratória', 'Disfunção Renal', 'Disfunção Hepática',
+                      'Gastrite/Refluxo', 'Febre Reumática', 'Gestante', 'Amamentando'
+                    ].map((tag) => {
+                      const isActive = mrForm.systemicDiseases.includes(tag)
+                      return (
+                        <button
+                          type="button"
+                          key={tag}
+                          onClick={() => toggleTag('systemicDiseases', tag)}
+                          className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
+                        >
+                          {isActive ? <Check size={12} /> : <Plus size={12} />}
+                          <span>{tag}</span>
+                        </button>
+                      )
+                    })}
                   </div>
-
-                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <span className={styles.infoLabel}>HÁBITOS</span>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '8px 0' }}>
-                      {['Fumante', 'Bruxismo', 'Consome Álcool', 'Fio Dental Diário'].map((tag) => {
-                        const active = mrForm.habits.includes(tag)
-                        return (
-                          <button
-                            type="button"
-                            key={tag}
-                            onClick={() => toggleTag('habits', tag)}
-                            style={getTagStyle(active)}
-                          >
-                            {active ? '✓ ' : '+ '} {tag}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    <input 
-                      type="text" 
-                      placeholder="Outros hábitos..."
-                      value={mrForm.habits}
-                      onChange={(e) => setMrForm({ ...mrForm, habits: e.target.value })}
-                      style={inputStyle}
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    placeholder="Detalhes adicionais de doenças/síndromes..."
+                    value={mrForm.systemicDiseases}
+                    onChange={(e) => setMrForm({ ...mrForm, systemicDiseases: e.target.value })}
+                    className={styles.input}
+                  />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
-                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                {/* ATM e Hábitos */}
+                <div className={styles.formGroup}>
+                  <span className={styles.infoLabel}>ATM & HÁBITOS BUCAL</span>
+                  <div className={styles.tagsWrapper}>
+                    {[
+                      'Estalido na boca', 'Dificuldade para abrir boca',
+                      'Bruxismo', 'Fumante', 'Consome Álcool', 'Anticoncepcional'
+                    ].map((tag) => {
+                      const isActive = mrForm.habits.includes(tag)
+                      return (
+                        <button
+                          type="button"
+                          key={tag}
+                          onClick={() => toggleTag('habits', tag)}
+                          className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
+                        >
+                          {isActive ? <Check size={12} /> : <Plus size={12} />}
+                          <span>{tag}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Outros hábitos articulares ou parafunção..."
+                    value={mrForm.habits}
+                    onChange={(e) => setMrForm({ ...mrForm, habits: e.target.value })}
+                    className={styles.input}
+                  />
+                </div>
+
+                {/* Medicamentos em Uso */}
+                <div className={styles.formGroup}>
+                  <span className={styles.infoLabel}>MEDICAMENTOS EM USO</span>
+                  <input
+                    type="text"
+                    placeholder="Ex: Anti-hipertensivo, Anticoncepcional, Insulina..."
+                    value={mrForm.medications}
+                    onChange={(e) => setMrForm({ ...mrForm, medications: e.target.value })}
+                    className={styles.input}
+                  />
+                </div>
+
+                {/* Tipo Sanguíneo e Histórico Geral */}
+                <div className={styles.twoCols}>
+                  <div className={styles.formGroup}>
                     <span className={styles.infoLabel}>TIPO SANGUÍNEO</span>
-                    <input 
-                      type="text" 
-                      placeholder="Ex: O+, A-, B+"
+                    <input
+                      type="text"
+                      placeholder="Ex: O+, A-, AB+"
                       value={mrForm.bloodType}
                       onChange={(e) => setMrForm({ ...mrForm, bloodType: e.target.value })}
-                      style={inputStyle}
+                      className={styles.input}
                     />
                   </div>
-
-                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <span className={styles.infoLabel}>HISTÓRICO MÉDICO / OBSERVAÇÕES</span>
-                    <input 
-                      type="text" 
-                      placeholder="Observações adicionais relevantes..."
+                  <div className={styles.formGroup}>
+                    <span className={styles.infoLabel}>HISTÓRICO / CIRURGIAS</span>
+                    <input
+                      type="text"
+                      placeholder="Internações, cirurgias..."
                       value={mrForm.historyNotes}
                       onChange={(e) => setMrForm({ ...mrForm, historyNotes: e.target.value })}
-                      style={inputStyle}
+                      className={styles.input}
                     />
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                  <button 
-                    type="button" 
-                    onClick={() => setIsEditingMR(false)}
-                    style={{ padding: '0.6rem 1.2rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}
-                  >
+                {/* Botões do Formulário */}
+                <div className={styles.formActions}>
+                  <button type="button" onClick={() => setIsEditingMR(false)} className={styles.btnSecondary}>
                     Cancelar
                   </button>
-                  <button 
-                    type="submit" 
-                    disabled={savingMR}
-                    style={{ padding: '0.6rem 1.2rem', borderRadius: '6px', border: 'none', background: '#0284c7', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
-                  >
+                  <button type="submit" disabled={savingMR} className={styles.btnPrimary}>
                     {savingMR ? 'Salvando...' : 'Salvar Anamnese'}
                   </button>
                 </div>
               </form>
             ) : !mr ? (
-              <p className={styles.empty}>Prontuário ainda não preenchido. Clique em "Preencher Anamnese" acima para cadastrar.</p>
+              <p className={styles.empty}>Prontuário ainda não preenchido. Clique em "Editar Anamnese" para cadastrar.</p>
             ) : (
-              <div className={styles.prontuarioGrid}>
-                {[
-                  { label: 'Queixa principal', value: mr.chiefComplaint },
-                  { label: 'Histórico médico', value: mr.historyNotes },
-                  { label: 'Alergias', value: mr.allergies },
-                  { label: 'Medicamentos em uso', value: mr.medications },
-                  { label: 'Tipo sanguíneo', value: mr.bloodType },
-                  { label: 'Hábitos', value: mr.habits },
-                  { label: 'Doenças sistêmicas', value: mr.systemicDiseases },
-                ].map((item) => (
-                  <div key={item.label} className={styles.prontuarioItem}>
-                    <span className={styles.infoLabel}>{item.label}</span>
-                    <span className={`${styles.infoValue} ${!item.value ? styles.infoEmpty : ''}`}>
-                      {item.value || 'Não informado'}
-                    </span>
+              <div className={styles.anamneseList}>
+                <div className={styles.infoItem}>
+                  <span className={styles.infoLabel}>QUEIXA PRINCIPAL</span>
+                  <span className={`${styles.infoValue} ${!mr.chiefComplaint ? styles.infoEmpty : ''}`}>
+                    {mr.chiefComplaint || 'Não informado'}
+                  </span>
+                </div>
+
+                <div className={styles.infoItem}>
+                  <span className={styles.infoLabel}>ALERGIAS</span>
+                  <span className={`${styles.infoValue} ${!mr.allergies ? styles.infoEmpty : ''}`} style={{ color: mr.allergies && mr.allergies.toLowerCase() !== 'nenhuma' ? '#dc2626' : 'inherit', fontWeight: mr.allergies && mr.allergies.toLowerCase() !== 'nenhuma' ? 600 : 'normal' }}>
+                    {mr.allergies || 'Nenhuma'}
+                  </span>
+                </div>
+
+                <div className={styles.infoItem}>
+                  <span className={styles.infoLabel}>DOENÇAS SISTÊMICAS / CONDIÇÕES</span>
+                  <span className={`${styles.infoValue} ${!mr.systemicDiseases ? styles.infoEmpty : ''}`}>
+                    {mr.systemicDiseases || 'Nenhuma'}
+                  </span>
+                </div>
+
+                <div className={styles.infoItem}>
+                  <span className={styles.infoLabel}>MEDICAMENTOS EM USO</span>
+                  <span className={`${styles.infoValue} ${!mr.medications ? styles.infoEmpty : ''}`}>
+                    {mr.medications || 'Nenhum'}
+                  </span>
+                </div>
+
+                <div className={styles.infoItem}>
+                  <span className={styles.infoLabel}>ATM & HÁBITOS</span>
+                  <span className={`${styles.infoValue} ${!mr.habits ? styles.infoEmpty : ''}`}>
+                    {mr.habits || 'Não informado'}
+                  </span>
+                </div>
+
+                <div className={styles.twoCols}>
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>TIPO SANGUÍNEO</span>
+                    <span className={styles.infoValue}>{mr.bloodType || '—'}</span>
                   </div>
-                ))}
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>HISTÓRICO / OBS</span>
+                    <span className={styles.infoValue}>{mr.historyNotes || '—'}</span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
+        </div>
 
-          {/* 2. Bloco do Odontograma */}
-          <div className={styles.card}>
-            <div style={{ marginBottom: '1.25rem' }}>
-              <h3 className={styles.sectionTitle} style={{ margin: 0 }}>Mapa Bucal (Odontograma)</h3>
-              <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-                Selecione um procedimento na barra de ferramentas e clique nas faces anatômicas para registrar o estado dos dentes.
-              </p>
+        {/* ================= COLUNA DIREITA (ODONTOGRAMA & DEMAIS ABAS) ================= */}
+        <div className={styles.column}>
+          
+          {/* VISÃO GERAL (ODONTOGRAMA + EVOLUÇÕES) */}
+          {tab === 'visao_geral' && (
+            <>
+              <div className={styles.card}>
+                <div>
+                  <h3 className={styles.sectionTitle}>Mapa Bucal (Odontograma)</h3>
+                  <p className={styles.sectionSubtitle}>
+                    Selecione um procedimento na barra de ferramentas e clique nas faces anatômicas para registrar o estado dos dentes.
+                  </p>
+                </div>
+                
+                <Odontogram patientId={id as string} />
+              </div>
+
+              <div className={styles.card}>
+                <div className={styles.cardHeader}>
+                  <h3 className={styles.sectionTitle}>Últimas Evoluções Clínicas</h3>
+                  <button className={styles.btnPrimary} onClick={() => setIsAddEvolutionOpen(true)}>
+                    <Plus size={15} />
+                    <span>Nova Evolução</span>
+                  </button>
+                </div>
+
+                <EvolutionsTimeline
+                  patientId={id as string}
+                  medicalRecordId={patient.medicalRecord?.id}
+                  key={reloadEvolutionsTrigger}
+                />
+              </div>
+            </>
+          )}
+
+          {/* EVOLUÇÕES CLÍNICAS */}
+          {tab === 'evolucoes' && (
+            <div className={styles.card}>
+              <div className={styles.cardHeader}>
+                <h3 className={styles.sectionTitle}>Histórico de Evoluções Clínicas</h3>
+                <button className={styles.btnPrimary} onClick={() => setIsAddEvolutionOpen(true)}>
+                  <Plus size={15} />
+                  <span>Nova Evolução</span>
+                </button>
+              </div>
+
+              <EvolutionsTimeline
+                patientId={id as string}
+                medicalRecordId={patient.medicalRecord?.id}
+                key={reloadEvolutionsTrigger}
+              />
             </div>
-            
-            {/* Componente do Odontograma renderizado aqui */}
-            <Odontogram patientId={id as string} />
-          </div>
-
-        </div>
-      )}
-
-      {/* ─── Evoluções Clínicas ─── */}
-      {tab === 'evolucoes' && (
-        <div className={styles.card}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h3 className={styles.sectionTitle} style={{ margin: 0 }}>Histórico de Evoluções Clínicas</h3>
-            <button
-              className={styles.backBtn}
-              style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer' }}
-              onClick={() => setIsAddEvolutionOpen(true)}
-            >
-              + Nova Evolução
-            </button>
-          </div>
-
-          <EvolutionsTimeline
-            patientId={id as string}
-            medicalRecordId={patient.medicalRecord?.id}
-            key={reloadEvolutionsTrigger}
-          />
-        </div>
-      )}
-
-      {/* ─── Agendamentos ─── */}
-      {tab === 'agenda' && (
-        <div className={styles.card}>
-          <h3 className={styles.sectionTitle}>Histórico de Agendamentos</h3>
-          {patient.appointments.length === 0 ? (
-            <p className={styles.empty}>Nenhum agendamento encontrado.</p>
-          ) : (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>DATA / HORA</th>
-                  <th>DENTISTA</th>
-                  <th>SALA</th>
-                  <th>TIPO</th>
-                  <th>STATUS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {patient.appointments.map((appt) => (
-                  <tr
-                    key={appt.id}
-                    className={styles.row}
-                    onClick={() => setSelectedAppt({ ...appt, patient: { id: patient.id, name: patient.name, phone: patient.phone } } as any)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <td className={styles.dateCell}>{formatDateTime(appt.dateTime)}</td>
-                    <td>{appt.dentist?.name ?? '—'}</td>
-                    <td>{appt.room?.replace('_', ' ') ?? '—'}</td>
-                    <td>{appt.type === 'PARTICULAR' ? 'Particular' : appt.type === 'CONVENIO' ? 'Convênio' : '—'}</td>
-                    <td>
-                      <span className={`${styles.statusBadge} ${STATUS_CLASS[appt.status]}`}>
-                        {STATUS_LABEL[appt.status]}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           )}
-        </div>
-      )}
 
-      {/* ─── Planos de Tratamento ─── */}
-      {tab === 'planos' && (
-        <div className={styles.card}>
-          <h3 className={styles.sectionTitle}>Planos de Tratamento</h3>
-          {!patient.treatmentPlans?.length ? (
-            <p className={styles.empty}>Nenhum plano de tratamento encontrado.</p>
-          ) : (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>TÍTULO</th>
-                  <th>STATUS</th>
-                  <th>VALOR TOTAL</th>
-                  <th>CRIADO EM</th>
-                </tr>
-              </thead>
-              <tbody>
-                {patient.treatmentPlans.map((plan) => (
-                  <tr key={plan.id} className={styles.row}>
-                    <td className={styles.planTitle}>{plan.title}</td>
-                    <td>
-                      <span className={styles.planStatus}>{PLAN_STATUS_LABEL[plan.status] ?? plan.status}</span>
-                    </td>
-                    <td className={styles.planAmount}>{formatCurrency(plan.totalAmount)}</td>
-                    <td>{formatDate(plan.createdAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* AGENDAMENTOS */}
+          {tab === 'agenda' && (
+            <div className={styles.card}>
+              <h3 className={styles.sectionTitle}>Histórico de Agendamentos</h3>
+              {patient.appointments.length === 0 ? (
+                <p className={styles.empty}>Nenhum agendamento encontrado.</p>
+              ) : (
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>DATA / HORA</th>
+                      <th>DENTISTA</th>
+                      <th>SALA</th>
+                      <th>TIPO</th>
+                      <th>STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {patient.appointments.map((appt) => (
+                      <tr
+                        key={appt.id}
+                        className={styles.row}
+                        onClick={() => setSelectedAppt({ ...appt, patient: { id: patient.id, name: patient.name, phone: patient.phone } } as any)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <td className={styles.dateCell}>{formatDateTime(appt.dateTime)}</td>
+                        <td>{appt.dentist?.name ?? '—'}</td>
+                        <td>{appt.room?.replace('_', ' ') ?? '—'}</td>
+                        <td>{appt.type === 'PARTICULAR' ? 'Particular' : appt.type === 'CONVENIO' ? 'Convênio' : '—'}</td>
+                        <td>
+                          <span className={`${styles.statusBadge} ${STATUS_CLASS[appt.status]}`}>
+                            {STATUS_LABEL[appt.status]}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           )}
+
+          {/* PLANOS DE TRATAMENTO */}
+          {tab === 'planos' && (
+            <div className={styles.card}>
+              <h3 className={styles.sectionTitle}>Planos de Tratamento</h3>
+              {!patient.treatmentPlans?.length ? (
+                <p className={styles.empty}>Nenhum plano de tratamento encontrado.</p>
+              ) : (
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>TÍTULO</th>
+                      <th>STATUS</th>
+                      <th>VALOR TOTAL</th>
+                      <th>CRIADO EM</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {patient.treatmentPlans.map((plan) => (
+                      <tr key={plan.id} className={styles.row}>
+                        <td className={styles.planTitle}>{plan.title}</td>
+                        <td>
+                          <span className={styles.planStatus}>{PLAN_STATUS_LABEL[plan.status] ?? plan.status}</span>
+                        </td>
+                        <td className={styles.planAmount}>{formatCurrency(plan.totalAmount)}</td>
+                        <td>{formatDate(plan.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
         </div>
-      )}
+
+      </div>
 
       {/* ─── Modais ─── */}
       <DetalhesAgendamentoModal
@@ -615,13 +665,13 @@ export default function PerfilPacientePage() {
 
       <AddEvolutionModal
         patientId={id as string}
-        medicalRecordId={patient?.medicalRecord?.id} // 👈 ADICIONE ESTA LINHA AQUI!
+        medicalRecordId={patient?.medicalRecord?.id}
         isOpen={isAddEvolutionOpen}
         onClose={() => setIsAddEvolutionOpen(false)}
         onSuccess={() => {
           setIsAddEvolutionOpen(false)
           load()
-          setReloadEvolutionsTrigger(prev => prev + 1)
+          setReloadEvolutionsTrigger((prev) => prev + 1)
         }}
       />
     </div>

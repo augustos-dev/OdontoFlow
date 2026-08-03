@@ -1,5 +1,3 @@
-/* app/(dashboard)/pacientes/[id]/perfil.module.css */
-
 .loading {
   display: flex;
   align-items: center;
@@ -27,6 +25,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  cursor: pointer;
   transition: color 0.15s;
 }
 .backBtn:hover { color: var(--primary); }
@@ -58,11 +57,39 @@
   flex-shrink: 0;
 }
 
+.profileTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .profileName {
   font-size: 22px;
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 4px;
+}
+
+/* Badges Rápidos */
+.badgeAllergy {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badgeBirthday {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 .profileMeta {
@@ -81,6 +108,13 @@
   color: var(--text-secondary);
   flex-wrap: wrap;
 }
+
+.contactLink {
+  text-decoration: none;
+  color: inherit;
+  transition: color 0.15s;
+}
+.contactLink:hover { color: var(--primary); }
 
 /* ─── Tabs ─── */
 .tabs {
@@ -101,11 +135,32 @@
   font-weight: 500;
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
+  cursor: pointer;
   transition: all 0.15s;
 }
 
 .tab:hover { background: var(--bg-page); color: var(--text-primary); }
 .tabActive { background: var(--primary-light); color: var(--primary); font-weight: 700; }
+
+/* ─── Layout Grid (2 Colunas) ─── */
+.gridContainer {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .gridContainer {
+    grid-template-columns: 1fr;
+  }
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 
 /* ─── Card ─── */
 .card {
@@ -113,6 +168,13 @@
   border-radius: var(--radius-lg);
   padding: 24px;
   box-shadow: var(--shadow-sm);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
 }
 
 .sectionTitle {
@@ -124,13 +186,19 @@
   border-bottom: 1px solid var(--border);
 }
 
-/* ─── Info grid ─── */
-.infoGrid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+.cardHeader .sectionTitle {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
+.sectionSubtitle {
+  margin: 4px 0 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* ─── Info & Anamnese ─── */
 .infoItem {
   display: flex;
   flex-direction: column;
@@ -153,20 +221,106 @@
 
 .infoEmpty { color: var(--text-muted); font-weight: 400; font-style: italic; }
 
-/* ─── Prontuário ─── */
-.prontuarioGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.anamneseList {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
-.prontuarioItem {
+.twoCols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* ─── Formulário de Anamnese ─── */
+.anamneseForm {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px;
-  background: var(--bg-page);
+  gap: 14px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.tagsWrapper {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 6px 0;
+}
+
+.tagBtn {
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tagBtnActive {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  outline: none;
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.input:focus {
+  border-color: var(--primary);
+}
+
+.formActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.btnEdit {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.btnPrimary {
+  background: var(--primary);
+  color: #ffffff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnSecondary {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 
 /* ─── Table ─── */
@@ -229,4 +383,41 @@
   color: var(--text-muted);
   padding: 32px;
   font-size: 14px;
+}
+
+/* Alinhamento de botões e links com ícones SVG */
+.backBtn, 
+.btnEdit, 
+.btnPrimary, 
+.tab, 
+.badgeAllergy, 
+.badgeBirthday, 
+.contactLink, 
+.contactItem, 
+.metaItem,
+.tagBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Spinner de carregamento */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 60vh;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+  color: var(--primary);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
