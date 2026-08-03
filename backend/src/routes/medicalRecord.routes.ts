@@ -5,6 +5,7 @@ import {
   getOdontogramController,
   upsertToothConditionController,
   deleteToothConditionController,
+  getEvolutionsController,
   CreateEvolutionController,
   updateEvolutionController,
   lockEvolutionController
@@ -18,6 +19,13 @@ const medicalRecordRouter = Router()
 medicalRecordRouter.use(authenticate)
 
 // ─── 1. SUB-ROTAS ESPECÍFICAS DE EVOLUÇÃO ──────────────────────────────────
+
+// GET /api/medical-records/:patientId/evolutions
+// Busca a lista de evoluções clínicas cadastradas para o paciente
+medicalRecordRouter.get(
+  '/:patientId/evolutions',
+  getEvolutionsController
+)
 
 // POST /api/medical-records/:patientId/evolutions
 // Intercepta arquivos via multipart/form-data com a chave 'attachments'

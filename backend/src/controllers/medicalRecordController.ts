@@ -43,6 +43,30 @@ async function processAttachments(req: Request): Promise<string[]> {
 
 // ─── MÓDULO DE EVOLUÇÃO ──────────────────────────────────────────────────────
 
+/**
+ * Busca o histórico de evoluções clínicas de um paciente/prontuário
+ */
+export async function getEvolutionsController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { tenantId, clinicId } = req.user!
+    const targetId = getRecordIdParam(req)
+
+    const evolutions = await medicalRecordService.getEvolutions(
+      tenantId,
+      clinicId,
+      targetId
+    )
+
+    res.status(200).json(evolutions)
+  } catch (error) {
+    next(error)
+  }
+}
+
 export async function CreateEvolutionController(
   req: Request,
   res: Response,
@@ -72,8 +96,6 @@ export async function CreateEvolutionController(
       attachments: attachmentUrls
     }
 
-    // Chama o serviço exatamente com os 5 argumentos esperados pelo medicalRecordService:
-    // (tenantId, clinicId, patientOrRecordId, dentistId, data)
     const evolution = await medicalRecordService.CreateEvolution(
       tenantId,
       clinicId,
@@ -98,7 +120,6 @@ export async function updateEvolutionController(
     const { evolutionId } = req.params
     const { description } = req.body
 
-    // Chama o serviço com os 3 argumentos esperados: (tenantId, evolutionId, description)
     const updatedEvolution = await medicalRecordService.updateEvolution(
       tenantId,
       evolutionId as string,
@@ -120,7 +141,6 @@ export async function lockEvolutionController(
     const { tenantId } = req.user!
     const { evolutionId } = req.params
 
-    // Chama o serviço com os 2 argumentos esperados: (tenantId, evolutionId)
     const lockedEvolution = await medicalRecordService.lockEvolution(
       tenantId,
       evolutionId as string

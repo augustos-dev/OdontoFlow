@@ -39,6 +39,7 @@ export async function findMedicalRecord(
 
   return medicalRecord
 }
+
 // -----------------------------------------------------------------------------
 // GET MEDICAL RECORD BY PATIENT OR RECORD ID
 // -----------------------------------------------------------------------------
@@ -92,6 +93,11 @@ export async function getEvolutionsByPatient(
     },
   })
 }
+
+/**
+ * Alias exportado para resolver compatibilidade direta com getEvolutions(...) no Controller
+ */
+export const getEvolutions = getEvolutionsByPatient
 
 // -----------------------------------------------------------------------------
 // UPDATE ANAMNESE / PRONTUÁRIO
@@ -163,7 +169,7 @@ export async function CreateEvolution(
         dentistId: dentist.id,
         description: data.description,
         odontogramSnapshot: parsedSnapshot ?? undefined,
-        attachments: data.attachments || [], // 👈 Salva o array de URLs/fotos
+        attachments: data.attachments || [],
       },
       include: {
         dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } }
@@ -381,6 +387,10 @@ export class EvolutionService {
   }
 
   async getEvolutionsByMedicalRecord(tenantId: string, clinicId: string, patientOrRecordId: string) {
+    return getEvolutionsByPatient(tenantId, clinicId, patientOrRecordId)
+  }
+
+  async getEvolutions(tenantId: string, clinicId: string, patientOrRecordId: string) {
     return getEvolutionsByPatient(tenantId, clinicId, patientOrRecordId)
   }
 
