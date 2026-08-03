@@ -14,12 +14,13 @@ import { upload } from "../middlewares/uploadMiddleware"
 
 const medicalRecordRouter = Router()
 
-// Aplica autenticação JWT para todas as rotas de prontuário
+// Aplica autenticação JWT para todas as rotas do prontuário
 medicalRecordRouter.use(authenticate)
 
 // ─── 1. SUB-ROTAS ESPECÍFICAS DE EVOLUÇÃO ──────────────────────────────────
 
 // POST /api/medical-records/:patientId/evolutions
+// Intercepta arquivos via multipart/form-data com a chave 'attachments'
 medicalRecordRouter.post(
   '/:patientId/evolutions', 
   authorize('DENTIST', 'ADMIN'), 
@@ -63,7 +64,7 @@ medicalRecordRouter.delete(
   deleteToothConditionController
 )
 
-// ─── 3. ROTAS GENÉRICAS DO PRONTUÁRIO ───────────────────────────────────────
+// ─── 3. ROTAS GENÉRICAS DO PRONTUÁRIO (Sempre por último) ───────────────────
 
 // GET /api/medical-records/:patientId
 medicalRecordRouter.get(
