@@ -1,76 +1,194 @@
-.odontogram-container {
+/* ==========================================================================
+   1. CARD CONTAINER & HEADER
+   ========================================================================== */
+.odontogram-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  background-color: #1e1e2e;
-  padding: 1.5rem;
-  border-radius: 12px;
-  border: 1px solid #313244;
+  gap: 1.25rem;
+  width: 100%;
 }
 
-/* Barra de Ferramentas */
+/* Header: Toggle de Arcada e Legenda */
+.odontogram-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.arch-toggle-group {
+  display: flex;
+  background-color: #f1f5f9;
+  padding: 3px;
+  border-radius: 8px;
+}
+
+.toggle-btn {
+  border: none;
+  background: transparent;
+  padding: 6px 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #64748b;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn.active {
+  background-color: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* Legenda do Canto Superior Direito */
+.odontogram-legend {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dot.finalizado {
+  background-color: #22c55e;
+}
+
+.dot.em-aberto {
+  background-color: #f97316;
+}
+
+.icon-x {
+  color: #ef4444;
+  font-weight: bold;
+}
+
+/* ==========================================================================
+   2. BARRA DE FERRAMENTAS (TOOLBAR)
+   ========================================================================== */
 .odontogram-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #313244;
-}
-
-.toolbar-btn {
-  display: flex;
   align-items: center;
   gap: 0.5rem;
-  background-color: #181825;
-  color: #cdd6f4;
-  border: 1px solid #313244;
-  padding: 0.4rem 0.8rem;
+  padding: 0.6rem 0.8rem;
+  background-color: #f1f5f9 !important; /* Cinza suave para dar fundo aos botões */
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+/* Botão Inativo (Padrão) */
+.toolbar-btn {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #ffffff !important;
+  color: #334155 !important; /* Força cor grafite escuro visível */
+  border: 1px solid #cbd5e1 !important;
+  padding: 0.45rem 0.85rem;
   border-radius: 6px;
-  font-size: 0.8rem;
+  font-size: 0.825rem;
+  font-weight: 600 !important;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
+/* Hover no Botão */
 .toolbar-btn:hover {
-  background-color: #313244;
+  background-color: #e2e8f0 !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
 }
 
+/* Botão Selecionado / Ativo */
 .toolbar-btn.active {
-  border-color: #89b4fa;
-  background-color: rgba(137, 180, 250, 0.1);
-  font-weight: 600;
+  border-color: #0284c7 !important;
+  background-color: #f0f9ff !important;
+  color: #0369a1 !important; /* Azul escuro bem legível */
+  font-weight: 700 !important;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.15);
 }
 
+/* Ponto Colorido da Ferramenta */
 .color-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
 }
 
-/* Arcadas */
-.arch-section {
+/* ==========================================================================
+   3. ÁREA DE DESENHO E ARCADAS (VIEWPORT COM CONTRASTE)
+   ========================================================================== */
+.odontogram-viewport {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem 1rem;
+  overflow-x: auto;
+  background-color: #f8fafc; /* Fundo em tom neutro suave */
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
 }
 
-.arch-title {
-  font-size: 0.85rem;
-  color: #a6adc8;
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+/* Linha Divisória de Quadrante (Tracejada Central) */
+.quadrant-line-vertical {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  border-left: 1px dashed #cbd5e1;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .teeth-row {
   display: flex;
-  justify-content: space-between;
-  gap: 0.25rem;
-  overflow-x: auto;
-  padding-bottom: 0.5rem;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
 }
 
-.arch-divider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #313244, transparent);
+/* Faixa Central dos Números dos Dentes */
+.numbers-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0.4rem 0;
+}
+
+.numbers-row {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.tooth-num {
+  width: 32px;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
 }

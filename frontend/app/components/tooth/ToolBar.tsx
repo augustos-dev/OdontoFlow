@@ -10,57 +10,58 @@ interface ToolBarProps {
 interface ActionConfig {
   id: ActionType
   label: string
-  color: string
+  color?: string
+  icon?: React.ReactNode
 }
 
 export const ToolBar: React.FC<ToolBarProps> = ({ activeAction, onSelectAction }) => {
   const actions: ActionConfig[] = [
-    { id: 'carie', label: 'Cárie', color: '#ef4444' },         // Vermelho / Rosa
-    { id: 'restaurado', label: 'Restaurado', color: '#3b82f6' }, // Azul
-    { id: 'canal', label: 'Canal', color: '#a855f7' },      // Roxo
+    { id: 'carie', label: 'Cárie', color: '#ef4444' },         // Vermelho
+    { id: 'restaurado', label: 'Restaurado', color: '#22c55e' }, // Verde (Finalizado)
+    { id: 'canal', label: 'Canal', color: '#a855f7' },        // Roxo
     { id: 'protese', label: 'Prótese/Coroa', color: '#f97316' }, // Laranja
-    { id: 'missing', label: 'Ausente/Extraído', color: '#64748b' }, // Cinza
-    { id: 'clear', label: 'Limpar Face', color: '#475569' },     // Cinza escuro
+    { 
+      id: 'missing', 
+      label: 'Ausente/Extraído', 
+      icon: <span className="icon-x-dot">✕</span> 
+    },
+    { 
+      id: 'clear', 
+      label: 'Limpar Face', 
+      icon: (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 5H9l-7 7 7 7h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z" />
+          <line x1="18" y1="9" x2="12" y2="15" />
+          <line x1="12" y1="9" x2="18" y2="15" />
+        </svg>
+      )
+    },
   ]
 
   return (
-    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+    <div className="odontogram-toolbar">
       {actions.map((action) => {
         const isActive = activeAction === action.id
 
         return (
           <button
             key={action.id}
-            type="button" // 👈 Impede o submit do formulário!
+            type="button"
+            className={`toolbar-btn ${isActive ? 'active' : ''}`}
             onClick={(e) => {
               e.preventDefault()
               onSelectAction(action.id)
             }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.4rem 0.8rem',
-              borderRadius: '0.375rem',
-              fontSize: '0.85rem',
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              backgroundColor: isActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-              border: isActive ? '1px solid #60a5fa' : '1px solid rgba(255, 255, 255, 0.15)',
-              color: '#f8fafc',
-            }}
           >
-            {/* Bolinha de Cor da Ferramenta */}
-            <span
-              style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: action.color,
-                display: 'inline-block',
-              }}
-            />
+            {/* Exibe o Ícone customizado ou o Dot de Cor da Ferramenta */}
+            {action.icon ? (
+              action.icon
+            ) : (
+              <span
+                className="color-dot"
+                style={{ backgroundColor: action.color }}
+              />
+            )}
             {action.label}
           </button>
         )
