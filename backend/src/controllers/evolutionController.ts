@@ -18,17 +18,18 @@ function getRecordIdParam(req: Request): string {
  */
 function extractAttachmentUrls(req: Request): string[] {
   const files = (req as any).files as Express.Multer.File[] | undefined
+  const body = req.body || {}
 
-  if (files && Array.isArray(files)) {
-    return files.map(
-      (file) => (file as any).location || file.path || file.filename
-    )
+  // 1. Se vieram arquivos via Multer (multipart/form-data)
+  if (files && Array.isArray(files) && files.length > 0) {
+    return files.map(file => file.filename)
   }
 
-  if (req.body.attachments) {
-    return Array.isArray(req.body.attachments) 
-      ? req.body.attachments 
-      : [req.body.attachments]
+  // 2. Fallback caso venha via JSON puro
+  if (body.attachments) {
+    return Array.isArray(body.attachments)
+      ? body.attachments
+      : [body.attachments]
   }
 
   return []

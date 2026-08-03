@@ -1,18 +1,138 @@
 import { Request, Response, NextFunction } from 'express'
 import * as medicalRecordService from '../services/medicalRecordService'
+import { uploadToSupabase } from '../services/storageService'
 import type {
   UpdateMedicalRecordsDTO,
-  ToothConditionDTO
+  ToothConditionDTO,
+  CreateEvolutionDTO
 } from '../types/medicalRecord.types'
 
 /**
- * Auxiliar interno para extrair com segurança o parâmetro de ID da URL, 
- * independentemente de como ele foi nomeado nas rotas (:id, :patientId ou :medicalRecordId)
+ * Auxiliar interno para extrair com segurança o parâmetro de ID da URL,
+ * independentemente de como foi nomeado (:id, :patientId ou :medicalRecordId)
  */
 function getRecordIdParam(req: Request): string {
   const { id, patientId, medicalRecordId } = req.params
   return (id || patientId || medicalRecordId) as string
 }
+
+/**
+ * Auxiliar para processar uploads de arquivos para o Supabase Storage
+ */
+async function processAttachments(req: Request): Promise<string[]> {
+  const files = req.files as Express.Multer.File[] | undefined
+  let attachmentUrls: string[] = []
+
+  // 1. Upload dos arquivos em memória RAM para o Supabase Storage
+  if (files && files.length > 0) {
+    const uploadPromises = files.map(file => uploadToSupabase(file))
+    attachmentUrls = await Promise.all(uploadPromises)
+  }
+
+  // 2. Se já vierem URLs no req.body (ex: links pré-existentes)
+  if (req.body?.attachments) {
+    const bodyAttachments = Array.isArray(req.body.attachments)
+      ? req.body.attachments
+      : [req.body.attachments]
+
+    attachmentUrls = [...attachmentUrls, ...bodyAttachments]
+  }
+
+  return attachmentUrls
+}
+
+// ─── MÓDULO DE EVOLUÇÃO ──────────────────────────────────────────────────────
+
+export async function CreateEvolutionController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { tenantId, clinicId, sub } = req.user!
+    const dentistId = sub || (req.user as any).id
+    const targetId = getRecordIdParam(req)
+
+    // Upload dos arquivos de anexos/fotos para o Supabase
+    const attachmentUrls = await processAttachments(req)
+
+    // Tratamento seguro do odontogramSnapshot (FormData envia campos como String)
+    let parsedSnapshot = req.body.odontogramSnapshot
+    if (typeof parsedSnapshot === 'string') {
+      try {
+        parsedSnapshot = JSON.parse(parsedSnapshot)
+      } catch {
+        parsedSnapshot = null
+      }
+    }
+
+    const evolutionData: CreateEvolutionDTO = {
+      description: req.body.description,
+      odontogramSnapshot: parsedSnapshot,
+      attachments: attachmentUrls
+    }
+
+    // Chama o serviço exatamente com os 5 argumentos esperados pelo medicalRecordService:
+    // (tenantId, clinicId, patientOrRecordId, dentistId, data)
+    const evolution = await medicalRecordService.CreateEvolution(
+      tenantId,
+      clinicId,
+      targetId,
+      dentistId,
+      evolutionData
+    )
+
+    res.status(201).json(evolution)
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function updateEvolutionController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { tenantId } = req.user!
+    const { evolutionId } = req.params
+    const { description } = req.body
+
+    // Chama o serviço com os 3 argumentos esperados: (tenantId, evolutionId, description)
+    const updatedEvolution = await medicalRecordService.updateEvolution(
+      tenantId,
+      evolutionId as string,
+      description
+    )
+
+    res.status(200).json(updatedEvolution)
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function lockEvolutionController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { tenantId } = req.user!
+    const { evolutionId } = req.params
+
+    // Chama o serviço com os 2 argumentos esperados: (tenantId, evolutionId)
+    const lockedEvolution = await medicalRecordService.lockEvolution(
+      tenantId,
+      evolutionId as string
+    )
+
+    res.status(200).json(lockedEvolution)
+  } catch (error) {
+    next(error)
+  }
+}
+
+// ─── MÓDULO DE PRONTUÁRIO & ODONTOGRAMA ─────────────────────────────────────
 
 export async function getMedicalRecordByPatientController(
   req: Request, 
