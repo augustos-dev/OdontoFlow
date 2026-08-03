@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import path from 'path' // 👈 1. Import do path
 import router from './routes/index'
 import { errorHandler } from './middlewares/errorHandler.middleware'
 import { swaggerSpec } from './docs/Swagger'
@@ -30,6 +31,9 @@ app.use(
 
 app.use(express.json())
 
+// 👈 2. Libera o acesso público à pasta de uploads para servir fotos/anexos
+app.use('/uploads', express.static(path.resolve(__dirname, '..', 'uploads')))
+
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customSiteTitle: 'OdontoFlow API — Documentação',
 }))
@@ -47,6 +51,7 @@ const portNumber = Number(PORT)
 app.listen(portNumber, '0.0.0.0', () => {
   console.log(`🚀 OdontoFlow API rodando com sucesso na porta ${portNumber}!`)
   console.log(`📖 Swagger em http://localhost:${portNumber}/docs`)
+  console.log(`📁 Pasta de uploads acessível em http://localhost:${portNumber}/uploads`)
 }).on('error', (err) => {
   console.error('❌ Erro ao iniciar servidor:', err)
   process.exit(1)
