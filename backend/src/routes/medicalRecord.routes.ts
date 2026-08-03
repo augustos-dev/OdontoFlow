@@ -29,7 +29,7 @@ medicalRecordRouter.get(
 medicalRecordRouter.post(
   '/:patientId/evolutions', 
   authorize('DENTIST', 'ADMIN'), 
-  upload.array('files'), // 👈 Garante o parse correto de req.body e req.files
+  upload.array('attachments'), // 👈 Chave ajustada para 'attachments'
   (req, res, next) => evolutionController.createEvolution(req, res, next)
 )
 

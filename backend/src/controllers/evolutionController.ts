@@ -17,19 +17,19 @@ function getRecordIdParam(req: Request): string {
  * Auxiliar para extrair URLs dos arquivos gravados (via Multer / S3 / Supabase)
  */
 function extractAttachmentUrls(req: Request): string[] {
-  const files = (req as any).files as any[] | undefined
+  const files = (req as any).files as Express.Multer.File[] | undefined
+  const body = req.body || {}
 
-  if (files && Array.isArray(files)) {
-    return files.map(
-      (file) => file.location || file.path || file.filename
-    )
+  // 1. Se vieram arquivos via Multer (multipart/form-data)
+  if (files && Array.isArray(files) && files.length > 0) {
+    return files.map(file => file.filename)
   }
 
-  // ✅ Adicionado req.body?.attachments para evitar o crash caso req.body venha undefined
-  if (req.body?.attachments) {
-    return Array.isArray(req.body.attachments)
-      ? req.body.attachments
-      : [req.body.attachments]
+  // 2. Fallback caso venha via JSON puro
+  if (body.attachments) {
+    return Array.isArray(body.attachments)
+      ? body.attachments
+      : [body.attachments]
   }
 
   return []
