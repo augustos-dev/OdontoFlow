@@ -1,46 +1,12 @@
-import { prisma } from "../lib/prisma"
-import { AppError } from "../shared/AppError"
+import { prisma } from '../lib/prisma'
+import { AppError } from '../shared/AppError'
 import type {
   UpdateMedicalRecordsDTO,
   CreateEvolutionDTO,
   ToothConditionDTO
-} from "../types/medicalRecord.types"
+} from '../types/medicalRecord.types'
 
-// Get Evolutions by Patient / Medical Record
-export async function getEvolutionsByPatient(
-  tenantId: string,
-  clinicId: string,
-  patientOrRecordId: string
-) {
-  // Busca flexível por ID do prontuário OU por ID do paciente
-  const medicalRecord = await prisma.medicalRecord.findFirst({
-    where: {
-      tenantId,
-      clinicId,
-      OR: [
-        { id: patientOrRecordId },
-        { patientId: patientOrRecordId }
-      ]
-    }
-  })
-
-  if (!medicalRecord) {
-    throw new AppError('Prontuário não encontrado.', 404)
-  }
-
-  return prisma.evolution.findMany({
-    where: {
-      tenantId,
-      medicalRecordId: medicalRecord.id,
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      dentist: { select: { id: true, name: true, cro: true } },
-    },
-  })
-}
-
-// Números de dentes válidos na notação FDI (11-18, 21-28, 31-38, 41-48)
+// Notação FDI válida (11-18, 21-28, 31-38, 41-48)
 const VALID_TOOTH_NUMBERS = [
   ...Array.from({ length: 8 }, (_, i) => 11 + i),
   ...Array.from({ length: 8 }, (_, i) => 21 + i),
@@ -49,10 +15,10 @@ const VALID_TOOTH_NUMBERS = [
 ]
 
 /**
- * Auxiliar interno para localizar o Prontuário garantindo o isolamento Multi-tenant
- * Aceita tanto o ID do Prontuário (medicalRecordId) quanto o ID do Paciente (patientId)
+ * Auxiliar interno para localizar o Prontuário garantindo o isolamento Multi-tenant.
+ * Aceita tanto o ID do Prontuário (medicalRecordId) quanto o ID do Paciente (patientId).
  */
-async function findMedicalRecord(
+export async function findMedicalRecord(
   tenantId: string,
   clinicId: string,
   recordOrPatientId: string
@@ -60,7 +26,6 @@ async function findMedicalRecord(
   const medicalRecord = await prisma.medicalRecord.findFirst({
     where: {
       tenantId,
-      // Se clinicId puder variar ou for opcional no prontuário, garantimos busca pelo tenant:
       OR: [
         { id: recordOrPatientId },
         { patientId: recordOrPatientId }
@@ -73,18 +38,15 @@ async function findMedicalRecord(
   }
 
   return medicalRecord
-
 }
-
 // -----------------------------------------------------------------------------
-// GET BY PATIENT / RECORD
+// GET MEDICAL RECORD BY PATIENT OR RECORD ID
 // -----------------------------------------------------------------------------
 export async function getMedicalRecordByPatient(
   tenantId: string,
   clinicId: string,
   patientOrRecordId: string
 ) {
-  // Localiza o prontuário de forma flexível pelo ID do paciente ou do próprio prontuário
   const targetRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
   const medicalRecord = await prisma.medicalRecord.findUnique({
@@ -93,7 +55,7 @@ export async function getMedicalRecordByPatient(
       evolutions: {
         orderBy: { createdAt: 'desc' },
         include: {
-          dentist: { select: { id: true, name: true, cro: true } }
+          dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } }
         },
       },
       toothConditions: {
@@ -110,9 +72,31 @@ export async function getMedicalRecordByPatient(
 }
 
 // -----------------------------------------------------------------------------
+// GET EVOLUTIONS
+// -----------------------------------------------------------------------------
+export async function getEvolutionsByPatient(
+  tenantId: string,
+  clinicId: string,
+  patientOrRecordId: string
+) {
+  const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
+
+  return prisma.evolution.findMany({
+    where: {
+      tenantId,
+      medicalRecordId: medicalRecord.id,
+    },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
+    },
+  })
+}
+
+// -----------------------------------------------------------------------------
 // UPDATE ANAMNESE / PRONTUÁRIO
 // -----------------------------------------------------------------------------
-export async function UpdateMedicalRecord(
+export async function updateMedicalRecord(
   tenantId: string,
   clinicId: string,
   patientOrRecordId: string,
@@ -127,7 +111,7 @@ export async function UpdateMedicalRecord(
 }
 
 // -----------------------------------------------------------------------------
-// CREATE EVOLUTION (Com Odontograma Snapshot)
+// CREATE EVOLUTION (Com Odontograma Snapshot + Anexos/Fotos)
 // -----------------------------------------------------------------------------
 export async function CreateEvolution(
   tenantId: string,
@@ -136,10 +120,10 @@ export async function CreateEvolution(
   dentistId: string,
   data: CreateEvolutionDTO
 ) {
-  // 1. Busca o prontuário de forma flexível
+  // 1. Localiza o prontuário
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-  // 2. Valida o profissional no tenant
+  // 2. Valida o profissional no Tenant
   const dentist = await prisma.user.findFirst({
     where: {
       id: dentistId,
@@ -155,37 +139,48 @@ export async function CreateEvolution(
     throw new AppError('Dentista/Profissional não encontrado ou inativo.', 404)
   }
 
-  // 3. Executa a transação no Prisma
+  // 3. Normalização do odontogramSnapshot (Parse caso venha como JSON string via FormData)
+  let parsedSnapshot: any = null
+  if (data.odontogramSnapshot) {
+    if (typeof data.odontogramSnapshot === 'string') {
+      try {
+        parsedSnapshot = JSON.parse(data.odontogramSnapshot)
+      } catch {
+        parsedSnapshot = null
+      }
+    } else {
+      parsedSnapshot = data.odontogramSnapshot
+    }
+  }
+
+  // 4. Transação ACID: Salva a evolução e atualiza a visão viva do Odontograma
   return prisma.$transaction(async (tx) => {
-    // 3.1 Registra a evolução
+    // 4.1 Registra a Evolução incluindo o snapshot e as fotos/anexos
     const evolution = await tx.evolution.create({
       data: {
         tenantId,
         medicalRecordId: medicalRecord.id,
         dentistId: dentist.id,
         description: data.description,
-        ...(data.odontogramSnapshot && { odontogramSnapshot: data.odontogramSnapshot }),
+        odontogramSnapshot: parsedSnapshot ?? undefined,
+        attachments: data.attachments || [], // 👈 Salva o array de URLs/fotos
       },
       include: {
-        dentist: { select: { id: true, name: true, cro: true } }
+        dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } }
       },
     })
 
-    // 3.2 Atualiza o estado atual na tabela tooth_conditions
-    if (data.odontogramSnapshot && typeof data.odontogramSnapshot === 'object') {
-      const toothEntries = Object.entries(data.odontogramSnapshot)
+    // 4.2 Atualiza o estado vivo na tabela tooth_conditions se houver dados no snapshot
+    if (parsedSnapshot && typeof parsedSnapshot === 'object') {
+      const toothEntries = Object.entries(parsedSnapshot)
 
       for (const [toothStr, toothData] of toothEntries) {
         const item = toothData as any
         const toothNumber = parseInt(toothStr, 10)
 
-        // Se por algum motivo o número do dente for inválido (NaN), ignora
-        if (isNaN(toothNumber)) continue
+        if (isNaN(toothNumber) || !item) continue
 
-        // Extrai as faces (ex: ["distal", "mesial"])
-        const faces = item.faces ? Object.keys(item.faces) : []
-        
-        // Pega a condição (ex: "carie", "restaurado")
+        const faces = item.faces ? (Array.isArray(item.faces) ? item.faces : Object.keys(item.faces)) : []
         const condition = item.condition || (item.faces ? Object.values(item.faces)[0] : 'outros')
 
         await tx.toothCondition.upsert({
@@ -198,6 +193,8 @@ export async function CreateEvolution(
           update: {
             condition: String(condition),
             faces,
+            notes: item.notes || null,
+            updatedAt: new Date(),
           },
           create: {
             tenantId,
@@ -205,6 +202,7 @@ export async function CreateEvolution(
             toothNumber,
             condition: String(condition),
             faces,
+            notes: item.notes || null,
           },
         })
       }
@@ -213,6 +211,10 @@ export async function CreateEvolution(
     return evolution
   })
 }
+
+// -----------------------------------------------------------------------------
+// LOCK EVOLUTION (Bloqueio de Registro Inalterável)
+// -----------------------------------------------------------------------------
 export async function lockEvolution(
   tenantId: string,
   evolutionId: string
@@ -233,6 +235,7 @@ export async function lockEvolution(
     data: { isLocked: true, lockedAt: new Date() }
   })
 }
+
 // -----------------------------------------------------------------------------
 // UPDATE EVOLUTION (Apenas se não travada)
 // -----------------------------------------------------------------------------
@@ -259,7 +262,7 @@ export async function updateEvolution(
 }
 
 // -----------------------------------------------------------------------------
-// UPSERT TOOTH CONDITION
+// UPSERT TOOTH CONDITION (Ajuste Direto de Dente)
 // -----------------------------------------------------------------------------
 export async function upsertToothCondition(
   tenantId: string,
@@ -302,7 +305,7 @@ export async function upsertToothCondition(
 }
 
 // -----------------------------------------------------------------------------
-// GET ODONTOGRAM (Visão Completa dos 32 dentes)
+// GET ODONTOGRAM (Visão Completa com Dentes Padrão SAUDAVEL)
 // -----------------------------------------------------------------------------
 export async function getOdontogram(
   tenantId: string,
@@ -321,12 +324,9 @@ export async function getOdontogram(
   })
 
   const conditions = fullRecord?.toothConditions ?? []
+  const conditionMap = new Map(conditions.map((tc) => [tc.toothNumber, tc]))
 
-  const conditionMap = new Map(
-    conditions.map((tc) => [tc.toothNumber, tc])
-  )
-
-  const fullOdontogram = VALID_TOOTH_NUMBERS.map((toothNumber) => {
+  return VALID_TOOTH_NUMBERS.map((toothNumber) => {
     const existing = conditionMap.get(toothNumber)
     return existing ?? {
       toothNumber,
@@ -335,8 +335,6 @@ export async function getOdontogram(
       notes: null
     }
   })
-
-  return fullOdontogram
 }
 
 // -----------------------------------------------------------------------------
@@ -366,4 +364,27 @@ export async function deleteToothCondition(
   await prisma.toothCondition.delete({
     where: { id: toothCondition.id }
   })
+}
+
+// -----------------------------------------------------------------------------
+// EVOLUTION SERVICE CLASS (Para compatibilidade de injeção de dependência)
+// -----------------------------------------------------------------------------
+export class EvolutionService {
+  async createEvolution(
+    tenantId: string,
+    clinicId: string,
+    patientOrRecordId: string,
+    dentistId: string,
+    data: CreateEvolutionDTO
+  ) {
+    return CreateEvolution(tenantId, clinicId, patientOrRecordId, dentistId, data)
+  }
+
+  async getEvolutionsByMedicalRecord(tenantId: string, clinicId: string, patientOrRecordId: string) {
+    return getEvolutionsByPatient(tenantId, clinicId, patientOrRecordId)
+  }
+
+  async getCurrentOdontogram(tenantId: string, clinicId: string, patientOrRecordId: string) {
+    return getOdontogram(tenantId, clinicId, patientOrRecordId)
+  }
 }

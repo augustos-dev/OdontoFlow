@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express'
 import * as medicalRecordService from '../services/medicalRecordService'
 import type {
   UpdateMedicalRecordsDTO,
-  CreateEvolutionDTO,
   ToothConditionDTO
 } from '../types/medicalRecord.types'
 
@@ -15,7 +14,11 @@ function getRecordIdParam(req: Request): string {
   return (id || patientId || medicalRecordId) as string
 }
 
-export async function getMedicalRecordByPatientController(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getMedicalRecordByPatientController(
+  req: Request, 
+  res: Response, 
+  next: NextFunction
+): Promise<void> {
   try {
     const { tenantId, clinicId } = req.user!
     const targetId = getRecordIdParam(req)
@@ -26,78 +29,31 @@ export async function getMedicalRecordByPatientController(req: Request, res: Res
   }
 }
 
-export async function UpdateMedicalRecordController(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function updateMedicalRecordController(
+  req: Request, 
+  res: Response, 
+  next: NextFunction
+): Promise<void> {
   try {
     const { tenantId, clinicId } = req.user!
     const targetId = getRecordIdParam(req)
-    const record = await medicalRecordService.UpdateMedicalRecord(tenantId, clinicId, targetId, req.body as UpdateMedicalRecordsDTO)
+    const record = await medicalRecordService.updateMedicalRecord(
+      tenantId, 
+      clinicId, 
+      targetId, 
+      req.body as UpdateMedicalRecordsDTO
+    )
     res.status(200).json(record)
   } catch (error) {
     next(error)
   }
 }
 
-export async function getEvolutionsByPatientController(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { tenantId, clinicId } = req.user!
-    const targetId = getRecordIdParam(req)
-    const evolutions = await medicalRecordService.getEvolutionsByPatient(tenantId, clinicId, targetId)
-    res.status(200).json(evolutions)
-  } catch (error) {
-    next(error)
-  }
-}
-
-export async function CreateEvolutionController(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-        const { tenantId, clinicId, sub } = req.user!
-        const dentistId = sub as string
-        const targetId = getRecordIdParam(req)
-
-        const evolution = await medicalRecordService.CreateEvolution(
-            tenantId,
-            clinicId,
-            targetId,
-            dentistId,
-            req.body as CreateEvolutionDTO
-        )
-        res.status(201).json(evolution)
-    } catch (error) {
-        next(error)
-    }
-}
-
-export async function updateEvolutionController(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { tenantId } = req.user!
-    const { evolutionId } = req.params
-    const { description } = req.body as { description: string }
-    const evolution = await medicalRecordService.updateEvolution(
-      tenantId,
-      evolutionId as string,
-      description
-    )
-    res.status(200).json(evolution)
-  } catch (error) {
-    next(error)
-  }
-}
-
-export async function lockEvolutionController(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { tenantId } = req.user!
-    const { evolutionId } = req.params
-    const evolution = await medicalRecordService.lockEvolution(
-      tenantId,
-      evolutionId as string
-    )
-    res.status(200).json(evolution)
-  } catch (error) {
-    next(error)
-  }
-}
-
-export async function getOdontogramController(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getOdontogramController(
+  req: Request, 
+  res: Response, 
+  next: NextFunction
+): Promise<void> {
   try {
     const { tenantId, clinicId } = req.user!
     const targetId = getRecordIdParam(req)
@@ -108,7 +64,11 @@ export async function getOdontogramController(req: Request, res: Response, next:
   }
 }
 
-export async function upsertToothConditionController(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function upsertToothConditionController(
+  req: Request, 
+  res: Response, 
+  next: NextFunction
+): Promise<void> {
   try {
     const { tenantId, clinicId } = req.user!
     const targetId = getRecordIdParam(req)
@@ -124,7 +84,11 @@ export async function upsertToothConditionController(req: Request, res: Response
   }
 }
 
-export async function deleteToothConditionController(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function deleteToothConditionController(
+  req: Request, 
+  res: Response, 
+  next: NextFunction
+): Promise<void> {
   try {
     const { tenantId, clinicId } = req.user!
     const { toothNumber } = req.params
