@@ -56,4 +56,6 @@ Icon?
 # Ignore coverage and test artifacts
 coverage/
 *.lcov
+uploads/
+
 
