@@ -137,18 +137,17 @@ export function PatientFilesTab({ files = [], onUploadNewFile }: PatientFilesTab
                 <div
                   className="file-preview"
                   onClick={() => file.url && setPreviewUrl(file.url)}
-                >
-                  <img
-                    src={file.url}
-                    alt={file.name || 'Anexo'}
-                    loading="lazy"
-                    onError={(e) => {
-                      console.error('❌ Erro ao carregar imagem no endereço:', file.url)
-                      // Previne loop e aplica imagem placeholder em falhas de carregamento
-                      ;(e.target as HTMLImageElement).src =
-                        'https://via.placeholder.com/150?text=Erro+Imagem'
-                    }}
-                  />
+                    >
+                        <img
+                            src={file.url}
+                            alt={file.name}
+                            onError={(e) => {
+                                // Evita loop infinito desativando o próprio onError
+                                e.currentTarget.onerror = null
+                                // Fallback usando SVG base64 local (nunca vai dar erro de rede)
+                                e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/><circle cx="9" cy="9" r="2"/></svg>'
+                            }}
+                        />
 
                   <div className="file-overlay">
                     <button
