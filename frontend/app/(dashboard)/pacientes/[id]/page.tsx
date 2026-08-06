@@ -17,7 +17,10 @@ import {
   Pencil, 
   Check, 
   Plus, 
-  Loader2 
+  Loader2,
+  Eye,
+  ExternalLink,
+  Save
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './perfil.module.css'
@@ -81,12 +84,14 @@ export default function PerfilPacientePage() {
   const [isAddEvolutionOpen, setIsAddEvolutionOpen] = useState(false)
   const [reloadEvolutionsTrigger, setReloadEvolutionsTrigger] = useState(0)
 
-  // Arquivos do Paciente
+  // Arquivos e Raio-X Panorâmico
   const [patientFiles, setPatientFiles] = useState<PatientFile[]>([])
+  const [panoramicFile, setPanoramicFile] = useState<PatientFile | null>(null)
 
   // Estados de Edição do Prontuário Base / Anamnese
   const [isEditingMR, setIsEditingMR] = useState(false)
   const [savingMR, setSavingMR] = useState(false)
+  const [hasDraft, setHasDraft] = useState(false)
   const [mrForm, setMrForm] = useState({
     chiefComplaint: '',
     historyNotes: '',
@@ -97,70 +102,117 @@ export default function PerfilPacientePage() {
     systemicDiseases: '',
   })
 
-  async function load() {
-  try {
-    const { data } = await api.get(`/patients/${id}`)
-    setPatient(data)
+  const DRAFT_KEY = `odontoflow_draft_mr_${id}`
 
-    // 🔴 DIAGNÓSTICO: Vamos ver no DevTools exatamente tudo que o Backend retornou!
-    console.log('🔍 [DEBUG] Resposta completa da API /patients/:id ->', data)
-
-    if (data.medicalRecord) {
-      setMrForm({
-        chiefComplaint: data.medicalRecord.chiefComplaint ?? '',
-        historyNotes: data.medicalRecord.historyNotes ?? '',
-        allergies: data.medicalRecord.allergies ?? '',
-        medications: data.medicalRecord.medications ?? '',
-        bloodType: data.medicalRecord.bloodType ?? '',
-        habits: data.medicalRecord.habits ?? '',
-        systemicDiseases: data.medicalRecord.systemicDiseases ?? '',
-      })
-    }
-
-    // 🚀 Busca as evoluções onde quer que elas estejam (no medicalRecord ou na raiz de data)
-    const evolutions = data.medicalRecord?.evolutions || data.evolutions || []
-
-    console.log('🔍 [DEBUG] Evoluções encontradas ->', evolutions)
-
-    const extractedFiles: PatientFile[] = evolutions.flatMap((evo: any) => {
-      // Tenta pegar anexos por qualquer nome comum
-      const rawAttachments = evo.attachments || evo.attachmentsUrl || evo.files || []
-
-      // Se por acaso vier como String JSON do banco, faz o parse
-      const attachmentsArray = typeof rawAttachments === 'string' 
-        ? JSON.parse(rawAttachments) 
-        : rawAttachments
-
-      if (!Array.isArray(attachmentsArray)) return []
-
-      return attachmentsArray.map((item: any, index: number) => {
-        const fileUrl = typeof item === 'string' ? item : item.url || item.path || ''
-        const fileName = typeof item === 'object' && item.name 
-          ? item.name 
-          : fileUrl.split('/').pop()?.split('?')[0] || `Exame_${index + 1}`
-
-        return {
-          id: `${evo.id}-${index}`,
-          name: fileName,
-          url: fileUrl,
-          createdAt: evo.createdAt,
-          type: fileUrl.toLowerCase().includes('.pdf') ? 'pdf' : 'image',
-          size: item.size ? `${(item.size / 1024).toFixed(0)} KB` : undefined,
+  // ── 1. Rascunho Automático (LocalStorage) ──
+  useEffect(() => {
+    if (isEditingMR && id) {
+      const savedDraft = localStorage.getItem(DRAFT_KEY)
+      if (savedDraft) {
+        try {
+          const parsed = JSON.parse(savedDraft)
+          setMrForm(parsed)
+          setHasDraft(true)
+        } catch (e) {
+          console.error('Erro ao ler rascunho:', e)
         }
-      })
-    })
+      }
+    }
+  }, [isEditingMR, id, DRAFT_KEY])
 
-    const validFiles = extractedFiles.filter((f) => Boolean(f.url))
+  useEffect(() => {
+    if (isEditingMR && id) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(mrForm))
+      setHasDraft(true)
+    }
+  }, [mrForm, isEditingMR, id, DRAFT_KEY])
 
-    console.log('🚀 [DEBUG] Arquivos extraídos com sucesso ->', validFiles)
-    setPatientFiles(validFiles)
+  // ── 2. Carga Principal de Dados ──
+  async function load() {
+    try {
+      // 2.1. Busca dados do paciente
+      const { data: patientData } = await api.get(`/patients/${id}`)
+      setPatient(patientData)
 
-  } catch (err) {
-    console.error('Erro ao carregar dados do paciente:', err)
-  } finally {
-    setLoading(false)
+      // Popula Anamnese inicial se não tiver rascunho ativo
+      const savedDraft = typeof window !== 'undefined' ? localStorage.getItem(DRAFT_KEY) : null
+      if (patientData.medicalRecord && !savedDraft) {
+        setMrForm({
+          chiefComplaint: patientData.medicalRecord.chiefComplaint ?? '',
+          historyNotes: patientData.medicalRecord.historyNotes ?? '',
+          allergies: patientData.medicalRecord.allergies ?? '',
+          medications: patientData.medicalRecord.medications ?? '',
+          bloodType: patientData.medicalRecord.bloodType ?? '',
+          habits: patientData.medicalRecord.habits ?? '',
+          systemicDiseases: patientData.medicalRecord.systemicDiseases ?? '',
+        })
+      }
+
+      // 2.2. Busca histórico e anexos das evoluções
+      try {
+        const { data: evolutions } = await api.get(`/medical-records/${id}/evolutions`)
+
+        if (Array.isArray(evolutions)) {
+          let foundPanoramic: PatientFile | null = null
+
+          const extractedFiles: PatientFile[] = evolutions.flatMap((evo: any) => {
+            const rawAttachments = evo.attachments || []
+
+            const attachmentsArray = typeof rawAttachments === 'string'
+              ? JSON.parse(rawAttachments)
+              : rawAttachments
+
+            if (!Array.isArray(attachmentsArray)) return []
+
+            return attachmentsArray.map((item: any, index: number) => {
+              const fileUrl = typeof item === 'string' ? item : item.url || item.path || ''
+              const fileName = typeof item === 'object' && item.name
+                ? item.name
+                : fileUrl.split('/').pop()?.split('?')[0] || `Anexo_${index + 1}`
+
+              const isPdf = fileUrl.toLowerCase().includes('.pdf')
+              const lowerName = fileName.toLowerCase()
+              const lowerUrl = fileUrl.toLowerCase()
+
+              const fileObj: PatientFile = {
+                id: `${evo.id}-${index}`,
+                name: fileName,
+                url: fileUrl,
+                createdAt: evo.createdAt,
+                type: isPdf ? 'pdf' : 'image',
+                size: item.size ? `${(item.size / 1024).toFixed(0)} KB` : undefined,
+              }
+
+              // Checa se o arquivo é um Raio-X Panorâmico
+              const isPanoramic = !isPdf && (
+                lowerName.includes('panoram') || 
+                lowerName.includes('raio-x') || 
+                lowerName.includes('rx') ||
+                lowerUrl.includes('panoram')
+              )
+
+              if (isPanoramic && !foundPanoramic) {
+                foundPanoramic = fileObj
+              }
+
+              return fileObj
+            })
+          })
+
+          const validFiles = extractedFiles.filter((file) => Boolean(file.url))
+          setPatientFiles(validFiles)
+          setPanoramicFile(foundPanoramic)
+        }
+      } catch (evoErr) {
+        console.error('Erro ao buscar evoluções do paciente:', evoErr)
+      }
+
+    } catch (err) {
+      console.error('Erro ao carregar perfil do paciente:', err)
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
   useEffect(() => {
     if (id) load()
@@ -187,6 +239,11 @@ export default function PerfilPacientePage() {
     setSavingMR(true)
     try {
       await api.put(`/medical-records/${id}`, mrForm)
+      
+      // Limpa o rascunho do localStorage ao salvar com sucesso
+      localStorage.removeItem(DRAFT_KEY)
+      setHasDraft(false)
+
       await load()
       setIsEditingMR(false)
     } catch (err: any) {
@@ -194,6 +251,22 @@ export default function PerfilPacientePage() {
       alert(err.response?.data?.message || 'Erro ao salvar as alterações do prontuário.')
     } finally {
       setSavingMR(false)
+    }
+  }
+
+  function handleDiscardDraft() {
+    localStorage.removeItem(DRAFT_KEY)
+    setHasDraft(false)
+    if (patient?.medicalRecord) {
+      setMrForm({
+        chiefComplaint: patient.medicalRecord.chiefComplaint ?? '',
+        historyNotes: patient.medicalRecord.historyNotes ?? '',
+        allergies: patient.medicalRecord.allergies ?? '',
+        medications: patient.medicalRecord.medications ?? '',
+        bloodType: patient.medicalRecord.bloodType ?? '',
+        habits: patient.medicalRecord.habits ?? '',
+        systemicDiseases: patient.medicalRecord.systemicDiseases ?? '',
+      })
     }
   }
 
@@ -363,7 +436,14 @@ export default function PerfilPacientePage() {
           <div className={styles.column}>
             <div className={styles.card}>
               <div className={styles.cardHeader}>
-                <h3 className={styles.sectionTitle}>Anamnese & Saúde Base</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 className={styles.sectionTitle}>Anamnese & Saúde Base</h3>
+                  {hasDraft && isEditingMR && (
+                    <span style={{ fontSize: '0.75rem', background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '12px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Save size={10} /> Rascunho salvo
+                    </span>
+                  )}
+                </div>
                 {!isEditingMR && (
                   <button type="button" onClick={() => setIsEditingMR(true)} className={styles.btnEdit}>
                     <Pencil size={14} />
@@ -532,6 +612,11 @@ export default function PerfilPacientePage() {
 
                   {/* Botões do Formulário */}
                   <div className={styles.formActions}>
+                    {hasDraft && (
+                      <button type="button" onClick={handleDiscardDraft} className={styles.btnSecondary} style={{ color: '#ef4444' }}>
+                        Descartar Rascunho
+                      </button>
+                    )}
                     <button type="button" onClick={() => setIsEditingMR(false)} className={styles.btnSecondary}>
                       Cancelar
                     </button>
@@ -598,9 +683,37 @@ export default function PerfilPacientePage() {
         {/* ================= COLUNA DIREITA (ODONTOGRAMA & DEMAIS ABAS) ================= */}
         <div className={styles.column}>
           
-          {/* VISÃO GERAL (ODONTOGRAMA + EVOLUÇÕES) */}
+          {/* VISÃO GERAL (PANORÂMICA + ODONTOGRAMA + EVOLUÇÕES) */}
           {tab === 'visao_geral' && (
             <>
+              {/* 📸 Raio-X Panorâmico de Destaque */}
+              {panoramicFile && (
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#0f172a' }}>
+                      <Eye size={18} style={{ color: '#06b6d4' }} />
+                      <span>Radiografia Panorâmica do Paciente</span>
+                    </div>
+                    <a 
+                      href={panoramicFile.url} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      style={{ fontSize: '0.8rem', color: '#06b6d4', textDecoration: 'none', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <span>Alta Resolução</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
+                  <div style={{ width: '100%', height: '240px', backgroundColor: '#09090b', borderRadius: '8px', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '1px solid #27272a' }}>
+                    <img 
+                      src={panoramicFile.url} 
+                      alt="Radiografia Panorâmica" 
+                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className={styles.card}>
                 <div>
                   <h3 className={styles.sectionTitle}>Mapa Bucal (Odontograma)</h3>

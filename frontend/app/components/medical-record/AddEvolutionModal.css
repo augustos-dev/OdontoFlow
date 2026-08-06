@@ -498,7 +498,7 @@
 }
 
 /* ==========================================================================
-   SEÇÃO: ÚLTIMAS EVOLUÇÕES (DESIGN DA IMAGEM)
+   SEÇÃO: ÚLTIMAS EVOLUÇÕES
    ========================================================================== */
 
 .recent-evolutions-section {
@@ -515,12 +515,6 @@
   font-size: 1.05rem;
   font-weight: 700;
   color: #0f172a;
-}
-
-.recent-evolutions-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
 }
 
 .recent-evo-card {
