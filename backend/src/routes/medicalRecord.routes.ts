@@ -5,7 +5,8 @@ import {
   getOdontogramController,
   upsertToothConditionController,
   deleteToothConditionController,
-  CreateEvolutionController,
+  getEvolutionsController,
+  createEvolutionController,
   updateEvolutionController,
   lockEvolutionController
 } from '../controllers/medicalRecordController'
@@ -19,13 +20,19 @@ medicalRecordRouter.use(authenticate)
 
 // ─── 1. SUB-ROTAS ESPECÍFICAS DE EVOLUÇÃO ──────────────────────────────────
 
+// GET /api/medical-records/:patientId/evolutions
+medicalRecordRouter.get(
+  '/:patientId/evolutions',
+  getEvolutionsController
+)
+
 // POST /api/medical-records/:patientId/evolutions
-// Intercepta arquivos via multipart/form-data com a chave 'attachments'
+// Intercepta arquivos em memória via FormData com a chave 'attachments'
 medicalRecordRouter.post(
   '/:patientId/evolutions', 
   authorize('DENTIST', 'ADMIN'), 
   upload.array('attachments'), 
-  CreateEvolutionController
+  createEvolutionController
 )
 
 // PUT /api/medical-records/evolutions/:evolutionId

@@ -17,25 +17,33 @@ function getRecordIdParam(req: Request): string {
 }
 
 /**
- * Auxiliar para processar uploads de arquivos para o Supabase Storage
+ * Auxiliar para processar uploads de arquivos enviando para o Supabase Storage (com Sharp .webp)
  */
 async function processAttachments(req: Request): Promise<string[]> {
   const files = req.files as Express.Multer.File[] | undefined
   let attachmentUrls: string[] = []
 
-  // 1. Upload dos arquivos em memória RAM para o Supabase Storage
+  // 1. Otimização (Sharp) e Upload paralelo dos arquivos enviados via Multer (RAM)
   if (files && files.length > 0) {
     const uploadPromises = files.map(file => uploadToSupabase(file))
     attachmentUrls = await Promise.all(uploadPromises)
   }
 
-  // 2. Se já vierem URLs no req.body (ex: links pré-existentes)
+  // 2. Garante o parse caso venham links/anexos pré-existentes via req.body (FormData string ou Array)
   if (req.body?.attachments) {
-    const bodyAttachments = Array.isArray(req.body.attachments)
-      ? req.body.attachments
-      : [req.body.attachments]
+    let bodyAttachments = req.body.attachments
 
-    attachmentUrls = [...attachmentUrls, ...bodyAttachments]
+    if (typeof bodyAttachments === 'string') {
+      try {
+        bodyAttachments = JSON.parse(bodyAttachments)
+      } catch {
+        bodyAttachments = [bodyAttachments]
+      }
+    }
+
+    if (Array.isArray(bodyAttachments)) {
+      attachmentUrls = [...attachmentUrls, ...bodyAttachments]
+    }
   }
 
   return attachmentUrls
@@ -43,7 +51,34 @@ async function processAttachments(req: Request): Promise<string[]> {
 
 // ─── MÓDULO DE EVOLUÇÃO ──────────────────────────────────────────────────────
 
-export async function CreateEvolutionController(
+/**
+ * Busca o histórico de evoluções clínicas de um paciente/prontuário
+ */
+export async function getEvolutionsController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { tenantId, clinicId } = req.user!
+    const targetId = getRecordIdParam(req)
+
+    const evolutions = await medicalRecordService.getEvolutions(
+      tenantId,
+      clinicId,
+      targetId
+    )
+
+    res.status(200).json(evolutions)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * Cria uma nova evolução clínica com upload de anexos otimizados e Snapshot do Odontograma
+ */
+export async function createEvolutionController(
   req: Request,
   res: Response,
   next: NextFunction
@@ -53,10 +88,10 @@ export async function CreateEvolutionController(
     const dentistId = sub || (req.user as any).id
     const targetId = getRecordIdParam(req)
 
-    // Upload dos arquivos de anexos/fotos para o Supabase
+    // Upload e compressão automática dos anexos/fotos para o Supabase Storage
     const attachmentUrls = await processAttachments(req)
 
-    // Tratamento seguro do odontogramSnapshot (FormData envia campos como String)
+    // Tratamento seguro do odontogramSnapshot (FormData envia objetos JSON como String)
     let parsedSnapshot = req.body.odontogramSnapshot
     if (typeof parsedSnapshot === 'string') {
       try {
@@ -72,8 +107,6 @@ export async function CreateEvolutionController(
       attachments: attachmentUrls
     }
 
-    // Chama o serviço exatamente com os 5 argumentos esperados pelo medicalRecordService:
-    // (tenantId, clinicId, patientOrRecordId, dentistId, data)
     const evolution = await medicalRecordService.CreateEvolution(
       tenantId,
       clinicId,
@@ -98,7 +131,6 @@ export async function updateEvolutionController(
     const { evolutionId } = req.params
     const { description } = req.body
 
-    // Chama o serviço com os 3 argumentos esperados: (tenantId, evolutionId, description)
     const updatedEvolution = await medicalRecordService.updateEvolution(
       tenantId,
       evolutionId as string,
@@ -120,7 +152,6 @@ export async function lockEvolutionController(
     const { tenantId } = req.user!
     const { evolutionId } = req.params
 
-    // Chama o serviço com os 2 argumentos esperados: (tenantId, evolutionId)
     const lockedEvolution = await medicalRecordService.lockEvolution(
       tenantId,
       evolutionId as string
