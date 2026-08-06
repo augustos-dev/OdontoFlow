@@ -2,22 +2,36 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 200px;
-  color: var(--text-muted);
-  font-size: 15px;
+  gap: 10px;
+  height: 60vh;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+  color: #06b6d4;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .page {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background-color: #f8fafc;
+  min-height: 100vh;
+  padding-bottom: 32px;
 }
 
-/* ─── Header ─── */
+/* ─── Header do Perfil ─── */
 .backBtn {
   background: none;
   border: none;
-  color: var(--text-secondary);
+  color: #64748b;
   font-size: 13px;
   font-weight: 500;
   padding: 0;
@@ -28,13 +42,14 @@
   cursor: pointer;
   transition: color 0.15s;
 }
-.backBtn:hover { color: var(--primary); }
+.backBtn:hover { color: #0891b2; }
 
 .profileHeader {
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
+  background: #ffffff;
+  border-radius: 12px;
   padding: 24px;
-  box-shadow: var(--shadow-sm);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .profileInfo {
@@ -47,8 +62,8 @@
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: var(--primary-light);
-  color: var(--primary);
+  background: #e0f2fe;
+  color: #0284c7;
   font-size: 22px;
   font-weight: 700;
   display: flex;
@@ -65,9 +80,9 @@
 }
 
 .profileName {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #0f172a;
   margin-bottom: 4px;
 }
 
@@ -76,7 +91,7 @@
   background: #fef2f2;
   color: #dc2626;
   border: 1px solid #fecaca;
-  padding: 2px 8px;
+  padding: 2px 10px;
   border-radius: 12px;
   font-size: 0.75rem;
   font-weight: 600;
@@ -86,7 +101,7 @@
   background: #f0fdf4;
   color: #16a34a;
   border: 1px solid #bbf7d0;
-  padding: 2px 8px;
+  padding: 2px 10px;
   border-radius: 12px;
   font-size: 0.75rem;
   font-weight: 600;
@@ -94,7 +109,7 @@
 
 .profileMeta {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: #64748b;
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
@@ -105,7 +120,7 @@
   display: flex;
   gap: 16px;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: #64748b;
   flex-wrap: wrap;
 }
 
@@ -114,16 +129,18 @@
   color: inherit;
   transition: color 0.15s;
 }
-.contactLink:hover { color: var(--primary); }
+.contactLink:hover { color: #0891b2; }
 
-/* ─── Tabs ─── */
+/* ─── Navegação por Abas ─── */
 .tabs {
   display: flex;
   gap: 4px;
-  background: var(--bg-card);
+  background: #ffffff;
   padding: 6px;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  overflow-x: auto;
 }
 
 .tab {
@@ -133,21 +150,28 @@
   border: none;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-secondary);
-  border-radius: var(--radius-sm);
+  color: #64748b;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s;
+  white-space: nowrap;
 }
 
-.tab:hover { background: var(--bg-page); color: var(--text-primary); }
-.tabActive { background: var(--primary-light); color: var(--primary); font-weight: 700; }
+.tab:hover { background: #f1f5f9; color: #0f172a; }
+.tabActive { background: #ecfeff; color: #0891b2; font-weight: 700; }
 
-/* ─── Layout Grid (2 Colunas) ─── */
+/* ─── Grid Principal (2 Colunas & Single) ─── */
 .gridContainer {
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: 320px 1fr;
   gap: 16px;
   align-items: start;
+}
+
+.singleColumnLayout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 @media (max-width: 1024px) {
@@ -162,12 +186,13 @@
   gap: 16px;
 }
 
-/* ─── Card ─── */
+/* ─── Cards Limpos ─── */
 .card {
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  box-shadow: var(--shadow-sm);
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .cardHeader {
@@ -180,10 +205,10 @@
 .sectionTitle {
   font-size: 14px;
   font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 16px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
+  color: #0f172a;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .cardHeader .sectionTitle {
@@ -195,36 +220,36 @@
 .sectionSubtitle {
   margin: 4px 0 0 0;
   font-size: 0.85rem;
-  color: var(--text-secondary);
+  color: #64748b;
 }
 
 /* ─── Info & Anamnese ─── */
 .infoItem {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .infoLabel {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.06em;
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
 .infoValue {
-  font-size: 14px;
-  color: var(--text-primary);
+  font-size: 13px;
+  color: #1e293b;
   font-weight: 500;
 }
 
-.infoEmpty { color: var(--text-muted); font-weight: 400; font-style: italic; }
+.infoEmpty { color: #94a3b8; font-weight: 400; font-style: italic; }
 
 .anamneseList {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .twoCols {
@@ -233,11 +258,11 @@
   gap: 12px;
 }
 
-/* ─── Formulário de Anamnese ─── */
+/* ─── Formulários ─── */
 .anamneseForm {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .formGroup {
@@ -255,35 +280,35 @@
 .tagBtn {
   padding: 4px 10px;
   border-radius: 16px;
-  font-size: 0.78rem;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text-secondary);
+  font-size: 0.75rem;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .tagBtnActive {
-  border-color: var(--primary);
-  background: var(--primary-light);
-  color: var(--primary);
+  border-color: #0891b2;
+  background: #ecfeff;
+  color: #0891b2;
   font-weight: 600;
 }
 
 .input {
   width: 100%;
   padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
   font-size: 0.85rem;
   outline: none;
-  background: var(--bg-card);
-  color: var(--text-primary);
+  background: #ffffff;
+  color: #0f172a;
 }
 
 .input:focus {
-  border-color: var(--primary);
+  border-color: #0891b2;
 }
 
 .formActions {
@@ -296,34 +321,36 @@
 .btnEdit {
   background: none;
   border: none;
-  color: var(--primary);
+  color: #0891b2;
   font-weight: 600;
   font-size: 0.85rem;
   cursor: pointer;
 }
 
 .btnPrimary {
-  background: var(--primary);
+  background: #06b6d4;
   color: #ffffff;
   border: none;
-  padding: 6px 14px;
-  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  border-radius: 6px;
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s;
 }
+.btnPrimary:hover { background: #0891b2; }
 
 .btnSecondary {
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-  padding: 6px 14px;
-  border-radius: var(--radius-sm);
+  background: #ffffff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  padding: 7px 14px;
+  border-radius: 6px;
   font-size: 0.85rem;
   cursor: pointer;
 }
 
-/* ─── Table ─── */
+/* ─── Tabela ─── */
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -334,24 +361,24 @@
   padding: 8px 12px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.06em;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-page);
+  color: #64748b;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
 
 .row {
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid #f1f5f9;
   transition: background 0.15s;
 }
 
-.row:hover { background: var(--bg-page); }
+.row:hover { background: #f8fafc; }
 .row:last-child { border-bottom: none; }
-.row td { padding: 12px 12px; font-size: 14px; color: var(--text-primary); }
+.row td { padding: 12px 12px; font-size: 13px; color: #1e293b; }
 
 .dateCell { font-weight: 500; }
 
-/* ─── Status badges ─── */
+/* Status Badges */
 .statusBadge {
   font-size: 11px;
   font-weight: 700;
@@ -359,33 +386,33 @@
   border-radius: 20px;
 }
 
-.confirmado { background: var(--status-confirmado-bg); color: var(--status-confirmado-text); }
-.emAtendimento { background: var(--status-em-atendimento-bg); color: var(--status-em-atendimento-text); }
-.finalizado { background: var(--status-finalizado-bg); color: var(--status-finalizado-text); }
-.agendado { background: var(--status-agendado-bg); color: var(--status-agendado-text); }
-.cancelado { background: var(--status-cancelado-bg); color: var(--status-cancelado-text); }
+.confirmado { background: #dcfce7; color: #15803d; }
+.emAtendimento { background: #e0f2fe; color: #0369a1; }
+.finalizado { background: #f1f5f9; color: #475569; }
+.agendado { background: #fef9c3; color: #a16207; }
+.cancelado { background: #fee2e2; color: #b91c1c; }
 .espera { background: #fdf4ff; color: #7c3aed; }
 
-/* ─── Planos ─── */
+/* Planos */
 .planTitle { font-weight: 500; }
-.planAmount { font-weight: 700; color: var(--stock-ok); }
+.planAmount { font-weight: 700; color: #16a34a; }
 .planStatus {
   font-size: 11px;
   font-weight: 600;
   padding: 3px 10px;
   border-radius: 20px;
-  background: var(--primary-light);
-  color: var(--primary);
+  background: #ecfeff;
+  color: #0891b2;
 }
 
 .empty {
   text-align: center;
-  color: var(--text-muted);
+  color: #94a3b8;
   padding: 32px;
   font-size: 14px;
 }
 
-/* Alinhamento de botões e links com ícones SVG */
+/* Alinhamentos gerais */
 .backBtn, 
 .btnEdit, 
 .btnPrimary, 
@@ -399,25 +426,4 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-
-/* Spinner de carregamento */
-.loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  height: 60vh;
-  color: var(--text-muted);
-  font-size: 14px;
-}
-
-.spinner {
-  animation: spin 1s linear infinite;
-  color: var(--primary);
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }

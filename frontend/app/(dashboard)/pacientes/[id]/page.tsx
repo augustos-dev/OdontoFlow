@@ -13,6 +13,7 @@ import {
   FileText, 
   Calendar, 
   ClipboardList, 
+  Folder,
   Pencil, 
   Check, 
   Plus, 
@@ -26,6 +27,7 @@ import DetalhesAgendamentoModal from '@/app/components/DetalhesAgendamentoModal'
 import { EvolutionsTimeline } from '../../../components/medical-record/EvolutionsTimeline'
 import { AddEvolutionModal } from '../../../components/medical-record/AddEvolutionModal'
 import { Odontogram } from '../../../components/tooth/Odontogram'
+import { PatientFilesTab, PatientFile } from '../../../components/pacienteFile/PatientFilesTab'
 
 // Import de Tipos Globais
 import { Patient } from '../../../../types/patient.types'
@@ -72,12 +74,15 @@ export default function PerfilPacientePage() {
 
   const [patient, setPatient] = useState<Patient | null>(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'visao_geral' | 'evolucoes' | 'agenda' | 'planos'>('visao_geral')
+  const [tab, setTab] = useState<'visao_geral' | 'evolucoes' | 'agenda' | 'planos' | 'arquivos'>('visao_geral')
 
   // Modais & Timeline State
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
   const [isAddEvolutionOpen, setIsAddEvolutionOpen] = useState(false)
   const [reloadEvolutionsTrigger, setReloadEvolutionsTrigger] = useState(0)
+
+  // Arquivos do Paciente
+  const [patientFiles, setPatientFiles] = useState<PatientFile[]>([])
 
   // Estados de Edição do Prontuário Base / Anamnese
   const [isEditingMR, setIsEditingMR] = useState(false)
@@ -93,26 +98,69 @@ export default function PerfilPacientePage() {
   })
 
   async function load() {
-    try {
-      const { data } = await api.get(`/patients/${id}`)
-      setPatient(data)
-      if (data.medicalRecord) {
-        setMrForm({
-          chiefComplaint: data.medicalRecord.chiefComplaint ?? '',
-          historyNotes: data.medicalRecord.historyNotes ?? '',
-          allergies: data.medicalRecord.allergies ?? '',
-          medications: data.medicalRecord.medications ?? '',
-          bloodType: data.medicalRecord.bloodType ?? '',
-          habits: data.medicalRecord.habits ?? '',
-          systemicDiseases: data.medicalRecord.systemicDiseases ?? '',
-        })
-      }
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
+  try {
+    const { data } = await api.get(`/patients/${id}`)
+    setPatient(data)
+
+    // 🔴 DIAGNÓSTICO: Vamos ver no DevTools exatamente tudo que o Backend retornou!
+    console.log('🔍 [DEBUG] Resposta completa da API /patients/:id ->', data)
+
+    if (data.medicalRecord) {
+      setMrForm({
+        chiefComplaint: data.medicalRecord.chiefComplaint ?? '',
+        historyNotes: data.medicalRecord.historyNotes ?? '',
+        allergies: data.medicalRecord.allergies ?? '',
+        medications: data.medicalRecord.medications ?? '',
+        bloodType: data.medicalRecord.bloodType ?? '',
+        habits: data.medicalRecord.habits ?? '',
+        systemicDiseases: data.medicalRecord.systemicDiseases ?? '',
+      })
     }
+
+    // 🚀 Busca as evoluções onde quer que elas estejam (no medicalRecord ou na raiz de data)
+    const evolutions = data.medicalRecord?.evolutions || data.evolutions || []
+
+    console.log('🔍 [DEBUG] Evoluções encontradas ->', evolutions)
+
+    const extractedFiles: PatientFile[] = evolutions.flatMap((evo: any) => {
+      // Tenta pegar anexos por qualquer nome comum
+      const rawAttachments = evo.attachments || evo.attachmentsUrl || evo.files || []
+
+      // Se por acaso vier como String JSON do banco, faz o parse
+      const attachmentsArray = typeof rawAttachments === 'string' 
+        ? JSON.parse(rawAttachments) 
+        : rawAttachments
+
+      if (!Array.isArray(attachmentsArray)) return []
+
+      return attachmentsArray.map((item: any, index: number) => {
+        const fileUrl = typeof item === 'string' ? item : item.url || item.path || ''
+        const fileName = typeof item === 'object' && item.name 
+          ? item.name 
+          : fileUrl.split('/').pop()?.split('?')[0] || `Exame_${index + 1}`
+
+        return {
+          id: `${evo.id}-${index}`,
+          name: fileName,
+          url: fileUrl,
+          createdAt: evo.createdAt,
+          type: fileUrl.toLowerCase().includes('.pdf') ? 'pdf' : 'image',
+          size: item.size ? `${(item.size / 1024).toFixed(0)} KB` : undefined,
+        }
+      })
+    })
+
+    const validFiles = extractedFiles.filter((f) => Boolean(f.url))
+
+    console.log('🚀 [DEBUG] Arquivos extraídos com sucesso ->', validFiles)
+    setPatientFiles(validFiles)
+
+  } catch (err) {
+    console.error('Erro ao carregar dados do paciente:', err)
+  } finally {
+    setLoading(false)
   }
+}
 
   useEffect(() => {
     if (id) load()
@@ -146,6 +194,24 @@ export default function PerfilPacientePage() {
       alert(err.response?.data?.message || 'Erro ao salvar as alterações do prontuário.')
     } finally {
       setSavingMR(false)
+    }
+  }
+
+  // Upload direto na Aba de Arquivos
+  async function handleUploadFiles(files: FileList) {
+    try {
+      const formData = new FormData()
+      Array.from(files).forEach((file) => formData.append('attachments', file))
+      formData.append('description', 'Upload de arquivo rápido via Aba Arquivos')
+
+      await api.post(`/medical-records/${id}/evolutions`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+
+      await load()
+    } catch (err) {
+      console.error('Erro ao enviar arquivo:', err)
+      alert('Falha ao realizar o upload do arquivo.')
     }
   }
 
@@ -216,7 +282,7 @@ export default function PerfilPacientePage() {
             <div className={styles.profileTitleRow}>
               <h1 className={styles.profileName}>{patient.name}</h1>
               
-              {/* Badges de Alerta em Destaque no Topo */}
+              {/* Badges de Alerta no Topo */}
               {mr?.allergies && mr.allergies.toLowerCase() !== 'nenhuma' && (
                 <span className={styles.badgeAllergy}>
                   <AlertTriangle size={14} />
@@ -283,245 +349,251 @@ export default function PerfilPacientePage() {
           <ClipboardList size={16} />
           <span>Planos ({patient.treatmentPlans?.length ?? 0})</span>
         </button>
+        <button className={`${styles.tab} ${tab === 'arquivos' ? styles.tabActive : ''}`} onClick={() => setTab('arquivos')}>
+          <Folder size={16} />
+          <span>Arquivos ({patientFiles.length})</span>
+        </button>
       </div>
 
-      {/* ─── Grid Principal (2 Colunas) ─── */}
-      <div className={styles.gridContainer}>
+      {/* ─── Grid Principal ─── */}
+      <div className={tab === 'arquivos' ? styles.singleColumnLayout : styles.gridContainer}>
         
         {/* ================= COLUNA ESQUERDA (ANAMNESE COMPLETA) ================= */}
-        <div className={styles.column}>
-          <div className={styles.card}>
-            <div className={styles.cardHeader}>
-              <h3 className={styles.sectionTitle}>Anamnese & Saúde Base</h3>
-              {!isEditingMR && (
-                <button type="button" onClick={() => setIsEditingMR(true)} className={styles.btnEdit}>
-                  <Pencil size={14} />
-                  <span>Editar Anamnese</span>
-                </button>
+        {tab !== 'arquivos' && (
+          <div className={styles.column}>
+            <div className={styles.card}>
+              <div className={styles.cardHeader}>
+                <h3 className={styles.sectionTitle}>Anamnese & Saúde Base</h3>
+                {!isEditingMR && (
+                  <button type="button" onClick={() => setIsEditingMR(true)} className={styles.btnEdit}>
+                    <Pencil size={14} />
+                    <span>Editar Anamnese</span>
+                  </button>
+                )}
+              </div>
+
+              {isEditingMR ? (
+                <form onSubmit={handleSaveMedicalRecord} className={styles.anamneseForm}>
+                  
+                  {/* Queixa Principal */}
+                  <div className={styles.formGroup}>
+                    <span className={styles.infoLabel}>QUEIXA PRINCIPAL</span>
+                    <div className={styles.tagsWrapper}>
+                      {['Dor de Dente', 'Limpeza / Check-up', 'Estética / Clareamento', 'Ortodontia', 'Prótese / Implante'].map((tag) => {
+                        const isActive = mrForm.chiefComplaint.includes(tag)
+                        return (
+                          <button
+                            type="button"
+                            key={tag}
+                            onClick={() => toggleTag('chiefComplaint', tag)}
+                            className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
+                          >
+                            {isActive ? <Check size={12} /> : <Plus size={12} />}
+                            <span>{tag}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Detalhamento da queixa..."
+                      value={mrForm.chiefComplaint}
+                      onChange={(e) => setMrForm({ ...mrForm, chiefComplaint: e.target.value })}
+                      className={styles.input}
+                    />
+                  </div>
+
+                  {/* Alergias */}
+                  <div className={styles.formGroup}>
+                    <span className={styles.infoLabel}>ALERGIAS & REAÇÕES</span>
+                    <div className={styles.tagsWrapper}>
+                      {['Penicilina', 'AAS / Aspirina', 'Dipirona', 'Anestésicos', 'Látex', 'Nenhuma'].map((tag) => {
+                        const isActive = mrForm.allergies.includes(tag)
+                        return (
+                          <button
+                            type="button"
+                            key={tag}
+                            onClick={() => toggleTag('allergies', tag)}
+                            className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
+                          >
+                            {isActive ? <Check size={12} /> : <Plus size={12} />}
+                            <span>{tag}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Outras alergias..."
+                      value={mrForm.allergies}
+                      onChange={(e) => setMrForm({ ...mrForm, allergies: e.target.value })}
+                      className={styles.input}
+                    />
+                  </div>
+
+                  {/* Doenças Sistêmicas */}
+                  <div className={styles.formGroup}>
+                    <span className={styles.infoLabel}>DOENÇAS SISTÊMICAS & CONDIÇÕES</span>
+                    <div className={styles.tagsWrapper}>
+                      {[
+                        'Pressão Alta', 'Diabetes', 'Cardiopatia', 'Hemorragia', 'Anemia',
+                        'Asma/Respiratória', 'Disfunção Renal', 'Disfunção Hepática',
+                        'Gastrite/Refluxo', 'Febre Reumática', 'Gestante', 'Amamentando'
+                      ].map((tag) => {
+                        const isActive = mrForm.systemicDiseases.includes(tag)
+                        return (
+                          <button
+                            type="button"
+                            key={tag}
+                            onClick={() => toggleTag('systemicDiseases', tag)}
+                            className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
+                          >
+                            {isActive ? <Check size={12} /> : <Plus size={12} />}
+                            <span>{tag}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Detalhes adicionais de doenças/síndromes..."
+                      value={mrForm.systemicDiseases}
+                      onChange={(e) => setMrForm({ ...mrForm, systemicDiseases: e.target.value })}
+                      className={styles.input}
+                    />
+                  </div>
+
+                  {/* ATM e Hábitos */}
+                  <div className={styles.formGroup}>
+                    <span className={styles.infoLabel}>ATM & HÁBITOS BUCAL</span>
+                    <div className={styles.tagsWrapper}>
+                      {[
+                        'Estalido na boca', 'Dificuldade para abrir boca',
+                        'Bruxismo', 'Fumante', 'Consome Álcool', 'Anticoncepcional'
+                      ].map((tag) => {
+                        const isActive = mrForm.habits.includes(tag)
+                        return (
+                          <button
+                            type="button"
+                            key={tag}
+                            onClick={() => toggleTag('habits', tag)}
+                            className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
+                          >
+                            {isActive ? <Check size={12} /> : <Plus size={12} />}
+                            <span>{tag}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Outros hábitos articulares..."
+                      value={mrForm.habits}
+                      onChange={(e) => setMrForm({ ...mrForm, habits: e.target.value })}
+                      className={styles.input}
+                    />
+                  </div>
+
+                  {/* Medicamentos */}
+                  <div className={styles.formGroup}>
+                    <span className={styles.infoLabel}>MEDICAMENTOS EM USO</span>
+                    <input
+                      type="text"
+                      placeholder="Ex: Anti-hipertensivo, Insulina..."
+                      value={mrForm.medications}
+                      onChange={(e) => setMrForm({ ...mrForm, medications: e.target.value })}
+                      className={styles.input}
+                    />
+                  </div>
+
+                  {/* Tipo Sanguíneo e Histórico */}
+                  <div className={styles.twoCols}>
+                    <div className={styles.formGroup}>
+                      <span className={styles.infoLabel}>TIPO SANGUÍNEO</span>
+                      <input
+                        type="text"
+                        placeholder="Ex: O+, A-, AB+"
+                        value={mrForm.bloodType}
+                        onChange={(e) => setMrForm({ ...mrForm, bloodType: e.target.value })}
+                        className={styles.input}
+                      />
+                    </div>
+                    <div className={styles.formGroup}>
+                      <span className={styles.infoLabel}>HISTÓRICO / CIRURGIAS</span>
+                      <input
+                        type="text"
+                        placeholder="Internações, cirurgias..."
+                        value={mrForm.historyNotes}
+                        onChange={(e) => setMrForm({ ...mrForm, historyNotes: e.target.value })}
+                        className={styles.input}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Botões do Formulário */}
+                  <div className={styles.formActions}>
+                    <button type="button" onClick={() => setIsEditingMR(false)} className={styles.btnSecondary}>
+                      Cancelar
+                    </button>
+                    <button type="submit" disabled={savingMR} className={styles.btnPrimary}>
+                      {savingMR ? 'Salvando...' : 'Salvar Anamnese'}
+                    </button>
+                  </div>
+                </form>
+              ) : !mr ? (
+                <p className={styles.empty}>Prontuário ainda não preenchido. Clique em "Editar Anamnese" para cadastrar.</p>
+              ) : (
+                <div className={styles.anamneseList}>
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>QUEIXA PRINCIPAL</span>
+                    <span className={`${styles.infoValue} ${!mr.chiefComplaint ? styles.infoEmpty : ''}`}>
+                      {mr.chiefComplaint || 'Não informado'}
+                    </span>
+                  </div>
+
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>ALERGIAS</span>
+                    <span className={`${styles.infoValue} ${!mr.allergies ? styles.infoEmpty : ''}`} style={{ color: mr.allergies && mr.allergies.toLowerCase() !== 'nenhuma' ? '#dc2626' : 'inherit', fontWeight: mr.allergies && mr.allergies.toLowerCase() !== 'nenhuma' ? 600 : 'normal' }}>
+                      {mr.allergies || 'Nenhuma'}
+                    </span>
+                  </div>
+
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>DOENÇAS SISTÊMICAS / CONDIÇÕES</span>
+                    <span className={`${styles.infoValue} ${!mr.systemicDiseases ? styles.infoEmpty : ''}`}>
+                      {mr.systemicDiseases || 'Nenhuma'}
+                    </span>
+                  </div>
+
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>MEDICAMENTOS EM USO</span>
+                    <span className={`${styles.infoValue} ${!mr.medications ? styles.infoEmpty : ''}`}>
+                      {mr.medications || 'Nenhum'}
+                    </span>
+                  </div>
+
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>ATM & HÁBITOS</span>
+                    <span className={`${styles.infoValue} ${!mr.habits ? styles.infoEmpty : ''}`}>
+                      {mr.habits || 'Não informado'}
+                    </span>
+                  </div>
+
+                  <div className={styles.twoCols}>
+                    <div className={styles.infoItem}>
+                      <span className={styles.infoLabel}>TIPO SANGUÍNEO</span>
+                      <span className={styles.infoValue}>{mr.bloodType || '—'}</span>
+                    </div>
+                    <div className={styles.infoItem}>
+                      <span className={styles.infoLabel}>HISTÓRICO / OBS</span>
+                      <span className={styles.infoValue}>{mr.historyNotes || '—'}</span>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
-
-            {isEditingMR ? (
-              <form onSubmit={handleSaveMedicalRecord} className={styles.anamneseForm}>
-                
-                {/* Queixa Principal */}
-                <div className={styles.formGroup}>
-                  <span className={styles.infoLabel}>QUEIXA PRINCIPAL</span>
-                  <div className={styles.tagsWrapper}>
-                    {['Dor de Dente', 'Limpeza / Check-up', 'Estética / Clareamento', 'Ortodontia', 'Prótese / Implante'].map((tag) => {
-                      const isActive = mrForm.chiefComplaint.includes(tag)
-                      return (
-                        <button
-                          type="button"
-                          key={tag}
-                          onClick={() => toggleTag('chiefComplaint', tag)}
-                          className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
-                        >
-                          {isActive ? <Check size={12} /> : <Plus size={12} />}
-                          <span>{tag}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Detalhamento da queixa..."
-                    value={mrForm.chiefComplaint}
-                    onChange={(e) => setMrForm({ ...mrForm, chiefComplaint: e.target.value })}
-                    className={styles.input}
-                  />
-                </div>
-
-                {/* Alergias */}
-                <div className={styles.formGroup}>
-                  <span className={styles.infoLabel}>ALERGIAS & REAÇÕES</span>
-                  <div className={styles.tagsWrapper}>
-                    {['Penicilina', 'AAS / Aspirina', 'Dipirona', 'Anestésicos', 'Látex', 'Nenhuma'].map((tag) => {
-                      const isActive = mrForm.allergies.includes(tag)
-                      return (
-                        <button
-                          type="button"
-                          key={tag}
-                          onClick={() => toggleTag('allergies', tag)}
-                          className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
-                        >
-                          {isActive ? <Check size={12} /> : <Plus size={12} />}
-                          <span>{tag}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Outras alergias (anestésicos, medicamentos)..."
-                    value={mrForm.allergies}
-                    onChange={(e) => setMrForm({ ...mrForm, allergies: e.target.value })}
-                    className={styles.input}
-                  />
-                </div>
-
-                {/* Doenças Sistêmicas & Condições Clínicas */}
-                <div className={styles.formGroup}>
-                  <span className={styles.infoLabel}>DOENÇAS SISTÊMICAS & CONDIÇÕES</span>
-                  <div className={styles.tagsWrapper}>
-                    {[
-                      'Pressão Alta', 'Diabetes', 'Cardiopatia', 'Hemorragia', 'Anemia',
-                      'Asma/Respiratória', 'Disfunção Renal', 'Disfunção Hepática',
-                      'Gastrite/Refluxo', 'Febre Reumática', 'Gestante', 'Amamentando'
-                    ].map((tag) => {
-                      const isActive = mrForm.systemicDiseases.includes(tag)
-                      return (
-                        <button
-                          type="button"
-                          key={tag}
-                          onClick={() => toggleTag('systemicDiseases', tag)}
-                          className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
-                        >
-                          {isActive ? <Check size={12} /> : <Plus size={12} />}
-                          <span>{tag}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Detalhes adicionais de doenças/síndromes..."
-                    value={mrForm.systemicDiseases}
-                    onChange={(e) => setMrForm({ ...mrForm, systemicDiseases: e.target.value })}
-                    className={styles.input}
-                  />
-                </div>
-
-                {/* ATM e Hábitos */}
-                <div className={styles.formGroup}>
-                  <span className={styles.infoLabel}>ATM & HÁBITOS BUCAL</span>
-                  <div className={styles.tagsWrapper}>
-                    {[
-                      'Estalido na boca', 'Dificuldade para abrir boca',
-                      'Bruxismo', 'Fumante', 'Consome Álcool', 'Anticoncepcional'
-                    ].map((tag) => {
-                      const isActive = mrForm.habits.includes(tag)
-                      return (
-                        <button
-                          type="button"
-                          key={tag}
-                          onClick={() => toggleTag('habits', tag)}
-                          className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
-                        >
-                          {isActive ? <Check size={12} /> : <Plus size={12} />}
-                          <span>{tag}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Outros hábitos articulares ou parafunção..."
-                    value={mrForm.habits}
-                    onChange={(e) => setMrForm({ ...mrForm, habits: e.target.value })}
-                    className={styles.input}
-                  />
-                </div>
-
-                {/* Medicamentos em Uso */}
-                <div className={styles.formGroup}>
-                  <span className={styles.infoLabel}>MEDICAMENTOS EM USO</span>
-                  <input
-                    type="text"
-                    placeholder="Ex: Anti-hipertensivo, Anticoncepcional, Insulina..."
-                    value={mrForm.medications}
-                    onChange={(e) => setMrForm({ ...mrForm, medications: e.target.value })}
-                    className={styles.input}
-                  />
-                </div>
-
-                {/* Tipo Sanguíneo e Histórico Geral */}
-                <div className={styles.twoCols}>
-                  <div className={styles.formGroup}>
-                    <span className={styles.infoLabel}>TIPO SANGUÍNEO</span>
-                    <input
-                      type="text"
-                      placeholder="Ex: O+, A-, AB+"
-                      value={mrForm.bloodType}
-                      onChange={(e) => setMrForm({ ...mrForm, bloodType: e.target.value })}
-                      className={styles.input}
-                    />
-                  </div>
-                  <div className={styles.formGroup}>
-                    <span className={styles.infoLabel}>HISTÓRICO / CIRURGIAS</span>
-                    <input
-                      type="text"
-                      placeholder="Internações, cirurgias..."
-                      value={mrForm.historyNotes}
-                      onChange={(e) => setMrForm({ ...mrForm, historyNotes: e.target.value })}
-                      className={styles.input}
-                    />
-                  </div>
-                </div>
-
-                {/* Botões do Formulário */}
-                <div className={styles.formActions}>
-                  <button type="button" onClick={() => setIsEditingMR(false)} className={styles.btnSecondary}>
-                    Cancelar
-                  </button>
-                  <button type="submit" disabled={savingMR} className={styles.btnPrimary}>
-                    {savingMR ? 'Salvando...' : 'Salvar Anamnese'}
-                  </button>
-                </div>
-              </form>
-            ) : !mr ? (
-              <p className={styles.empty}>Prontuário ainda não preenchido. Clique em "Editar Anamnese" para cadastrar.</p>
-            ) : (
-              <div className={styles.anamneseList}>
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>QUEIXA PRINCIPAL</span>
-                  <span className={`${styles.infoValue} ${!mr.chiefComplaint ? styles.infoEmpty : ''}`}>
-                    {mr.chiefComplaint || 'Não informado'}
-                  </span>
-                </div>
-
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>ALERGIAS</span>
-                  <span className={`${styles.infoValue} ${!mr.allergies ? styles.infoEmpty : ''}`} style={{ color: mr.allergies && mr.allergies.toLowerCase() !== 'nenhuma' ? '#dc2626' : 'inherit', fontWeight: mr.allergies && mr.allergies.toLowerCase() !== 'nenhuma' ? 600 : 'normal' }}>
-                    {mr.allergies || 'Nenhuma'}
-                  </span>
-                </div>
-
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>DOENÇAS SISTÊMICAS / CONDIÇÕES</span>
-                  <span className={`${styles.infoValue} ${!mr.systemicDiseases ? styles.infoEmpty : ''}`}>
-                    {mr.systemicDiseases || 'Nenhuma'}
-                  </span>
-                </div>
-
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>MEDICAMENTOS EM USO</span>
-                  <span className={`${styles.infoValue} ${!mr.medications ? styles.infoEmpty : ''}`}>
-                    {mr.medications || 'Nenhum'}
-                  </span>
-                </div>
-
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>ATM & HÁBITOS</span>
-                  <span className={`${styles.infoValue} ${!mr.habits ? styles.infoEmpty : ''}`}>
-                    {mr.habits || 'Não informado'}
-                  </span>
-                </div>
-
-                <div className={styles.twoCols}>
-                  <div className={styles.infoItem}>
-                    <span className={styles.infoLabel}>TIPO SANGUÍNEO</span>
-                    <span className={styles.infoValue}>{mr.bloodType || '—'}</span>
-                  </div>
-                  <div className={styles.infoItem}>
-                    <span className={styles.infoLabel}>HISTÓRICO / OBS</span>
-                    <span className={styles.infoValue}>{mr.historyNotes || '—'}</span>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
-        </div>
+        )}
 
         {/* ================= COLUNA DIREITA (ODONTOGRAMA & DEMAIS ABAS) ================= */}
         <div className={styles.column}>
@@ -650,6 +722,14 @@ export default function PerfilPacientePage() {
                 </table>
               )}
             </div>
+          )}
+
+          {/* ABA DE ARQUIVOS */}
+          {tab === 'arquivos' && (
+            <PatientFilesTab
+              files={patientFiles}
+              onUploadNewFile={handleUploadFiles}
+            />
           )}
 
         </div>
