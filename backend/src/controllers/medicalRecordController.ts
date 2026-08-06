@@ -8,8 +8,7 @@ import type {
 } from '../types/medicalRecord.types'
 
 /**
- * Auxiliar interno para extrair com segurança o parâmetro de ID da URL,
- * independentemente de como foi nomeado (:id, :patientId ou :medicalRecordId)
+ * Auxiliar para extrair o ID de paciente/prontuário dos parâmetros da rota
  */
 function getRecordIdParam(req: Request): string {
   const { id, patientId, medicalRecordId } = req.params
@@ -17,19 +16,35 @@ function getRecordIdParam(req: Request): string {
 }
 
 /**
- * Auxiliar para processar uploads de arquivos enviando para o Supabase Storage (com Sharp .webp)
+ * Processa uploads com sanitização de nomes e suporte completo para PDFs e Imagens
  */
 async function processAttachments(req: Request): Promise<string[]> {
   const files = req.files as Express.Multer.File[] | undefined
   let attachmentUrls: string[] = []
 
-  // 1. Otimização (Sharp) e Upload paralelo dos arquivos enviados via Multer (RAM)
   if (files && files.length > 0) {
-    const uploadPromises = files.map(file => uploadToSupabase(file))
+    const uploadPromises = files.map(file => {
+      // 1. Garante higienização do nome para evitar rejeição por path inválido no Supabase
+      const ext = file.originalname.includes('.')
+        ? file.originalname.split('.').pop()
+        : file.mimetype === 'application/pdf' ? 'pdf' : 'jpg'
+
+      const sanitizedFileName = `evo_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`
+      
+      // Cria objeto limpo mantendo buffer e mimetype intactos
+      const cleanFile: Express.Multer.File = {
+        ...file,
+        filename: sanitizedFileName,
+        originalname: sanitizedFileName
+      }
+
+      return uploadToSupabase(cleanFile)
+    })
+
     attachmentUrls = await Promise.all(uploadPromises)
   }
 
-  // 2. Garante o parse caso venham links/anexos pré-existentes via req.body (FormData string ou Array)
+  // 2. Anexos legados/enviados no body
   if (req.body?.attachments) {
     let bodyAttachments = req.body.attachments
 
@@ -51,9 +66,6 @@ async function processAttachments(req: Request): Promise<string[]> {
 
 // ─── MÓDULO DE EVOLUÇÃO ──────────────────────────────────────────────────────
 
-/**
- * Busca o histórico de evoluções clínicas de um paciente/prontuário
- */
 export async function getEvolutionsController(
   req: Request,
   res: Response,
@@ -75,9 +87,6 @@ export async function getEvolutionsController(
   }
 }
 
-/**
- * Cria uma nova evolução clínica com upload de anexos otimizados e Snapshot do Odontograma
- */
 export async function createEvolutionController(
   req: Request,
   res: Response,
@@ -88,10 +97,10 @@ export async function createEvolutionController(
     const dentistId = sub || (req.user as any).id
     const targetId = getRecordIdParam(req)
 
-    // Upload e compressão automática dos anexos/fotos para o Supabase Storage
+    // Upload seguro de anexos
     const attachmentUrls = await processAttachments(req)
 
-    // Tratamento seguro do odontogramSnapshot (FormData envia objetos JSON como String)
+    // Parse seguro de FormData
     let parsedSnapshot = req.body.odontogramSnapshot
     if (typeof parsedSnapshot === 'string') {
       try {

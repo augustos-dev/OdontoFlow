@@ -16,7 +16,6 @@ const VALID_TOOTH_NUMBERS = [
 
 /**
  * Auxiliar interno para localizar o Prontuário garantindo o isolamento Multi-tenant.
- * Aceita tanto o ID do Prontuário (medicalRecordId) quanto o ID do Paciente (patientId).
  */
 export async function findMedicalRecord(
   tenantId: string,
@@ -94,9 +93,6 @@ export async function getEvolutionsByPatient(
   })
 }
 
-/**
- * Alias exportado para resolver compatibilidade direta com getEvolutions(...) no Controller
- */
 export const getEvolutions = getEvolutionsByPatient
 
 // -----------------------------------------------------------------------------
@@ -145,7 +141,7 @@ export async function CreateEvolution(
     throw new AppError('Dentista/Profissional não encontrado ou inativo.', 404)
   }
 
-  // 3. Normalização do odontogramSnapshot (Parse seguro de string JSON vinda do FormData)
+  // 3. Normalização do odontogramSnapshot
   let parsedSnapshot: Record<string, any> | null = null
   if (data.odontogramSnapshot) {
     if (typeof data.odontogramSnapshot === 'string') {
@@ -159,9 +155,8 @@ export async function CreateEvolution(
     }
   }
 
-  // 4. Transação ACID: Salva a evolução e atualiza a visão viva do Odontograma em tempo real
+  // 4. Transação ACID
   return prisma.$transaction(async (tx) => {
-    // 4.1 Registra a Evolução com snapshot e links do Supabase Storage (.webp)
     const evolution = await tx.evolution.create({
       data: {
         tenantId,
@@ -176,7 +171,7 @@ export async function CreateEvolution(
       },
     })
 
-    // 4.2 Sincroniza o estado vivo na tabela tooth_conditions
+    // Sincroniza estado vivo no Odontograma
     if (parsedSnapshot && typeof parsedSnapshot === 'object') {
       const toothEntries = Object.entries(parsedSnapshot)
 
@@ -186,7 +181,6 @@ export async function CreateEvolution(
 
         if (isNaN(toothNumber) || !item) continue
 
-        // Extrai as faces e condição com resiliência
         const faces = item.faces 
           ? (Array.isArray(item.faces) ? item.faces : Object.keys(item.faces)) 
           : []
@@ -223,7 +217,7 @@ export async function CreateEvolution(
 }
 
 // -----------------------------------------------------------------------------
-// LOCK EVOLUTION (Bloqueio de Registro Inalterável)
+// LOCK EVOLUTION
 // -----------------------------------------------------------------------------
 export async function lockEvolution(
   tenantId: string,
@@ -247,7 +241,7 @@ export async function lockEvolution(
 }
 
 // -----------------------------------------------------------------------------
-// UPDATE EVOLUTION (Apenas se não travada)
+// UPDATE EVOLUTION
 // -----------------------------------------------------------------------------
 export async function updateEvolution(
   tenantId: string,
@@ -272,7 +266,7 @@ export async function updateEvolution(
 }
 
 // -----------------------------------------------------------------------------
-// UPSERT TOOTH CONDITION (Ajuste Direto de Dente via Interatividade na Tela)
+// UPSERT TOOTH CONDITION
 // -----------------------------------------------------------------------------
 export async function upsertToothCondition(
   tenantId: string,
@@ -315,7 +309,7 @@ export async function upsertToothCondition(
 }
 
 // -----------------------------------------------------------------------------
-// GET ODONTOGRAM (Visão Completa com Dentes Padrão SAUDAVEL)
+// GET ODONTOGRAM
 // -----------------------------------------------------------------------------
 export async function getOdontogram(
   tenantId: string,
@@ -376,9 +370,6 @@ export async function deleteToothCondition(
   })
 }
 
-// -----------------------------------------------------------------------------
-// EVOLUTION SERVICE CLASS (Para injeção de dependência / compatibilidade)
-// -----------------------------------------------------------------------------
 export class EvolutionService {
   async createEvolution(
     tenantId: string,
