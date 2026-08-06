@@ -1,14 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { 
   Package, 
   AlertTriangle, 
   CheckCircle2, 
   Box, 
-  Loader2 
+  Loader2,
+  Plus,
+  BarChart3,
+  TrendingDown
 } from 'lucide-react'
 import api from '@/lib/api'
+import { StockManagementModal, StockProductInput } from '../../components/estoque/StockManagementModal'
 import styles from './estoque.module.css'
 
 interface Product {
@@ -17,8 +21,9 @@ interface Product {
   quantity: number
   minQuantity: number
   expiryDate?: string
-  stockStatus: 'OK' | 'BAIXO' | 'CRITICO'
+  stockStatus?: 'OK' | 'BAIXO' | 'CRITICO'
   supplier?: { id: string; name: string }
+  usageCount?: number
 }
 
 export default function EstoquePage() {
@@ -27,31 +32,85 @@ export default function EstoquePage() {
   const [expiring, setExpiring] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'all' | 'critical' | 'expiring'>('all')
+  
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
-  useEffect(() => {
-    async function load() {
+  // Função central para buscar estoque com tratamento de resiliência por rota
+  const loadStockData = useCallback(async () => {
+    setLoading(true)
+    try {
+      // 1. Busca a lista principal
+      const allRes = await api.get('/products?limit=100')
+      const fetchedProducts: Product[] = allRes.data.data || allRes.data || []
+      
+      // Mapeia o stockStatus caso não venha calculado do backend
+      const mappedProducts = fetchedProducts.map((p) => {
+        const isCritical = p.quantity <= p.minQuantity
+        return {
+          ...p,
+          stockStatus: p.stockStatus || (isCritical ? 'CRITICO' : 'OK'),
+        }
+      })
+      
+      setProducts(mappedProducts)
+
+      // 2. Busca endpoints auxiliares de forma segura (não bloqueia a tela se falharem)
       try {
-        const [allRes, lowRes, expRes] = await Promise.all([
-          api.get('/products?limit=100'),
-          api.get('/products/low-stock'),
-          api.get('/products/expiring'),
-        ])
-        setProducts(allRes.data.data)
-        setLowStock(lowRes.data)
-        setExpiring(expRes.data)
+        const lowRes = await api.get('/products/low-stock')
+        setLowStock(lowRes.data || [])
       } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
+        // Fallback local caso o endpoint retorne 404
+        setLowStock(mappedProducts.filter((p) => p.quantity <= p.minQuantity))
       }
+
+      try {
+        const expRes = await api.get('/products/expiring')
+        setExpiring(expRes.data || [])
+      } catch (err) {
+        setExpiring([])
+      }
+
+    } catch (err) {
+      console.error('Erro ao carregar lista principal de estoque:', err)
+    } finally {
+      setLoading(false)
     }
-    load()
   }, [])
 
-  const displayed = tab === 'all' ? products : tab === 'critical' ? lowStock : expiring
+  useEffect(() => {
+    loadStockData()
+  }, [loadStockData])
 
-  const totalOk = products.filter((p) => p.stockStatus === 'OK').length
-  const totalCritico = products.filter((p) => p.stockStatus === 'CRITICO' || p.stockStatus === 'BAIXO').length
+  const handleSaveNewProducts = (newProducts: StockProductInput[]) => {
+    const formatted: Product[] = newProducts.map((p) => ({
+      id: p.id,
+      name: p.name,
+      quantity: p.quantity,
+      minQuantity: p.minQuantity,
+      expiryDate: p.expirationDate,
+      stockStatus: p.quantity <= p.minQuantity ? 'CRITICO' : 'OK',
+      usageCount: 0,
+    }))
+
+    setProducts((prev) => [...formatted, ...prev])
+  }
+
+  const getComputedStatus = (p: Product) => {
+    if (p.stockStatus) return p.stockStatus
+    return p.quantity <= p.minQuantity ? 'CRITICO' : 'OK'
+  }
+
+  const displayed = tab === 'all' ? products : tab === 'critical' ? lowStock : expiring
+  const totalOk = products.filter((p) => getComputedStatus(p) === 'OK').length
+  const totalCritico = products.filter((p) => {
+    const status = getComputedStatus(p)
+    return status === 'CRITICO' || status === 'BAIXO'
+  }).length
+
+  const topUsedProducts = products
+    .filter((p) => p.usageCount && p.usageCount > 0)
+    .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))
+    .slice(0, 5)
 
   function formatDate(dt?: string) {
     if (!dt) return '—'
@@ -65,7 +124,8 @@ export default function EstoquePage() {
   }
 
   function getAlertLabel(p: Product) {
-    if (p.stockStatus === 'CRITICO' || p.stockStatus === 'BAIXO') {
+    const status = getComputedStatus(p)
+    if (status === 'CRITICO' || status === 'BAIXO') {
       return { label: 'COMPRAR URGENTE', cls: styles.alertCritico, isAlert: true }
     }
     return { label: 'OK', cls: styles.alertOk, isAlert: false }
@@ -74,7 +134,22 @@ export default function EstoquePage() {
   return (
     <div className={styles.page}>
       
-      {/* ─── Cards de métricas ─── */}
+      {/* ─── Ações de Topo ─── */}
+      <div className={styles.topActionBar}>
+        <p className={styles.pageSubtitle}>
+          Gerencie o consumo e reposição de materiais da clínica em tempo real
+        </p>
+        <button 
+          type="button"
+          className={styles.btnPrimary} 
+          onClick={() => setIsModalOpen(true)}
+        >
+          <Plus size={16} />
+          <span>Gerenciar estoque</span>
+        </button>
+      </div>
+
+      {/* ─── Cards de Métricas ─── */}
       <div className={styles.metricsGrid}>
         <div className={styles.metricCard}>
           <div className={styles.metricHeader}>
@@ -107,7 +182,49 @@ export default function EstoquePage() {
         </div>
       </div>
 
-      {/* ─── Tabela de Produtos ─── */}
+      {/* ─── Seção do Gráfico de Consumo ─── */}
+      {topUsedProducts.length > 0 && (
+        <div className={styles.chartCard}>
+          <div className={styles.chartHeader}>
+            <div className={styles.chartTitleRow}>
+              <div className={styles.titleIconBg}>
+                <BarChart3 size={20} color="var(--primary)" />
+              </div>
+              <div>
+                <h3 className={styles.chartTitle}>Materiais Mais Utilizados (Mês Atual)</h3>
+                <p className={styles.chartSub}>Insumos com maior volume de saída nos atendimentos</p>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.chartBarsContainer}>
+            {topUsedProducts.map((item) => {
+              const maxUsage = topUsedProducts[0].usageCount || 1
+              const percentage = Math.min(100, Math.round(((item.usageCount || 0) / maxUsage) * 100))
+
+              return (
+                <div key={item.id} className={styles.chartBarRow}>
+                  <div className={styles.chartBarInfo}>
+                    <span className={styles.chartBarName}>{item.name}</span>
+                    <span className={styles.chartBarUsage}>
+                      <TrendingDown size={14} className={styles.usageIcon} />
+                      {item.usageCount} unidades consumidas
+                    </span>
+                  </div>
+                  <div className={styles.barTrack}>
+                    <div 
+                      className={styles.barFill} 
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Tabela Principal de Produtos ─── */}
       <div className={styles.card}>
         <div className={styles.cardHeader}>
           <div className={styles.cardTitleRow}>
@@ -120,13 +237,25 @@ export default function EstoquePage() {
             </div>
           </div>
           <div className={styles.tabs}>
-            <button className={`${styles.tab} ${tab === 'all' ? styles.tabActive : ''}`} onClick={() => setTab('all')}>
+            <button 
+              type="button"
+              className={`${styles.tab} ${tab === 'all' ? styles.tabActive : ''}`} 
+              onClick={() => setTab('all')}
+            >
               Todos
             </button>
-            <button className={`${styles.tab} ${tab === 'critical' ? styles.tabActive : ''}`} onClick={() => setTab('critical')}>
+            <button 
+              type="button"
+              className={`${styles.tab} ${tab === 'critical' ? styles.tabActive : ''}`} 
+              onClick={() => setTab('critical')}
+            >
               Críticos ({lowStock.length})
             </button>
-            <button className={`${styles.tab} ${tab === 'expiring' ? styles.tabActive : ''}`} onClick={() => setTab('expiring')}>
+            <button 
+              type="button"
+              className={`${styles.tab} ${tab === 'expiring' ? styles.tabActive : ''}`} 
+              onClick={() => setTab('expiring')}
+            >
               Vencendo ({expiring.length})
             </button>
           </div>
@@ -158,11 +287,12 @@ export default function EstoquePage() {
               )}
               {displayed.map((p) => {
                 const alert = getAlertLabel(p)
+                const computedStatus = getComputedStatus(p)
                 return (
                   <tr key={p.id} className={styles.row}>
                     <td className={styles.productName}>{p.name}</td>
                     <td>
-                      <span className={`${styles.qtyBadge} ${getStockClass(p.stockStatus)}`}>
+                      <span className={`${styles.qtyBadge} ${getStockClass(computedStatus)}`}>
                         {p.quantity}
                       </span>
                     </td>
@@ -181,6 +311,14 @@ export default function EstoquePage() {
           </table>
         )}
       </div>
+
+      {/* Modal de Gerenciamento em Abas */}
+      <StockManagementModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSaveProducts={handleSaveNewProducts}
+        onSuccess={loadStockData}
+      />
     </div>
   )
 }

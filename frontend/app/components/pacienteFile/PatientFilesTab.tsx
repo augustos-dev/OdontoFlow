@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
+import { PdfCanvasThumbnail } from './ThumbnailCanvas'
 import './PatientFilesTab.css'
 
 export interface PatientFile {
@@ -8,31 +9,75 @@ export interface PatientFile {
   name: string
   url: string
   size?: string
-  createdAt?: string
+  createdAt: string // Deve ser uma string ISO no formato "YYYY-MM-DDTHH:mm:ss.sssZ" ou timestamp
   type?: 'image' | 'pdf' | 'other'
 }
 
 interface PatientFilesTabProps {
   files?: PatientFile[]
+  patientId?: string
   onUploadNewFile: (files: FileList) => void
-  onDeleteFile?: (fileId: string) => void
+  onDeleteFile?: (fileIds: string[]) => void
 }
 
-export function PatientFilesTab({ files = [], onUploadNewFile }: PatientFilesTabProps) {
+function formatFileName(fileName: string): string {
+  if (!fileName) return 'Arquivo sem nome'
+  const uuidOrHashRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}[-_]?/i
+  const longHashRegex = /^[a-f0-9]{20,}[-_]?/i
+
+  let cleaned = fileName.replace(uuidOrHashRegex, '').replace(longHashRegex, '')
+  if (!cleaned || cleaned.startsWith('.')) return fileName
+  return cleaned
+}
+
+/**
+  Valida se o arquivo foi criado há menos de 24 horas
+ */
+function isWithin24Hours(createdAtStr?: string): boolean {
+  if (!createdAtStr) return true // Se não houver data, permite por padrão no MVP
+  const createdAt = new Date(createdAtStr).getTime()
+  if (isNaN(createdAt)) return true
+
+  const now = new Date().getTime()
+  const twentyFourHoursInMs = 24 * 60 * 60 * 1000
+
+  return now - createdAt <= twentyFourHoursInMs
+}
+
+export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDeleteFile }: PatientFilesTabProps) {
+  const [localFiles, setLocalFiles] = useState<PatientFile[]>(files)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectAll, setSelectAll] = useState(false)
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([])
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
-  console.log('📸 [PatientFilesTab] Arquivos recebidos na prop:', files)
+  // Sincroniza localFiles quando as props externas mudarem
+  useEffect(() => {
+    setLocalFiles(files)
+  }, [files])
 
-  // Filtra arquivos por nome em tempo real
+  // Filtra os arquivos locais pelo termo de busca
   const filteredFiles = useMemo(() => {
-    if (!Array.isArray(files)) return []
-    return files.filter((file) =>
-      file && file.name && file.name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  }, [files, searchTerm])
+    if (!Array.isArray(localFiles)) return []
+    return localFiles.filter((file) => {
+      if (!file || !file.name) return false
+      const displayName = formatFileName(file.name)
+      return (
+        file.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        displayName.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    })
+  }, [localFiles, searchTerm])
+
+  // Verifica se TODOS os selecionados estão dentro do limite de 24 horas
+  const selectedAreDeletable = useMemo(() => {
+    if (selectedFileIds.length === 0) return false
+    return selectedFileIds.every((id) => {
+      const file = localFiles.find((f) => f.id === id)
+      return file ? isWithin24Hours(file.createdAt) : false
+    })
+  }, [selectedFileIds, localFiles])
 
   const handleToggleSelectAll = () => {
     if (selectAll) {
@@ -49,13 +94,59 @@ export function PatientFilesTab({ files = [], onUploadNewFile }: PatientFilesTab
     )
   }
 
+  // DELEÇÃO NO BACKEND COM TRAVA DE 24 HORAS
+  const handleDeleteSelected = async () => {
+    if (selectedFileIds.length === 0) return
+
+    // Trava de segurança no frontend
+    if (!selectedAreDeletable) {
+      alert('Atenção: Alguns arquivos selecionados têm mais de 24 horas de envio e não podem mais ser excluídos.')
+      return
+    }
+
+    if (window.confirm(`Tem certeza que deseja excluir ${selectedFileIds.length} arquivo(s) permanentemente do banco de dados?`)) {
+      setIsDeleting(true)
+
+      try {
+        // Chamada de API para o Backend (Next.js App Router API Route)
+        const response = await fetch('/api/patients/files/delete', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileIds: selectedFileIds,
+            patientId,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.message || 'Falha ao excluir arquivos do banco.')
+        }
+
+        // Remoção otimista do estado visual após resposta do banco
+        setLocalFiles((prev) => prev.filter((file) => !selectedFileIds.includes(file.id)))
+        
+        if (onDeleteFile) {
+          onDeleteFile(selectedFileIds)
+        }
+
+        setSelectedFileIds([])
+        setSelectAll(false)
+      } catch (error: any) {
+        console.error('Erro na deleção de arquivos:', error)
+        alert(error.message || 'Erro ao tentar deletar os arquivos. Tente novamente.')
+      } finally {
+        setIsDeleting(false)
+      }
+    }
+  }
+
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       onUploadNewFile(e.target.files)
     }
   }
 
-  // Helper para identificar se o arquivo é PDF
   const checkIsPdf = (file: PatientFile) => {
     if (file.type === 'pdf') return true
     const urlLower = file.url?.toLowerCase() || ''
@@ -100,22 +191,53 @@ export function PatientFilesTab({ files = [], onUploadNewFile }: PatientFilesTab
         </div>
       </div>
 
-      {/* Control Bar */}
+      {/* Control Bar com Ação de Excluir */}
       <div className="files-control-bar">
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={selectAll}
-            onChange={handleToggleSelectAll}
-            className="checkbox-input"
-          />
-          <span>Selecionar todos</span>
-        </label>
+        <div className="control-bar-left">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={selectAll}
+              onChange={handleToggleSelectAll}
+              className="checkbox-input"
+            />
+            <span>Selecionar todos</span>
+          </label>
 
+          {selectedFileIds.length > 0 && (
+            <span className="selected-count">
+              {selectedFileIds.length} arquivo(s) selecionado(s)
+            </span>
+          )}
+        </div>
+
+        {/* Botão de Excluir */}
         {selectedFileIds.length > 0 && (
-          <span className="selected-count">
-            {selectedFileIds.length} arquivo(s) selecionado(s)
-          </span>
+          <button
+            type="button"
+            onClick={handleDeleteSelected}
+            disabled={!selectedAreDeletable || isDeleting}
+            className={`btn-delete-selected ${!selectedAreDeletable ? 'disabled' : ''}`}
+            title={
+              !selectedAreDeletable
+                ? 'Arquivos com mais de 24 horas não podem ser excluídos'
+                : 'Excluir do banco de dados'
+            }
+          >
+            <svg viewBox="0 0 24 24" className="btn-delete-icon">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <line x1="10" y1="11" x2="10" y2="17" />
+              <line x1="14" y1="11" x2="14" y2="17" />
+            </svg>
+            <span>
+              {isDeleting
+                ? 'Excluindo...'
+                : !selectedAreDeletable
+                ? 'Exclusão expirada (>24h)'
+                : `Excluir selecionados (${selectedFileIds.length})`}
+            </span>
+          </button>
         )}
       </div>
 
@@ -125,6 +247,8 @@ export function PatientFilesTab({ files = [], onUploadNewFile }: PatientFilesTab
           {filteredFiles.map((file) => {
             const isSelected = selectedFileIds.includes(file.id)
             const isPdf = checkIsPdf(file)
+            const displayName = formatFileName(file.name)
+            const canBeDeleted = isWithin24Hours(file.createdAt)
 
             return (
               <div
@@ -141,7 +265,17 @@ export function PatientFilesTab({ files = [], onUploadNewFile }: PatientFilesTab
                   />
                 </div>
 
-                {/* Preview (Imagem vs PDF) */}
+                {/* Badge de Expiração / Trava se passou de 24h */}
+                {!canBeDeleted && (
+                  <span
+                    className="lock-badge"
+                    title="Este arquivo tem mais de 24 horas e não pode ser removido."
+                  >
+                    🔒 +24h
+                  </span>
+                )}
+
+                {/* Preview */}
                 <div
                   className="file-preview"
                   onClick={() => {
@@ -153,20 +287,13 @@ export function PatientFilesTab({ files = [], onUploadNewFile }: PatientFilesTab
                   }}
                 >
                   {isPdf ? (
-                    <div className="pdf-preview-box">
-                      <svg viewBox="0 0 24 24" className="pdf-icon">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                        <polyline points="14 2 14 8 20 8" />
-                        <line x1="16" y1="13" x2="8" y2="13" />
-                        <line x1="16" y1="17" x2="8" y2="17" />
-                        <polyline points="10 9 9 9 8 9" />
-                      </svg>
-                      <span className="pdf-badge">PDF</span>
+                    <div className="pdf-preview-box overflow-hidden flex items-center justify-center w-full h-full">
+                      <PdfCanvasThumbnail url={file.url} />
                     </div>
                   ) : (
                     <img
                       src={file.url}
-                      alt={file.name}
+                      alt={displayName}
                       onError={(e) => {
                         e.currentTarget.onerror = null
                         e.currentTarget.src =
@@ -215,8 +342,8 @@ export function PatientFilesTab({ files = [], onUploadNewFile }: PatientFilesTab
 
                 {/* Footer do Card */}
                 <div className="file-info">
-                  <p className="file-name" title={file.name}>
-                    {file.name}
+                  <p className="file-name" title={displayName}>
+                    {displayName}
                   </p>
                   {file.size && <span className="file-size">{file.size}</span>}
                 </div>

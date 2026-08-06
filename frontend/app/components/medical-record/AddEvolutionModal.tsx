@@ -32,6 +32,7 @@ interface EvolutionItem {
   professionalName?: string
   createdAt: string
   procedureTag?: string
+  odontogramSnapshot?: any
 }
 
 interface LastEvolution {
@@ -49,6 +50,7 @@ interface AddEvolutionModalProps {
   onSuccess?: () => void
   lastEvolution?: LastEvolution | null
   userPlan?: 'FREE' | 'BASIC' | 'PREMIUM'
+  initialOdontogramState?: OdontogramData // Prop opcional para injetar o estado acumulado
 }
 
 export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
@@ -59,6 +61,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   onSuccess,
   lastEvolution,
   userPlan = 'BASIC',
+  initialOdontogramState,
 }) => {
   const [title, setTitle] = useState('')
   const [type, setType] = useState('NOTE')
@@ -79,7 +82,44 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   // Chave do Rascunho por Paciente
   const DRAFT_KEY = `odontoflow_draft_evolution_${patientId}`
 
-  // ── 1. Carrega Rascunho quando o Modal Abre ──
+  // ── 1. Inicializa / Busca o Odontograma Mais Recente ──
+  useEffect(() => {
+    if (!isOpen || !patientId) return
+
+    // Se o componente pai passou o estado atual, usamos direto
+    if (initialOdontogramState && Object.keys(initialOdontogramState).length > 0) {
+      setOdontogramSnapshot(JSON.parse(JSON.stringify(initialOdontogramState)))
+      return
+    }
+
+    // Fallback: Busca a última evolução da API para extrair o odontogramSnapshot recente
+    api.get(`/medical-records/${patientId}/evolutions?limit=10`)
+      .then((res) => {
+        const list = Array.isArray(res.data) ? res.data : res.data?.evolutions || []
+        // Encontra a evolução mais recente que tenha um snapshot
+        const evoWithSnapshot = list.find((item: any) => {
+          if (!item.odontogramSnapshot) return false
+          const parsed = typeof item.odontogramSnapshot === 'string'
+            ? JSON.parse(item.odontogramSnapshot)
+            : item.odontogramSnapshot
+          return parsed && Object.keys(parsed).length > 0
+        })
+
+        if (evoWithSnapshot) {
+          const snapshot = typeof evoWithSnapshot.odontogramSnapshot === 'string'
+            ? JSON.parse(evoWithSnapshot.odontogramSnapshot)
+            : evoWithSnapshot.odontogramSnapshot
+          setOdontogramSnapshot(snapshot)
+        } else {
+          setOdontogramSnapshot({})
+        }
+      })
+      .catch((err) => {
+        console.error('Erro ao carregar snapshot prévio do odontograma:', err)
+      })
+  }, [isOpen, patientId, initialOdontogramState])
+
+  // ── 2. Carrega Rascunho de Texto quando o Modal Abre ──
   useEffect(() => {
     if (isOpen && patientId) {
       const savedDraft = localStorage.getItem(DRAFT_KEY)
@@ -102,7 +142,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
     }
   }, [isOpen, patientId, DRAFT_KEY])
 
-  // ── 2. Salva Rascunho a cada alteração nos campos de texto ──
+  // ── 3. Salva Rascunho de Texto a cada alteração ──
   useEffect(() => {
     if (isOpen && patientId && (title.trim() || description.trim())) {
       const draftData = { title, type, description }
@@ -111,12 +151,13 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
     }
   }, [title, type, description, isOpen, patientId, DRAFT_KEY])
 
-  // ── 3. Busca histórico recente de evoluções ──
+  // ── 4. Busca histórico recente de evoluções para exibir no card inferior ──
   useEffect(() => {
     if (isOpen && patientId) {
       api.get(`/medical-records/${patientId}/evolutions?limit=1`)
         .then((res) => {
-          const latest = Array.isArray(res.data) ? res.data[0] : res.data
+          const raw = Array.isArray(res.data) ? res.data : res.data?.evolutions || []
+          const latest = raw[0]
           setPreviousEvolutions(latest ? [latest] : [])
         })
         .catch((err) => {
@@ -129,7 +170,6 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
 
   const isPremium = userPlan === 'PREMIUM'
 
-  // Trava para recursos de Inteligência Artificial
   const handleAiAction = (actionCallback: () => void) => {
     if (!isPremium) {
       setShowUpgradeModal(true)
@@ -215,7 +255,6 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
       const response = await api.post(`/medical-records/${patientId}/evolutions`, payload)
 
       if (response.status === 200 || response.status === 201) {
-        // Limpa rascunho do localStorage e reseta estados
         localStorage.removeItem(DRAFT_KEY)
         setHasDraft(false)
         setTitle('')
