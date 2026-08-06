@@ -1,0 +1,415 @@
+/* ─── Modal Overlay ─── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.modal {
+  background-color: #ffffff;
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  width: 100%;
+  max-width: 880px;
+  padding: 24px;
+  position: relative;
+  animation: modalFadeIn 0.15s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.closeBtn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s;
+}
+
+.closeBtn:hover {
+  color: #475569;
+}
+
+/* ─── Navegação de Abas ─── */
+.tabNav {
+  display: inline-flex;
+  background-color: #f1f5f9;
+  padding: 4px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  gap: 2px;
+}
+
+.tabBtn {
+  background: transparent;
+  border: none;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tabBtn:hover {
+  color: #1e293b;
+}
+
+.tabActive {
+  background-color: #ffffff;
+  color: #1e293b;
+  font-weight: 600;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* ─── Formulário em Lote (Aba Create) ─── */
+.formListScroll {
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.col4 { grid-column: span 4; }
+.col2 { grid-column: span 2; }
+.col2Flex { 
+  grid-column: span 2; 
+  display: flex; 
+  align-items: center; 
+  gap: 4px; 
+}
+
+.flex1 { flex: 1; }
+
+.label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 4px;
+}
+
+.input {
+  width: 100%;
+  font-size: 13px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+}
+
+.textCenter { text-align: center; }
+.inputDate { font-size: 12px; padding: 7px 8px; }
+
+.removeRowBtn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s;
+}
+
+.removeRowBtn:hover { color: #ef4444; }
+.withMargin { margin-top: 20px; }
+
+.addAnotherBtn {
+  background: transparent;
+  border: none;
+  color: #0284c7;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  margin: 12px 0;
+  padding: 0;
+}
+
+.addAnotherBtn:hover {
+  color: #0369a1;
+}
+
+/* ─── Aba Importar Planilha ─── */
+.importContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.importHeader { text-align: center; }
+.importTitle { font-size: 14px; font-weight: 600; color: #1e293b; }
+.importSub { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+.dropzone {
+  border: 2px dashed #bae6fd;
+  background-color: #f0f9ff;
+  border-radius: 12px;
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.dropzone:hover { background-color: #e0f2fe; }
+
+.dropzoneIcon {
+  color: #0284c7;
+  margin: 0 auto 8px auto;
+}
+
+.dropzoneText { font-size: 13px; font-weight: 500; color: #334155; }
+.dropzoneSub { font-size: 11px; color: #94a3b8; }
+
+.downloadWrapper { text-align: center; }
+
+.downloadLink {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0284c7;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.downloadLink:hover { text-decoration: underline; }
+
+.instructionsBox {
+  background-color: #f8fafc;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.instructionsTitle { font-weight: 600; color: #334155; margin-bottom: 4px; }
+
+/* ─── Aba Alterar Quantidade (Vazio) ─── */
+.emptyTabState {
+  padding: 32px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.iconCircle {
+  width: 64px;
+  height: 64px;
+  background-color: #f1f5f9;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.emptyTitle { font-size: 15px; font-weight: 600; color: #1e293b; margin-bottom: 4px; }
+.emptyDesc { font-size: 13px; color: #64748b; max-width: 400px; }
+
+/* ─── Rodapé do Modal ─── */
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.btnSecondary {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btnSecondary:hover { background-color: #e2e8f0; }
+
+.btnPrimaryModal {
+  background-color: #0284c7;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btnPrimaryModal:hover { background-color: #0369a1; }
+
+/* ─── Ajuste de Estoque (Aba 1) ─── */
+.tabContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-page, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-sm, 8px);
+  padding: 8px 12px;
+}
+
+.searchIcon {
+  color: var(--text-muted, #94a3b8);
+}
+
+.searchInput {
+  border: none;
+  background: transparent;
+  outline: none;
+  width: 100%;
+  font-size: 13px;
+  color: var(--text-primary, #0f172a);
+}
+
+.adjustListScroll {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.adjustRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-page, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-sm, 8px);
+}
+
+.productMeta {
+  display: flex;
+  flex-direction: column;
+}
+
+.productName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+}
+
+.productSub {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+}
+
+.counterControl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.counterBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #e2e8f0);
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-primary, #0f172a);
+  transition: all 0.15s ease;
+}
+
+.counterBtn:hover:not(:disabled) {
+  border-color: var(--primary, #0284c7);
+  color: var(--primary, #0284c7);
+}
+
+.counterBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.counterInput {
+  width: 48px;
+  height: 28px;
+  text-align: center;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+}
+
+.changedBadge {
+  font-size: 10px;
+  font-weight: 700;
+  background: #fef9c3;
+  color: #ca8a04;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.loadingState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px;
+  color: var(--text-muted, #94a3b8);
+  font-size: 13px;
+}
