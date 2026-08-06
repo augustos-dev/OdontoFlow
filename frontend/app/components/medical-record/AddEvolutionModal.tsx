@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react'
+'use client'
+
+import React, { useState, useEffect, useRef } from 'react'
 import { 
   X, 
   Mic, 
@@ -16,7 +18,8 @@ import {
   ListOrdered,
   AlignLeft,
   AlignCenter,
-  Clock
+  Clock,
+  Save
 } from 'lucide-react'
 import api from '../../../lib/api'
 import { Odontogram, OdontogramData } from '../tooth/Odontogram'
@@ -69,21 +72,58 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [hasDraft, setHasDraft] = useState(false)
 
-  // Busca histórico recente de evoluções
+  const editableRef = useRef<HTMLDivElement>(null)
+
+  // Chave do Rascunho por Paciente
+  const DRAFT_KEY = `odontoflow_draft_evolution_${patientId}`
+
+  // ── 1. Carrega Rascunho quando o Modal Abre ──
   useEffect(() => {
     if (isOpen && patientId) {
-    api.get(`/medical-records/${patientId}/evolutions?limit=1`)
-      .then((res) => {
-        // Se vier array, pega o primeiro item; se vier objeto direto, usa res.data
-        const latest = Array.isArray(res.data) ? res.data[0] : res.data
-        setPreviousEvolutions(latest ? [latest] : [])
-      })
-      .catch((err) => {
-        console.error('Erro ao buscar última evolução:', err)
-      })
-  }
-}, [isOpen, patientId])
+      const savedDraft = localStorage.getItem(DRAFT_KEY)
+      if (savedDraft) {
+        try {
+          const parsed = JSON.parse(savedDraft)
+          if (parsed.title) setTitle(parsed.title)
+          if (parsed.type) setType(parsed.type)
+          if (parsed.description) {
+            setDescription(parsed.description)
+            if (editableRef.current) {
+              editableRef.current.innerHTML = parsed.description
+            }
+          }
+          setHasDraft(true)
+        } catch (e) {
+          console.error('Erro ao restaurar rascunho de evolução:', e)
+        }
+      }
+    }
+  }, [isOpen, patientId, DRAFT_KEY])
+
+  // ── 2. Salva Rascunho a cada alteração nos campos de texto ──
+  useEffect(() => {
+    if (isOpen && patientId && (title.trim() || description.trim())) {
+      const draftData = { title, type, description }
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData))
+      setHasDraft(true)
+    }
+  }, [title, type, description, isOpen, patientId, DRAFT_KEY])
+
+  // ── 3. Busca histórico recente de evoluções ──
+  useEffect(() => {
+    if (isOpen && patientId) {
+      api.get(`/medical-records/${patientId}/evolutions?limit=1`)
+        .then((res) => {
+          const latest = Array.isArray(res.data) ? res.data[0] : res.data
+          setPreviousEvolutions(latest ? [latest] : [])
+        })
+        .catch((err) => {
+          console.error('Erro ao buscar última evolução:', err)
+        })
+    }
+  }, [isOpen, patientId])
 
   if (!isOpen) return null
 
@@ -96,6 +136,17 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
       return
     }
     actionCallback()
+  }
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem(DRAFT_KEY)
+    setTitle('')
+    setType('NOTE')
+    setDescription('')
+    if (editableRef.current) {
+      editableRef.current.innerHTML = ''
+    }
+    setHasDraft(false)
   }
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,12 +215,17 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
       const response = await api.post(`/medical-records/${patientId}/evolutions`, payload)
 
       if (response.status === 200 || response.status === 201) {
+        // Limpa rascunho do localStorage e reseta estados
+        localStorage.removeItem(DRAFT_KEY)
+        setHasDraft(false)
         setTitle('')
         setDescription('')
         setType('NOTE')
         setImages([])
         setImagePreviews([])
         setOdontogramSnapshot({})
+        if (editableRef.current) editableRef.current.innerHTML = ''
+        
         if (onSuccess) onSuccess()
         onClose()
       }
@@ -189,7 +245,14 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
           {/* Header do Modal */}
           <div className="evo-modal-header">
             <div>
-              <h3 className="evo-modal-title">Nova Evolução Clínica</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 className="evo-modal-title">Nova Evolução Clínica</h3>
+                {hasDraft && (
+                  <span style={{ fontSize: '0.75rem', background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '12px', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <Save className="w-3 h-3" /> Rascunho salvo
+                  </span>
+                )}
+              </div>
               <p className="evo-modal-subtitle">
                 Registre os detalhes do atendimento, adicione fotos e atualize o odontograma.
               </p>
@@ -255,7 +318,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
               </div>
             </div>
 
-            {/* Editor Rich Text com Barra Word/Email Superior */}
+            {/* Editor Rich Text com Barra Superior */}
             <div className="form-group">
               <label className="form-label">Descrição do Atendimento</label>
               <div className="rich-editor-wrapper">
@@ -291,8 +354,9 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
                   </button>
                 </div>
 
-                {/* Área de Texto Editável Visual */}
+                {/* Área de Texto Editável Visual com Ref */}
                 <div
+                  ref={editableRef}
                   contentEditable
                   id="rich-textarea-input"
                   className="rich-textarea-editable"
@@ -396,6 +460,11 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
 
             {/* Botões de Ação Principais */}
             <div className="form-actions">
+              {hasDraft && (
+                <button type="button" onClick={handleDiscardDraft} className="btn-secondary" style={{ color: '#ef4444', borderColor: '#fca5a5' }}>
+                  Descartar Rascunho
+                </button>
+              )}
               <button type="button" onClick={onClose} className="btn-secondary">
                 Cancelar
               </button>
@@ -475,9 +544,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
               </button>
               <button 
                 type="button" 
-                onClick={() => {
-                  setShowUpgradeModal(false)
-                }}
+                onClick={() => setShowUpgradeModal(false)}
                 className="btn-upgrade-primary"
               >
                 Ver Planos & Upgrade

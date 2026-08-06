@@ -17,7 +17,10 @@ import {
   Pencil, 
   Check, 
   Plus, 
-  Loader2 
+  Loader2,
+  Eye,
+  ExternalLink,
+  Save
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './perfil.module.css'
@@ -26,7 +29,7 @@ import styles from './perfil.module.css'
 import DetalhesAgendamentoModal from '@/app/components/DetalhesAgendamentoModal'
 import { EvolutionsTimeline } from '../../../components/medical-record/EvolutionsTimeline'
 import { AddEvolutionModal } from '../../../components/medical-record/AddEvolutionModal'
-import { Odontogram } from '../../../components/tooth/Odontogram'
+import { Odontogram, OdontogramData } from '../../../components/tooth/Odontogram'
 import { PatientFilesTab, PatientFile } from '../../../components/pacienteFile/PatientFilesTab'
 
 // Import de Tipos Globais
@@ -81,12 +84,17 @@ export default function PerfilPacientePage() {
   const [isAddEvolutionOpen, setIsAddEvolutionOpen] = useState(false)
   const [reloadEvolutionsTrigger, setReloadEvolutionsTrigger] = useState(0)
 
-  // Arquivos do Paciente
+  // Estado do Odontograma Acumulado
+  const [currentOdontogram, setCurrentOdontogram] = useState<OdontogramData | null>(null)
+
+  // Arquivos e Raio-X Panorâmico
   const [patientFiles, setPatientFiles] = useState<PatientFile[]>([])
+  const [panoramicFile, setPanoramicFile] = useState<PatientFile | null>(null)
 
   // Estados de Edição do Prontuário Base / Anamnese
   const [isEditingMR, setIsEditingMR] = useState(false)
   const [savingMR, setSavingMR] = useState(false)
+  const [hasDraft, setHasDraft] = useState(false)
   const [mrForm, setMrForm] = useState({
     chiefComplaint: '',
     historyNotes: '',
@@ -97,70 +105,129 @@ export default function PerfilPacientePage() {
     systemicDiseases: '',
   })
 
-  async function load() {
-  try {
-    const { data } = await api.get(`/patients/${id}`)
-    setPatient(data)
+  const DRAFT_KEY = `odontoflow_draft_mr_${id}`
 
-    // 🔴 DIAGNÓSTICO: Vamos ver no DevTools exatamente tudo que o Backend retornou!
-    console.log('🔍 [DEBUG] Resposta completa da API /patients/:id ->', data)
-
-    if (data.medicalRecord) {
-      setMrForm({
-        chiefComplaint: data.medicalRecord.chiefComplaint ?? '',
-        historyNotes: data.medicalRecord.historyNotes ?? '',
-        allergies: data.medicalRecord.allergies ?? '',
-        medications: data.medicalRecord.medications ?? '',
-        bloodType: data.medicalRecord.bloodType ?? '',
-        habits: data.medicalRecord.habits ?? '',
-        systemicDiseases: data.medicalRecord.systemicDiseases ?? '',
-      })
-    }
-
-    // 🚀 Busca as evoluções onde quer que elas estejam (no medicalRecord ou na raiz de data)
-    const evolutions = data.medicalRecord?.evolutions || data.evolutions || []
-
-    console.log('🔍 [DEBUG] Evoluções encontradas ->', evolutions)
-
-    const extractedFiles: PatientFile[] = evolutions.flatMap((evo: any) => {
-      // Tenta pegar anexos por qualquer nome comum
-      const rawAttachments = evo.attachments || evo.attachmentsUrl || evo.files || []
-
-      // Se por acaso vier como String JSON do banco, faz o parse
-      const attachmentsArray = typeof rawAttachments === 'string' 
-        ? JSON.parse(rawAttachments) 
-        : rawAttachments
-
-      if (!Array.isArray(attachmentsArray)) return []
-
-      return attachmentsArray.map((item: any, index: number) => {
-        const fileUrl = typeof item === 'string' ? item : item.url || item.path || ''
-        const fileName = typeof item === 'object' && item.name 
-          ? item.name 
-          : fileUrl.split('/').pop()?.split('?')[0] || `Exame_${index + 1}`
-
-        return {
-          id: `${evo.id}-${index}`,
-          name: fileName,
-          url: fileUrl,
-          createdAt: evo.createdAt,
-          type: fileUrl.toLowerCase().includes('.pdf') ? 'pdf' : 'image',
-          size: item.size ? `${(item.size / 1024).toFixed(0)} KB` : undefined,
+  // ── 1. Rascunho Automático (LocalStorage) ──
+  useEffect(() => {
+    if (isEditingMR && id) {
+      const savedDraft = localStorage.getItem(DRAFT_KEY)
+      if (savedDraft) {
+        try {
+          const parsed = JSON.parse(savedDraft)
+          setMrForm(parsed)
+          setHasDraft(true)
+        } catch (e) {
+          console.error('Erro ao ler rascunho:', e)
         }
-      })
-    })
+      }
+    }
+  }, [isEditingMR, id, DRAFT_KEY])
 
-    const validFiles = extractedFiles.filter((f) => Boolean(f.url))
+  useEffect(() => {
+    if (isEditingMR && id) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(mrForm))
+      setHasDraft(true)
+    }
+  }, [mrForm, isEditingMR, id, DRAFT_KEY])
 
-    console.log('🚀 [DEBUG] Arquivos extraídos com sucesso ->', validFiles)
-    setPatientFiles(validFiles)
+  // ── 2. Carga Principal de Dados ──
+  async function load() {
+    try {
+      // 2.1. Busca dados do paciente
+      const { data: patientData } = await api.get(`/patients/${id}`)
+      setPatient(patientData)
 
-  } catch (err) {
-    console.error('Erro ao carregar dados do paciente:', err)
-  } finally {
-    setLoading(false)
+      // Popula Anamnese inicial se não tiver rascunho ativo
+      const savedDraft = typeof window !== 'undefined' ? localStorage.getItem(DRAFT_KEY) : null
+      if (patientData.medicalRecord && !savedDraft) {
+        setMrForm({
+          chiefComplaint: patientData.medicalRecord.chiefComplaint ?? '',
+          historyNotes: patientData.medicalRecord.historyNotes ?? '',
+          allergies: patientData.medicalRecord.allergies ?? '',
+          medications: patientData.medicalRecord.medications ?? '',
+          bloodType: patientData.medicalRecord.bloodType ?? '',
+          habits: patientData.medicalRecord.habits ?? '',
+          systemicDiseases: patientData.medicalRecord.systemicDiseases ?? '',
+        })
+      }
+
+      // 2.2. Busca histórico, anexos e snapshot das evoluções
+      try {
+        const { data: evolutions } = await api.get(`/medical-records/${id}/evolutions`)
+
+        if (Array.isArray(evolutions)) {
+          let foundPanoramic: PatientFile | null = null
+
+          // 🎯 Busca o snapshot de Odontograma mais recente no histórico de evoluções
+          const evolutionsWithSnapshot = evolutions
+            .filter((evo: any) => evo.odontogramSnapshot)
+            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+          if (evolutionsWithSnapshot.length > 0) {
+            const rawSnapshot = evolutionsWithSnapshot[0].odontogramSnapshot
+            const parsedSnapshot = typeof rawSnapshot === 'string' ? JSON.parse(rawSnapshot) : rawSnapshot
+            setCurrentOdontogram(parsedSnapshot)
+          }
+
+          // Extração dos Anexos
+          const extractedFiles: PatientFile[] = evolutions.flatMap((evo: any) => {
+            const rawAttachments = evo.attachments || []
+
+            const attachmentsArray = typeof rawAttachments === 'string'
+              ? JSON.parse(rawAttachments)
+              : rawAttachments
+
+            if (!Array.isArray(attachmentsArray)) return []
+
+            return attachmentsArray.map((item: any, index: number) => {
+              const fileUrl = typeof item === 'string' ? item : item.url || item.path || ''
+              const fileName = typeof item === 'object' && item.name
+                ? item.name
+                : fileUrl.split('/').pop()?.split('?')[0] || `Anexo_${index + 1}`
+
+              const isPdf = fileUrl.toLowerCase().includes('.pdf')
+              const lowerName = fileName.toLowerCase()
+              const lowerUrl = fileUrl.toLowerCase()
+
+              const fileObj: PatientFile = {
+                id: `${evo.id}-${index}`,
+                name: fileName,
+                url: fileUrl,
+                createdAt: evo.createdAt,
+                type: isPdf ? 'pdf' : 'image',
+                size: item.size ? `${(item.size / 1024).toFixed(0)} KB` : undefined,
+              }
+
+              const isPanoramic = (
+                lowerName.includes('panoram') || 
+                lowerName.includes('raio-x') || 
+                lowerName.includes('rx') ||
+                lowerName.includes('laudo') ||
+                lowerUrl.includes('panoram')
+              )
+
+              if (isPanoramic && !foundPanoramic) {
+                foundPanoramic = fileObj
+              }
+
+              return fileObj
+            })
+          })
+
+          const validFiles = extractedFiles.filter((file) => Boolean(file.url))
+          setPatientFiles(validFiles)
+          setPanoramicFile(foundPanoramic)
+        }
+      } catch (evoErr) {
+        console.error('Erro ao buscar evoluções do paciente:', evoErr)
+      }
+
+    } catch (err) {
+      console.error('Erro ao carregar perfil do paciente:', err)
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
   useEffect(() => {
     if (id) load()
@@ -187,6 +254,10 @@ export default function PerfilPacientePage() {
     setSavingMR(true)
     try {
       await api.put(`/medical-records/${id}`, mrForm)
+      
+      localStorage.removeItem(DRAFT_KEY)
+      setHasDraft(false)
+
       await load()
       setIsEditingMR(false)
     } catch (err: any) {
@@ -197,7 +268,22 @@ export default function PerfilPacientePage() {
     }
   }
 
-  // Upload direto na Aba de Arquivos
+  function handleDiscardDraft() {
+    localStorage.removeItem(DRAFT_KEY)
+    setHasDraft(false)
+    if (patient?.medicalRecord) {
+      setMrForm({
+        chiefComplaint: patient.medicalRecord.chiefComplaint ?? '',
+        historyNotes: patient.medicalRecord.historyNotes ?? '',
+        allergies: patient.medicalRecord.allergies ?? '',
+        medications: patient.medicalRecord.medications ?? '',
+        bloodType: patient.medicalRecord.bloodType ?? '',
+        habits: patient.medicalRecord.habits ?? '',
+        systemicDiseases: patient.medicalRecord.systemicDiseases ?? '',
+      })
+    }
+  }
+
   async function handleUploadFiles(files: FileList) {
     try {
       const formData = new FormData()
@@ -209,6 +295,7 @@ export default function PerfilPacientePage() {
       })
 
       await load()
+      setReloadEvolutionsTrigger((prev) => prev + 1)
     } catch (err) {
       console.error('Erro ao enviar arquivo:', err)
       alert('Falha ao realizar o upload do arquivo.')
@@ -282,7 +369,6 @@ export default function PerfilPacientePage() {
             <div className={styles.profileTitleRow}>
               <h1 className={styles.profileName}>{patient.name}</h1>
               
-              {/* Badges de Alerta no Topo */}
               {mr?.allergies && mr.allergies.toLowerCase() !== 'nenhuma' && (
                 <span className={styles.badgeAllergy}>
                   <AlertTriangle size={14} />
@@ -358,12 +444,19 @@ export default function PerfilPacientePage() {
       {/* ─── Grid Principal ─── */}
       <div className={tab === 'arquivos' ? styles.singleColumnLayout : styles.gridContainer}>
         
-        {/* ================= COLUNA ESQUERDA (ANAMNESE COMPLETA) ================= */}
+        {/* ================= COLUNA ESQUERDA (ANAMNESE) ================= */}
         {tab !== 'arquivos' && (
           <div className={styles.column}>
             <div className={styles.card}>
               <div className={styles.cardHeader}>
-                <h3 className={styles.sectionTitle}>Anamnese & Saúde Base</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 className={styles.sectionTitle}>Anamnese & Saúde Base</h3>
+                  {hasDraft && isEditingMR && (
+                    <span style={{ fontSize: '0.75rem', background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '12px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Save size={10} /> Rascunho salvo
+                    </span>
+                  )}
+                </div>
                 {!isEditingMR && (
                   <button type="button" onClick={() => setIsEditingMR(true)} className={styles.btnEdit}>
                     <Pencil size={14} />
@@ -375,7 +468,6 @@ export default function PerfilPacientePage() {
               {isEditingMR ? (
                 <form onSubmit={handleSaveMedicalRecord} className={styles.anamneseForm}>
                   
-                  {/* Queixa Principal */}
                   <div className={styles.formGroup}>
                     <span className={styles.infoLabel}>QUEIXA PRINCIPAL</span>
                     <div className={styles.tagsWrapper}>
@@ -403,7 +495,6 @@ export default function PerfilPacientePage() {
                     />
                   </div>
 
-                  {/* Alergias */}
                   <div className={styles.formGroup}>
                     <span className={styles.infoLabel}>ALERGIAS & REAÇÕES</span>
                     <div className={styles.tagsWrapper}>
@@ -431,7 +522,6 @@ export default function PerfilPacientePage() {
                     />
                   </div>
 
-                  {/* Doenças Sistêmicas */}
                   <div className={styles.formGroup}>
                     <span className={styles.infoLabel}>DOENÇAS SISTÊMICAS & CONDIÇÕES</span>
                     <div className={styles.tagsWrapper}>
@@ -463,7 +553,6 @@ export default function PerfilPacientePage() {
                     />
                   </div>
 
-                  {/* ATM e Hábitos */}
                   <div className={styles.formGroup}>
                     <span className={styles.infoLabel}>ATM & HÁBITOS BUCAL</span>
                     <div className={styles.tagsWrapper}>
@@ -494,7 +583,6 @@ export default function PerfilPacientePage() {
                     />
                   </div>
 
-                  {/* Medicamentos */}
                   <div className={styles.formGroup}>
                     <span className={styles.infoLabel}>MEDICAMENTOS EM USO</span>
                     <input
@@ -506,7 +594,6 @@ export default function PerfilPacientePage() {
                     />
                   </div>
 
-                  {/* Tipo Sanguíneo e Histórico */}
                   <div className={styles.twoCols}>
                     <div className={styles.formGroup}>
                       <span className={styles.infoLabel}>TIPO SANGUÍNEO</span>
@@ -530,8 +617,12 @@ export default function PerfilPacientePage() {
                     </div>
                   </div>
 
-                  {/* Botões do Formulário */}
                   <div className={styles.formActions}>
+                    {hasDraft && (
+                      <button type="button" onClick={handleDiscardDraft} className={styles.btnSecondary} style={{ color: '#ef4444' }}>
+                        Descartar Rascunho
+                      </button>
+                    )}
                     <button type="button" onClick={() => setIsEditingMR(false)} className={styles.btnSecondary}>
                       Cancelar
                     </button>
@@ -598,18 +689,60 @@ export default function PerfilPacientePage() {
         {/* ================= COLUNA DIREITA (ODONTOGRAMA & DEMAIS ABAS) ================= */}
         <div className={styles.column}>
           
-          {/* VISÃO GERAL (ODONTOGRAMA + EVOLUÇÕES) */}
+          {/* VISÃO GERAL */}
           {tab === 'visao_geral' && (
             <>
+              {/* Radiografia Panorâmica */}
+              {panoramicFile && (
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#0f172a' }}>
+                      <Eye size={18} style={{ color: '#06b6d4' }} />
+                      <span>{panoramicFile.type === 'pdf' ? 'Laudo / Radiografia Panorâmica (PDF)' : 'Radiografia Panorâmica do Paciente'}</span>
+                    </div>
+                    <a 
+                      href={panoramicFile.url} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      style={{ fontSize: '0.8rem', color: '#06b6d4', textDecoration: 'none', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <span>Abrir Documento Inteiro</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
+
+                  <div style={{ width: '100%', height: '280px', backgroundColor: '#09090b', borderRadius: '8px', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '1px solid #27272a' }}>
+                    {panoramicFile.type === 'pdf' ? (
+                      <iframe 
+                        src={`${panoramicFile.url}#toolbar=0`} 
+                        style={{ width: '100%', height: '100%', border: 'none' }} 
+                        title="Laudo Panorâmico PDF"
+                      />
+                    ) : (
+                      <img 
+                        src={panoramicFile.url} 
+                        alt="Radiografia Panorâmica" 
+                        style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className={styles.card}>
                 <div>
                   <h3 className={styles.sectionTitle}>Mapa Bucal (Odontograma)</h3>
                   <p className={styles.sectionSubtitle}>
-                    Selecione um procedimento na barra de ferramentas e clique nas faces anatômicas para registrar o estado dos dentes.
+                    Estado atual acumulado baseado nos atendimentos registrados.
                   </p>
                 </div>
                 
-                <Odontogram patientId={id as string} />
+                {/* 🎯 Odontograma renderizado com o snapshot vindo da evolução mais recente */}
+                <Odontogram 
+                  patientId={id as string} 
+                  value={currentOdontogram || undefined}
+                  onChange={(newState) => setCurrentOdontogram(newState)}
+                />
               </div>
 
               <div className={styles.card}>

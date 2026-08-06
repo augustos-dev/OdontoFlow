@@ -1,17 +1,19 @@
 import React, { useState } from 'react'
-import { Calendar, User, ShieldCheck, X, Image as ImageIcon, ZoomIn, FileText } from 'lucide-react'
-import { Odontogram, OdontogramData } from '../tooth/Odontogram'
+import { Calendar, User, ShieldCheck, X, Image as ImageIcon, ZoomIn, FileText, Download, ExternalLink } from 'lucide-react'
+import { Odontogram } from '../tooth/Odontogram'
 import './EvolutionDetailsModal.css'
 
-interface Evolution {
+export interface Evolution {
   id?: string
-  type?: string
-  createdAt: string | Date
-  title?: string
+  medicalRecordId?: string
   dentistName?: string
+  dentist?: { name: string }
+  type?: string
+  title?: string
   description: string
-  odontogramSnapshot?: OdontogramData
-  attachments?: string[] // 📸 Array de URLs/caminhos das fotos
+  odontogramSnapshot?: any
+  attachments?: string[]
+  createdAt: string | Date
 }
 
 interface EvolutionDetailsModalProps {
@@ -33,12 +35,13 @@ export function EvolutionDetailsModal({ evolution, onClose }: EvolutionDetailsMo
   const hasSnapshot = evolution.odontogramSnapshot && Object.keys(evolution.odontogramSnapshot).length > 0
   const hasAttachments = evolution.attachments && evolution.attachments.length > 0
 
+  const checkIsPdf = (url: string) => url.toLowerCase().includes('.pdf')
+
   return (
     <>
       <div className="sheet-backdrop" onClick={handleBackdropClick}>
         <div className="sheet-container">
           
-          {/* Cabeçalho Fixo */}
           <div className="sheet-header">
             <div>
               <div className="sheet-meta">
@@ -62,18 +65,14 @@ export function EvolutionDetailsModal({ evolution, onClose }: EvolutionDetailsMo
             </button>
           </div>
 
-          {/* Corpo da Drawer com Scroll */}
           <div className="sheet-body">
-            
-            {/* Info do Profissional */}
             <div className="evolution-doctor-info">
               <User size={15} className="doctor-icon" />
               <span>
-                Registrado por: <strong>{evolution.dentistName || 'Dr. Vicente'}</strong>
+                Registrado por: <strong>{evolution.dentistName || evolution.dentist?.name || 'Dr. Vicente'}</strong>
               </span>
             </div>
 
-            {/* 📝 DESCRITION GROUP (Suporta HTML/Rich Text e texto simples) */}
             <div className="evolution-section">
               <label className="evolution-section-label">
                 <FileText size={15} />
@@ -86,7 +85,6 @@ export function EvolutionDetailsModal({ evolution, onClose }: EvolutionDetailsMo
               />
             </div>
 
-            {/* 📸 ANEXOS E FOTOS CLÍNICAS */}
             <div className="evolution-section">
               <label className="evolution-section-label">
                 <ImageIcon size={15} />
@@ -95,28 +93,71 @@ export function EvolutionDetailsModal({ evolution, onClose }: EvolutionDetailsMo
 
               {hasAttachments ? (
                 <div className="attachments-grid">
-                  {evolution.attachments?.map((url, idx) => (
-                    <div 
-                      key={idx} 
-                      className="attachment-thumb-card" 
-                      onClick={() => setSelectedImage(url)}
-                      title="Clique para ampliar"
-                    >
-                      <img src={url} alt={`Anexo ${idx + 1}`} className="attachment-img" />
-                      <div className="attachment-overlay">
-                        <ZoomIn size={18} />
+                  {evolution.attachments?.map((url, idx) => {
+                    const isPdf = checkIsPdf(url)
+
+                    if (isPdf) {
+                      return (
+                        <div key={idx} className="attachment-pdf-card">
+                          <div className="pdf-card-icon">
+                            <FileText size={28} className="text-red-400" />
+                            <span className="pdf-badge-tag">PDF</span>
+                          </div>
+                          <div className="pdf-card-actions">
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="pdf-btn-action"
+                              title="Abrir Laudo"
+                            >
+                              <ExternalLink size={14} /> Abrir
+                            </a>
+                            <a
+                              href={url}
+                              download
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="pdf-btn-action download"
+                              title="Baixar PDF"
+                            >
+                              <Download size={14} />
+                            </a>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div 
+                        key={idx} 
+                        className="attachment-thumb-card" 
+                        onClick={() => setSelectedImage(url)}
+                        title="Clique para ampliar"
+                      >
+                        <img 
+                          src={url} 
+                          alt={`Anexo ${idx + 1}`} 
+                          className="attachment-img"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null
+                            e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/><circle cx="9" cy="9" r="2"/></svg>'
+                          }} 
+                        />
+                        <div className="attachment-overlay">
+                          <ZoomIn size={18} />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="evolution-placeholder-box">
-                  <p className="placeholder-text">✦ Nenhum anexo de foto gravado nesta evolução.</p>
+                  <p className="placeholder-text">✦ Nenhum anexo de foto/documento gravado nesta evolução.</p>
                 </div>
               )}
             </div>
 
-            {/* 🎯 ODONTOGRAMA READ-ONLY (SNAPSHOT) */}
             <div className="evolution-section">
               <label className="evolution-section-label">
                 Registro Anatômico do Atendimento (Odontograma)
@@ -138,7 +179,6 @@ export function EvolutionDetailsModal({ evolution, onClose }: EvolutionDetailsMo
 
           </div>
 
-          {/* Rodapé Fixo */}
           <div className="sheet-footer">
             <div className="evolution-integrity-badge">
               <ShieldCheck size={16} />
@@ -149,7 +189,6 @@ export function EvolutionDetailsModal({ evolution, onClose }: EvolutionDetailsMo
         </div>
       </div>
 
-      {/* 🔍 LIGHTBOX DE AMPLIAÇÃO DA IMAGEM */}
       {selectedImage && (
         <div className="lightbox-overlay" onClick={() => setSelectedImage(null)}>
           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>

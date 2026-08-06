@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import './PatientFilesTab.css' // Importa os estilos CSS puros
+import './PatientFilesTab.css'
 
 export interface PatientFile {
   id: string
@@ -9,11 +9,11 @@ export interface PatientFile {
   url: string
   size?: string
   createdAt?: string
-  type: 'image' | 'pdf' | 'other'
+  type?: 'image' | 'pdf' | 'other'
 }
 
 interface PatientFilesTabProps {
-  files?: PatientFile[] // Torna opcional para evitar crash
+  files?: PatientFile[]
   onUploadNewFile: (files: FileList) => void
   onDeleteFile?: (fileId: string) => void
 }
@@ -24,10 +24,9 @@ export function PatientFilesTab({ files = [], onUploadNewFile }: PatientFilesTab
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([])
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
-  // 🔴 LOG DE DIAGNÓSTICO: Abra o Console (F12) para checar o que está chegando aqui!
   console.log('📸 [PatientFilesTab] Arquivos recebidos na prop:', files)
 
-  // Filtra arquivos por nome em tempo real (garante que files é um Array)
+  // Filtra arquivos por nome em tempo real
   const filteredFiles = useMemo(() => {
     if (!Array.isArray(files)) return []
     return files.filter((file) =>
@@ -54,6 +53,14 @@ export function PatientFilesTab({ files = [], onUploadNewFile }: PatientFilesTab
     if (e.target.files && e.target.files.length > 0) {
       onUploadNewFile(e.target.files)
     }
+  }
+
+  // Helper para identificar se o arquivo é PDF
+  const checkIsPdf = (file: PatientFile) => {
+    if (file.type === 'pdf') return true
+    const urlLower = file.url?.toLowerCase() || ''
+    const nameLower = file.name?.toLowerCase() || ''
+    return urlLower.includes('.pdf') || nameLower.endsWith('.pdf')
   }
 
   return (
@@ -117,6 +124,7 @@ export function PatientFilesTab({ files = [], onUploadNewFile }: PatientFilesTab
         <div className="files-grid">
           {filteredFiles.map((file) => {
             const isSelected = selectedFileIds.includes(file.id)
+            const isPdf = checkIsPdf(file)
 
             return (
               <div
@@ -133,31 +141,53 @@ export function PatientFilesTab({ files = [], onUploadNewFile }: PatientFilesTab
                   />
                 </div>
 
-                {/* Preview com Hover Actions */}
+                {/* Preview (Imagem vs PDF) */}
                 <div
                   className="file-preview"
-                  onClick={() => file.url && setPreviewUrl(file.url)}
+                  onClick={() => {
+                    if (isPdf) {
+                      window.open(file.url, '_blank')
+                    } else if (file.url) {
+                      setPreviewUrl(file.url)
+                    }
+                  }}
                 >
-                  <img
-                    src={file.url}
-                    alt={file.name || 'Anexo'}
-                    loading="lazy"
-                    onError={(e) => {
-                      console.error('❌ Erro ao carregar imagem no endereço:', file.url)
-                      // Previne loop e aplica imagem placeholder em falhas de carregamento
-                      ;(e.target as HTMLImageElement).src =
-                        'https://via.placeholder.com/150?text=Erro+Imagem'
-                    }}
-                  />
+                  {isPdf ? (
+                    <div className="pdf-preview-box">
+                      <svg viewBox="0 0 24 24" className="pdf-icon">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                        <polyline points="10 9 9 9 8 9" />
+                      </svg>
+                      <span className="pdf-badge">PDF</span>
+                    </div>
+                  ) : (
+                    <img
+                      src={file.url}
+                      alt={file.name}
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src =
+                          'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/><circle cx="9" cy="9" r="2"/></svg>'
+                      }}
+                    />
+                  )}
 
+                  {/* Overlay de Ações no Hover */}
                   <div className="file-overlay">
                     <button
                       type="button"
                       className="overlay-btn"
-                      title="Visualizar"
+                      title={isPdf ? 'Abrir PDF' : 'Visualizar'}
                       onClick={(e) => {
                         e.stopPropagation()
-                        setPreviewUrl(file.url)
+                        if (isPdf) {
+                          window.open(file.url, '_blank')
+                        } else {
+                          setPreviewUrl(file.url)
+                        }
                       }}
                     >
                       <svg viewBox="0 0 24 24">
@@ -206,7 +236,7 @@ export function PatientFilesTab({ files = [], onUploadNewFile }: PatientFilesTab
         </div>
       )}
 
-      {/* Lightbox Modal */}
+      {/* Lightbox Modal para Imagens */}
       {previewUrl && (
         <div className="lightbox-backdrop" onClick={() => setPreviewUrl(null)}>
           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
