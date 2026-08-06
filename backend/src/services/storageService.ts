@@ -9,30 +9,44 @@ const BUCKET_NAME = 'odontoflow-uploads'
  */
 async function optimizeImage(buffer: Buffer): Promise<Buffer> {
   return await sharp(buffer)
-    .resize({
-      width: 1200,
-      withoutEnlargement: true, // Se for menor que 1200px, mantém o tamanho original
-      fit: 'inside'
-    })
-    .toFormat('webp', { quality: 80 }) // Reduz até 80-90% do peso mantendo excelente qualidade
-    .toBuffer()
+  .resize({
+    width: 1200,
+    withoutEnlargement: true,
+    fit: 'inside'
+  })
+  .toFormat('webp', { quality: 80 })
+  .toBuffer()
 }
 
 export async function uploadToSupabase(file: Express.Multer.File): Promise<string> {
   const fileHash = crypto.randomBytes(10).toString('hex')
   
-  // Extrai o nome sem extensão e força o final como .webp
+  // Limpa o nome removendo caracteres especiais e espaços
   const nameWithoutExt = file.originalname.substring(0, file.originalname.lastIndexOf('.')) || file.originalname
-  const cleanName = nameWithoutExt.replace(/\s+/g, '_')
-  const fileName = `evolutions/${fileHash}-${cleanName}.webp`
+  const cleanName = nameWithoutExt.replace(/[^a-zA-Z0-9_-]/g, '_')
 
-  // 🚀 Compressão e otimização da imagem via Sharp
-  const optimizedBuffer = await optimizeImage(file.buffer)
+  let finalBuffer: Buffer
+  let fileName: string
+  let contentType: string
 
+  // 🔴 CONDICIONAL CRUCIAL: Separa Imagem de PDF
+  if (file.mimetype === 'application/pdf') {
+    // É PDF: NÃO passa pelo Sharp
+    finalBuffer = file.buffer
+    fileName = `evolutions/${fileHash}-${cleanName}.pdf`
+    contentType = 'application/pdf'
+  } else {
+    // É Imagem: Passa pelo Sharp para otimização em WebP
+    finalBuffer = await optimizeImage(file.buffer)
+    fileName = `evolutions/${fileHash}-${cleanName}.webp`
+    contentType = 'image/webp'
+  }
+
+  // Upload no Supabase Storage
   const { data, error } = await supabase.storage
     .from(BUCKET_NAME)
-    .upload(fileName, optimizedBuffer, {
-      contentType: 'image/webp', // Agora o conteúdo é formalmente WebP
+    .upload(fileName, finalBuffer, {
+      contentType, // Dinâmico: image/webp ou application/pdf
       upsert: false
     })
 
