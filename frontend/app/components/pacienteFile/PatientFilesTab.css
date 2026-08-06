@@ -327,3 +327,35 @@
   object-fit: contain;
   display: block;
 }
+
+/* Estilização para Preview de PDFs */
+.pdf-preview-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  background-color: #f8fafc;
+}
+
+.pdf-icon {
+  width: 42px;
+  height: 42px;
+  fill: none;
+  stroke: #ef4444;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pdf-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #ef4444;
+  background-color: #fee2e2;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}

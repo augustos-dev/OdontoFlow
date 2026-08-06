@@ -29,7 +29,7 @@ import styles from './perfil.module.css'
 import DetalhesAgendamentoModal from '@/app/components/DetalhesAgendamentoModal'
 import { EvolutionsTimeline } from '../../../components/medical-record/EvolutionsTimeline'
 import { AddEvolutionModal } from '../../../components/medical-record/AddEvolutionModal'
-import { Odontogram } from '../../../components/tooth/Odontogram'
+import { Odontogram, OdontogramData } from '../../../components/tooth/Odontogram'
 import { PatientFilesTab, PatientFile } from '../../../components/pacienteFile/PatientFilesTab'
 
 // Import de Tipos Globais
@@ -83,6 +83,9 @@ export default function PerfilPacientePage() {
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
   const [isAddEvolutionOpen, setIsAddEvolutionOpen] = useState(false)
   const [reloadEvolutionsTrigger, setReloadEvolutionsTrigger] = useState(0)
+
+  // Estado do Odontograma Acumulado
+  const [currentOdontogram, setCurrentOdontogram] = useState<OdontogramData | null>(null)
 
   // Arquivos e Raio-X Panorâmico
   const [patientFiles, setPatientFiles] = useState<PatientFile[]>([])
@@ -148,13 +151,25 @@ export default function PerfilPacientePage() {
         })
       }
 
-      // 2.2. Busca histórico e anexos das evoluções
+      // 2.2. Busca histórico, anexos e snapshot das evoluções
       try {
         const { data: evolutions } = await api.get(`/medical-records/${id}/evolutions`)
 
         if (Array.isArray(evolutions)) {
           let foundPanoramic: PatientFile | null = null
 
+          // 🎯 Busca o snapshot de Odontograma mais recente no histórico de evoluções
+          const evolutionsWithSnapshot = evolutions
+            .filter((evo: any) => evo.odontogramSnapshot)
+            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+          if (evolutionsWithSnapshot.length > 0) {
+            const rawSnapshot = evolutionsWithSnapshot[0].odontogramSnapshot
+            const parsedSnapshot = typeof rawSnapshot === 'string' ? JSON.parse(rawSnapshot) : rawSnapshot
+            setCurrentOdontogram(parsedSnapshot)
+          }
+
+          // Extração dos Anexos
           const extractedFiles: PatientFile[] = evolutions.flatMap((evo: any) => {
             const rawAttachments = evo.attachments || []
 
@@ -183,11 +198,11 @@ export default function PerfilPacientePage() {
                 size: item.size ? `${(item.size / 1024).toFixed(0)} KB` : undefined,
               }
 
-              // Checa se o arquivo é um Raio-X Panorâmico
-              const isPanoramic = !isPdf && (
+              const isPanoramic = (
                 lowerName.includes('panoram') || 
                 lowerName.includes('raio-x') || 
                 lowerName.includes('rx') ||
+                lowerName.includes('laudo') ||
                 lowerUrl.includes('panoram')
               )
 
@@ -240,7 +255,6 @@ export default function PerfilPacientePage() {
     try {
       await api.put(`/medical-records/${id}`, mrForm)
       
-      // Limpa o rascunho do localStorage ao salvar com sucesso
       localStorage.removeItem(DRAFT_KEY)
       setHasDraft(false)
 
@@ -270,7 +284,6 @@ export default function PerfilPacientePage() {
     }
   }
 
-  // Upload direto na Aba de Arquivos
   async function handleUploadFiles(files: FileList) {
     try {
       const formData = new FormData()
@@ -282,6 +295,7 @@ export default function PerfilPacientePage() {
       })
 
       await load()
+      setReloadEvolutionsTrigger((prev) => prev + 1)
     } catch (err) {
       console.error('Erro ao enviar arquivo:', err)
       alert('Falha ao realizar o upload do arquivo.')
@@ -355,7 +369,6 @@ export default function PerfilPacientePage() {
             <div className={styles.profileTitleRow}>
               <h1 className={styles.profileName}>{patient.name}</h1>
               
-              {/* Badges de Alerta no Topo */}
               {mr?.allergies && mr.allergies.toLowerCase() !== 'nenhuma' && (
                 <span className={styles.badgeAllergy}>
                   <AlertTriangle size={14} />
@@ -431,7 +444,7 @@ export default function PerfilPacientePage() {
       {/* ─── Grid Principal ─── */}
       <div className={tab === 'arquivos' ? styles.singleColumnLayout : styles.gridContainer}>
         
-        {/* ================= COLUNA ESQUERDA (ANAMNESE COMPLETA) ================= */}
+        {/* ================= COLUNA ESQUERDA (ANAMNESE) ================= */}
         {tab !== 'arquivos' && (
           <div className={styles.column}>
             <div className={styles.card}>
@@ -455,7 +468,6 @@ export default function PerfilPacientePage() {
               {isEditingMR ? (
                 <form onSubmit={handleSaveMedicalRecord} className={styles.anamneseForm}>
                   
-                  {/* Queixa Principal */}
                   <div className={styles.formGroup}>
                     <span className={styles.infoLabel}>QUEIXA PRINCIPAL</span>
                     <div className={styles.tagsWrapper}>
@@ -483,7 +495,6 @@ export default function PerfilPacientePage() {
                     />
                   </div>
 
-                  {/* Alergias */}
                   <div className={styles.formGroup}>
                     <span className={styles.infoLabel}>ALERGIAS & REAÇÕES</span>
                     <div className={styles.tagsWrapper}>
@@ -511,7 +522,6 @@ export default function PerfilPacientePage() {
                     />
                   </div>
 
-                  {/* Doenças Sistêmicas */}
                   <div className={styles.formGroup}>
                     <span className={styles.infoLabel}>DOENÇAS SISTÊMICAS & CONDIÇÕES</span>
                     <div className={styles.tagsWrapper}>
@@ -543,7 +553,6 @@ export default function PerfilPacientePage() {
                     />
                   </div>
 
-                  {/* ATM e Hábitos */}
                   <div className={styles.formGroup}>
                     <span className={styles.infoLabel}>ATM & HÁBITOS BUCAL</span>
                     <div className={styles.tagsWrapper}>
@@ -574,7 +583,6 @@ export default function PerfilPacientePage() {
                     />
                   </div>
 
-                  {/* Medicamentos */}
                   <div className={styles.formGroup}>
                     <span className={styles.infoLabel}>MEDICAMENTOS EM USO</span>
                     <input
@@ -586,7 +594,6 @@ export default function PerfilPacientePage() {
                     />
                   </div>
 
-                  {/* Tipo Sanguíneo e Histórico */}
                   <div className={styles.twoCols}>
                     <div className={styles.formGroup}>
                       <span className={styles.infoLabel}>TIPO SANGUÍNEO</span>
@@ -610,7 +617,6 @@ export default function PerfilPacientePage() {
                     </div>
                   </div>
 
-                  {/* Botões do Formulário */}
                   <div className={styles.formActions}>
                     {hasDraft && (
                       <button type="button" onClick={handleDiscardDraft} className={styles.btnSecondary} style={{ color: '#ef4444' }}>
@@ -683,16 +689,16 @@ export default function PerfilPacientePage() {
         {/* ================= COLUNA DIREITA (ODONTOGRAMA & DEMAIS ABAS) ================= */}
         <div className={styles.column}>
           
-          {/* VISÃO GERAL (PANORÂMICA + ODONTOGRAMA + EVOLUÇÕES) */}
+          {/* VISÃO GERAL */}
           {tab === 'visao_geral' && (
             <>
-              {/* 📸 Raio-X Panorâmico de Destaque */}
+              {/* Radiografia Panorâmica */}
               {panoramicFile && (
                 <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#0f172a' }}>
                       <Eye size={18} style={{ color: '#06b6d4' }} />
-                      <span>Radiografia Panorâmica do Paciente</span>
+                      <span>{panoramicFile.type === 'pdf' ? 'Laudo / Radiografia Panorâmica (PDF)' : 'Radiografia Panorâmica do Paciente'}</span>
                     </div>
                     <a 
                       href={panoramicFile.url} 
@@ -700,16 +706,25 @@ export default function PerfilPacientePage() {
                       rel="noreferrer" 
                       style={{ fontSize: '0.8rem', color: '#06b6d4', textDecoration: 'none', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}
                     >
-                      <span>Alta Resolução</span>
+                      <span>Abrir Documento Inteiro</span>
                       <ExternalLink size={12} />
                     </a>
                   </div>
-                  <div style={{ width: '100%', height: '240px', backgroundColor: '#09090b', borderRadius: '8px', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '1px solid #27272a' }}>
-                    <img 
-                      src={panoramicFile.url} 
-                      alt="Radiografia Panorâmica" 
-                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                    />
+
+                  <div style={{ width: '100%', height: '280px', backgroundColor: '#09090b', borderRadius: '8px', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '1px solid #27272a' }}>
+                    {panoramicFile.type === 'pdf' ? (
+                      <iframe 
+                        src={`${panoramicFile.url}#toolbar=0`} 
+                        style={{ width: '100%', height: '100%', border: 'none' }} 
+                        title="Laudo Panorâmico PDF"
+                      />
+                    ) : (
+                      <img 
+                        src={panoramicFile.url} 
+                        alt="Radiografia Panorâmica" 
+                        style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                      />
+                    )}
                   </div>
                 </div>
               )}
@@ -718,11 +733,16 @@ export default function PerfilPacientePage() {
                 <div>
                   <h3 className={styles.sectionTitle}>Mapa Bucal (Odontograma)</h3>
                   <p className={styles.sectionSubtitle}>
-                    Selecione um procedimento na barra de ferramentas e clique nas faces anatômicas para registrar o estado dos dentes.
+                    Estado atual acumulado baseado nos atendimentos registrados.
                   </p>
                 </div>
                 
-                <Odontogram patientId={id as string} />
+                {/* 🎯 Odontograma renderizado com o snapshot vindo da evolução mais recente */}
+                <Odontogram 
+                  patientId={id as string} 
+                  value={currentOdontogram || undefined}
+                  onChange={(newState) => setCurrentOdontogram(newState)}
+                />
               </div>
 
               <div className={styles.card}>

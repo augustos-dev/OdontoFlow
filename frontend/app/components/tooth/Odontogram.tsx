@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import api from '../../../lib/api'
 import { Tooth, ToothFace, ToothFacesState } from './Tooth'
 import { ToolBar, ActionType } from './ToolBar'
 import './Odontogram.css'
@@ -35,14 +36,52 @@ export const Odontogram: React.FC<OdontogramProps> = ({
   const [archType, setArchType] = useState<'permanentes' | 'deciduos'>('permanentes')
   const [activeAction, setActiveAction] = useState<ActionType>('carie')
   const [odontogramState, setOdontogramState] = useState<OdontogramData>(value || {})
+  const [loading, setLoading] = useState<boolean>(false)
 
+  // 🎯 1. Atualiza estado se a prop `value` mudar externamente (ex: Modais)
   useEffect(() => {
-    if (value) setOdontogramState(value)
+    if (value) {
+      const parsed = typeof value === 'string' ? JSON.parse(value) : value
+      setOdontogramState(parsed || {})
+    }
   }, [value])
 
-  const updateState = (newState: OdontogramData) => {
+  // 🎯 2. CRUCIAL: Busca o estado acumulado atual do Odontograma do paciente via API
+  useEffect(() => {
+    if (value || !patientId) return
+
+    async function fetchPatientOdontogram() {
+      try {
+        setLoading(true)
+        const { data } = await api.get(`/patients/${patientId}`)
+        
+        // Puxa o odontograma do paciente (ou do prontuário se estiver lá)
+        const rawData = data?.odontogram || data?.medicalRecord?.odontogram || {}
+        const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData
+
+        setOdontogramState(parsedData || {})
+      } catch (err) {
+        console.error('Erro ao carregar odontograma do paciente:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPatientOdontogram()
+  }, [patientId, value])
+
+  const updateState = async (newState: OdontogramData) => {
     setOdontogramState(newState)
     if (onChange) onChange(newState)
+
+    // Se estiver no modo interativo e tiver patientId, persiste o estado no paciente
+    if (!readOnly && patientId) {
+      try {
+        await api.put(`/patients/${patientId}`, { odontogram: newState })
+      } catch (err) {
+        console.error('Erro ao salvar atualização do Odontograma:', err)
+      }
+    }
   }
 
   const handleFaceClick = (toothNumber: number, face: ToothFace) => {
@@ -119,9 +158,13 @@ export const Odontogram: React.FC<OdontogramProps> = ({
   const upperTeeth = archType === 'permanentes' ? UPPER_PERMANENT : UPPER_DECIDUOUS
   const lowerTeeth = archType === 'permanentes' ? LOWER_PERMANENT : LOWER_DECIDUOUS
 
+  if (loading) {
+    return <div className="odontogram-card"><p style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>Carregando mapa bucal do paciente...</p></div>
+  }
+
   return (
     <div className={`odontogram-card ${readOnly ? 'is-readonly' : ''}`}>
-      {/* Header com os seletores de Arcada e Legenda estilo Codental */}
+      {/* Header com os seletores de Arcada e Legenda */}
       <div className="odontogram-header">
         <div className="arch-toggle-group">
           <button
@@ -177,7 +220,7 @@ export const Odontogram: React.FC<OdontogramProps> = ({
           ))}
         </div>
 
-        {/* Números Centrais (Estilo Codental) */}
+        {/* Números Centrais */}
         <div className="numbers-strip">
           <div className="numbers-row upper-numbers">
             {upperTeeth.map((num) => (

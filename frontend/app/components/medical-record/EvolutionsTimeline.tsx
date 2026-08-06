@@ -1,91 +1,97 @@
-import React, { useEffect, useState } from 'react';
-import api from '../../../lib/api';
-import { Stethoscope, ClipboardList, FileText, Paperclip, User } from 'lucide-react';
-import { EvolutionDetailsModal } from './EvolutionDetailsModal'; // 👈 Importando o modal
-import { OdontogramData } from '../tooth/Odontogram';
-import { Tooth } from '../tooth/Tooth';
-import './EvolutionsTimeline.css';
+import React, { useEffect, useState } from 'react'
+import api from '../../../lib/api'
+import { Stethoscope, ClipboardList, FileText, Paperclip, User } from 'lucide-react'
+import { EvolutionDetailsModal } from './EvolutionDetailsModal'
+import './EvolutionsTimeline.css'
 
-export type EvolutionType = 'PROCEDURE' | 'ANAMNESIS' | 'NOTE' | 'FILE' | string;
+export type EvolutionType = 'PROCEDURE' | 'ANAMNESIS' | 'NOTE' | 'FILE' | string
 
 export interface Evolution {
-  id: string;
-  medicalRecordId: string;
-  dentistName?: string;
-  dentist?: { name: string };
-  type: EvolutionType;
-  title?: string;
-  description: string;
-  odontogramSnapshot?: OdontogramData | null; // 📸 ✅ Adicionado para a timeline aceitar e repassar pro modal
-  createdAt: string;
+  id: string
+  medicalRecordId: string
+  dentistName?: string
+  dentist?: { name: string }
+  type: EvolutionType
+  title?: string
+  description: string
+  odontogramSnapshot?: any
+  attachments?: string[]
+  createdAt: string
 }
 
 interface EvolutionsTimelineProps {
-  patientId: string;
-  medicalRecordId?: string;
-  evolutions?: Evolution[];
+  patientId: string
+  medicalRecordId?: string
+  evolutions?: Evolution[]
 }
 
 const getIcon = (type: EvolutionType) => {
   switch (type) {
     case 'PROCEDURE':
-      return <Stethoscope size={16} color="#047857" />;
+      return <Stethoscope size={16} color="#047857" />
     case 'ANAMNESIS':
-      return <ClipboardList size={16} color="#1d4ed8" />;
+      return <ClipboardList size={16} color="#1d4ed8" />
     case 'FILE':
-      return <Paperclip size={16} color="#b45309" />;
+      return <Paperclip size={16} color="#b45309" />
     case 'NOTE':
     default:
-      return <FileText size={16} color="#475569" />;
+      return <FileText size={16} color="#475569" />
   }
-};
+}
 
 const getBadgeClass = (type: EvolutionType) => {
   switch (type) {
     case 'PROCEDURE':
-      return 'badge badge-procedure';
+      return 'badge badge-procedure'
     case 'ANAMNESIS':
-      return 'badge badge-anamnesis';
+      return 'badge badge-anamnesis'
     case 'FILE':
-      return 'badge badge-file';
+      return 'badge badge-file'
     case 'NOTE':
     default:
-      return 'badge badge-note';
+      return 'badge badge-note'
   }
-};
+}
 
 export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
   patientId,
   evolutions: initialEvolutions,
 }) => {
-  const [evolutions, setEvolutions] = useState<Evolution[]>(initialEvolutions || []);
-  const [loading, setLoading] = useState(!initialEvolutions);
-
-  // 🎯 Estado para controlar qual evolução está selecionada para o modal
-  const [selectedEvolution, setSelectedEvolution] = useState<Evolution | null>(null);
+  const [evolutions, setEvolutions] = useState<Evolution[]>(initialEvolutions || [])
+  const [loading, setLoading] = useState(!initialEvolutions)
+  const [selectedEvolution, setSelectedEvolution] = useState<Evolution | null>(null)
 
   useEffect(() => {
-    if (initialEvolutions) return;
+    if (initialEvolutions) return
 
     async function loadEvolutions() {
-      if (!patientId) return;
+      if (!patientId) return
 
       try {
-        setLoading(true);
-        const { data } = await api.get(`/medical-records/${patientId}/evolutions`);
-        setEvolutions(Array.isArray(data) ? data : data.evolutions || []);
+        setLoading(true)
+        const { data } = await api.get(`/medical-records/${patientId}/evolutions`)
+        const rawEvolutions = Array.isArray(data) ? data : data.evolutions || []
+
+        const parsedEvolutions = rawEvolutions.map((item: any) => ({
+          ...item,
+          odontogramSnapshot: typeof item.odontogramSnapshot === 'string' 
+            ? (item.odontogramSnapshot.trim() ? JSON.parse(item.odontogramSnapshot) : null) 
+            : item.odontogramSnapshot
+        }))
+
+        setEvolutions(parsedEvolutions)
       } catch (err) {
-        console.error('Erro ao carregar evoluções:', err);
+        console.error('Erro ao carregar evoluções:', err)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
     }
 
-    loadEvolutions();
-  }, [patientId, initialEvolutions]);
+    loadEvolutions()
+  }, [patientId, initialEvolutions])
 
   if (loading) {
-    return <div className="timeline-empty">Carregando evoluções clínicas...</div>;
+    return <div className="timeline-empty">Carregando evoluções clínicas...</div>
   }
 
   if (!evolutions || evolutions.length === 0) {
@@ -93,7 +99,7 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
       <div className="timeline-empty">
         Nenhuma evolução clínica registrada até o momento.
       </div>
-    );
+    )
   }
 
   return (
@@ -106,9 +112,9 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
             year: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
-          });
+          })
 
-          const authorName = item.dentistName || item.dentist?.name || 'Profissional da Saúde';
+          const authorName = item.dentistName || item.dentist?.name || 'Profissional da Saúde'
 
           return (
             <div key={item.id} className="timeline-item">
@@ -116,7 +122,6 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
                 {getIcon(item.type)}
               </div>
 
-              {/* 🎯 Adicionado evento de clique para abrir o modal com o item atual */}
               <div 
                 className="timeline-card clickable" 
                 onClick={() => setSelectedEvolution(item)}
@@ -141,25 +146,14 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
                 </div>
               </div>
             </div>
-          );
+          )
         })}
       </div>
 
-      {/* 🎯 Renderização do Modal com CSS puro */}
       <EvolutionDetailsModal
         evolution={selectedEvolution}
         onClose={() => setSelectedEvolution(null)}
       />
-      {/* <Tooth 
-  number={16} 
-  faces={{
-    oclusal: 'carie',      // Vermelho
-    mesial: 'restaurado',  // Azul
-  }}
-  onFaceClick={(toothNumber, face) => {
-    console.log(`Dente ${toothNumber}, Face clicada: ${face}`)
-  }}
-/> */}
     </>
-  );
-};
+  )
+}
