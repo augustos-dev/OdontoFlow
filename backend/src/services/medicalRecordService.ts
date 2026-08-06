@@ -117,7 +117,7 @@ export async function updateMedicalRecord(
 }
 
 // -----------------------------------------------------------------------------
-// CREATE EVOLUTION (Com Odontograma Snapshot + Anexos/Fotos)
+// CREATE EVOLUTION (Com Odontograma Snapshot + Anexos/Fotos Otimizados)
 // -----------------------------------------------------------------------------
 export async function CreateEvolution(
   tenantId: string,
@@ -145,8 +145,8 @@ export async function CreateEvolution(
     throw new AppError('Dentista/Profissional não encontrado ou inativo.', 404)
   }
 
-  // 3. Normalização do odontogramSnapshot (Parse caso venha como JSON string via FormData)
-  let parsedSnapshot: any = null
+  // 3. Normalização do odontogramSnapshot (Parse seguro de string JSON vinda do FormData)
+  let parsedSnapshot: Record<string, any> | null = null
   if (data.odontogramSnapshot) {
     if (typeof data.odontogramSnapshot === 'string') {
       try {
@@ -159,9 +159,9 @@ export async function CreateEvolution(
     }
   }
 
-  // 4. Transação ACID: Salva a evolução e atualiza a visão viva do Odontograma
+  // 4. Transação ACID: Salva a evolução e atualiza a visão viva do Odontograma em tempo real
   return prisma.$transaction(async (tx) => {
-    // 4.1 Registra a Evolução incluindo o snapshot e as fotos/anexos
+    // 4.1 Registra a Evolução com snapshot e links do Supabase Storage (.webp)
     const evolution = await tx.evolution.create({
       data: {
         tenantId,
@@ -176,7 +176,7 @@ export async function CreateEvolution(
       },
     })
 
-    // 4.2 Atualiza o estado vivo na tabela tooth_conditions se houver dados no snapshot
+    // 4.2 Sincroniza o estado vivo na tabela tooth_conditions
     if (parsedSnapshot && typeof parsedSnapshot === 'object') {
       const toothEntries = Object.entries(parsedSnapshot)
 
@@ -186,8 +186,12 @@ export async function CreateEvolution(
 
         if (isNaN(toothNumber) || !item) continue
 
-        const faces = item.faces ? (Array.isArray(item.faces) ? item.faces : Object.keys(item.faces)) : []
-        const condition = item.condition || (item.faces ? Object.values(item.faces)[0] : 'outros')
+        // Extrai as faces e condição com resiliência
+        const faces = item.faces 
+          ? (Array.isArray(item.faces) ? item.faces : Object.keys(item.faces)) 
+          : []
+          
+        const condition = item.condition || (item.faces ? Object.values(item.faces)[0] : 'HIGIENE_OK')
 
         await tx.toothCondition.upsert({
           where: {
@@ -268,7 +272,7 @@ export async function updateEvolution(
 }
 
 // -----------------------------------------------------------------------------
-// UPSERT TOOTH CONDITION (Ajuste Direto de Dente)
+// UPSERT TOOTH CONDITION (Ajuste Direto de Dente via Interatividade na Tela)
 // -----------------------------------------------------------------------------
 export async function upsertToothCondition(
   tenantId: string,
@@ -373,7 +377,7 @@ export async function deleteToothCondition(
 }
 
 // -----------------------------------------------------------------------------
-// EVOLUTION SERVICE CLASS (Para compatibilidade de injeção de dependência)
+// EVOLUTION SERVICE CLASS (Para injeção de dependência / compatibilidade)
 // -----------------------------------------------------------------------------
 export class EvolutionService {
   async createEvolution(

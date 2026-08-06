@@ -17,25 +17,33 @@ function getRecordIdParam(req: Request): string {
 }
 
 /**
- * Auxiliar para processar uploads de arquivos para o Supabase Storage
+ * Auxiliar para processar uploads de arquivos enviando para o Supabase Storage (com Sharp .webp)
  */
 async function processAttachments(req: Request): Promise<string[]> {
   const files = req.files as Express.Multer.File[] | undefined
   let attachmentUrls: string[] = []
 
-  // 1. Upload dos arquivos em memória RAM para o Supabase Storage
+  // 1. Otimização (Sharp) e Upload paralelo dos arquivos enviados via Multer (RAM)
   if (files && files.length > 0) {
     const uploadPromises = files.map(file => uploadToSupabase(file))
     attachmentUrls = await Promise.all(uploadPromises)
   }
 
-  // 2. Se já vierem URLs no req.body (ex: links pré-existentes)
+  // 2. Garante o parse caso venham links/anexos pré-existentes via req.body (FormData string ou Array)
   if (req.body?.attachments) {
-    const bodyAttachments = Array.isArray(req.body.attachments)
-      ? req.body.attachments
-      : [req.body.attachments]
+    let bodyAttachments = req.body.attachments
 
-    attachmentUrls = [...attachmentUrls, ...bodyAttachments]
+    if (typeof bodyAttachments === 'string') {
+      try {
+        bodyAttachments = JSON.parse(bodyAttachments)
+      } catch {
+        bodyAttachments = [bodyAttachments]
+      }
+    }
+
+    if (Array.isArray(bodyAttachments)) {
+      attachmentUrls = [...attachmentUrls, ...bodyAttachments]
+    }
   }
 
   return attachmentUrls
@@ -67,7 +75,10 @@ export async function getEvolutionsController(
   }
 }
 
-export async function CreateEvolutionController(
+/**
+ * Cria uma nova evolução clínica com upload de anexos otimizados e Snapshot do Odontograma
+ */
+export async function createEvolutionController(
   req: Request,
   res: Response,
   next: NextFunction
@@ -77,10 +88,10 @@ export async function CreateEvolutionController(
     const dentistId = sub || (req.user as any).id
     const targetId = getRecordIdParam(req)
 
-    // Upload dos arquivos de anexos/fotos para o Supabase
+    // Upload e compressão automática dos anexos/fotos para o Supabase Storage
     const attachmentUrls = await processAttachments(req)
 
-    // Tratamento seguro do odontogramSnapshot (FormData envia campos como String)
+    // Tratamento seguro do odontogramSnapshot (FormData envia objetos JSON como String)
     let parsedSnapshot = req.body.odontogramSnapshot
     if (typeof parsedSnapshot === 'string') {
       try {
