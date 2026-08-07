@@ -2,15 +2,27 @@ import { prisma } from '../lib/prisma'; // Ou onde fica a instância do seu Pris
 import { CreateAuditLogInput } from '../types/AuditLog.types';
 
 export const auditLogService = {
-  // 1. Gravar log no banco
   async createLog(input: CreateAuditLogInput) {
     try {
+      // Se não enviou o userName no input, busca rapidinho pelo userId
+      let userName = input.userName
+
+      if (!userName && input.userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: input.userId },
+          select: { name: true, email: true },
+        })
+        userName = user?.name || user?.email || 'Usuário do Sistema'
+      }
+
       return await prisma.auditLog.create({
-        data: input,
-      });
+        data: {
+          ...input,
+          userName, // 🟢 Garante que a coluna nunca mais fique NULL
+        },
+      })
     } catch (error) {
-      // Log no console para não derrubar a requisição principal caso falhe o log de auditoria
-      console.error('Erro ao gravar AuditLog:', error);
+      console.error('Erro ao gravar AuditLog:', error)
     }
   },
 

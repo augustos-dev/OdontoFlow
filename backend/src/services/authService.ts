@@ -1,5 +1,3 @@
-// backend/src/services/auth.service.ts
-
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/prisma'
@@ -34,7 +32,15 @@ export async function register(data: RegisterDTO): Promise<AuthResponse> {
     select: { id: true, name: true, email: true, role: true, tenantId: true, clinicId: true },
   })
 
-  const token = generateToken({ sub: user.id, tenantId: user.tenantId, clinicId: user.clinicId, role: user.role })
+  // 🟢 INCLUÍDO 'name' E 'plan' (padrão BASIC no registro) NO JWT
+  const token = generateToken({
+    sub: user.id,
+    tenantId: user.tenantId,
+    clinicId: user.clinicId,
+    role: user.role,
+    name: user.name,
+    plan: (tenant as any).plan || 'BASIC',
+  })
 
   return { token, user }
 }
@@ -55,7 +61,7 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
       clinicId: true,
       passwordHash: true,
       isActive: true,
-      tenant: { select: { isActive: true } },
+      tenant: { select: { isActive: true, plan: true } }, // 🟢 Busca o 'plan' do Tenant
     },
   })
 
@@ -68,7 +74,15 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
 
   prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }).catch(() => {})
 
-  const token = generateToken({ sub: user.id, tenantId: user.tenantId, clinicId: user.clinicId, role: user.role })
+  // 🟢 INCLUÍDO 'name' E 'plan' NO PAYLOAD DO JWT
+  const token = generateToken({
+    sub: user.id,
+    tenantId: user.tenantId,
+    clinicId: user.clinicId,
+    role: user.role,
+    name: user.name,
+    plan: user.tenant.plan || 'BASIC',
+  })
 
   const { passwordHash: _, tenant: __, ...userWithoutSensitiveData } = user
 
