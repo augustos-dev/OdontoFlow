@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import * as userService from '../services/userService'
+import type { UserRole } from '@prisma/client'
 import type {
   CreateUserDTO,
   UpdateUserDTO,
@@ -11,8 +12,10 @@ import type {
 
 export async function createUserController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
-    const user = await userService.createUser(tenantId, clinicId, req.body as CreateUserDTO)
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const user = await userService.createUser(tenantId, clinicId, req.body as CreateUserDTO, actor)
     res.status(201).json(user)
   } catch (error) {
     next(error)
@@ -49,9 +52,11 @@ export async function getUserByIdController(req: Request, res: Response, next: N
 
 export async function updateUserController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    const user = await userService.updateUser(tenantId, clinicId, id as string , req.body as UpdateUserDTO)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const user = await userService.updateUser(tenantId, clinicId, id as string, req.body as UpdateUserDTO, actor)
     res.status(200).json(user)
   } catch (error) {
     next(error)
@@ -60,9 +65,17 @@ export async function updateUserController(req: Request, res: Response, next: Ne
 
 export async function updateUserRoleController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId, sub: requesterId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    const user = await userService.updateUserRole(tenantId, clinicId, id as string, req.body as UpdateUserRoleDTO, requesterId)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const user = await userService.updateUserRole(
+      tenantId,
+      clinicId,
+      id as string,
+      req.body as UpdateUserRoleDTO,
+      actor
+    )
     res.status(200).json(user)
   } catch (error) {
     next(error)
@@ -71,9 +84,17 @@ export async function updateUserRoleController(req: Request, res: Response, next
 
 export async function updateUserStatusController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId, sub: requesterId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    const user = await userService.updateUserStatus(tenantId, clinicId, id as string , req.body as UpdateUserStatusDTO, requesterId)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const user = await userService.updateUserStatus(
+      tenantId,
+      clinicId,
+      id as string,
+      req.body as UpdateUserStatusDTO,
+      actor
+    )
     res.status(200).json(user)
   } catch (error) {
     next(error)
@@ -82,8 +103,14 @@ export async function updateUserStatusController(req: Request, res: Response, ne
 
 export async function changePasswordController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { sub: userId } = req.user!
-    await userService.changePassword(userId, req.body as ChangePasswordDTO)
+    const { tenantId, clinicId, sub: userId, name: userName } = req.user!
+    await userService.changePassword(
+      tenantId,
+      clinicId,
+      userId,
+      req.body as ChangePasswordDTO,
+      userName || 'Usuário'
+    )
     res.status(200).json({ message: 'Senha alterada com sucesso.' })
   } catch (error) {
     next(error)
@@ -92,9 +119,11 @@ export async function changePasswordController(req: Request, res: Response, next
 
 export async function deleteUserController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId, sub: requesterId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    await userService.deleteUser(tenantId, clinicId, id as string , requesterId)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    await userService.deleteUser(tenantId, clinicId, id as string, actor)
     res.status(204).send()
   } catch (error) {
     next(error)

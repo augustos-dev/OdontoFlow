@@ -1,7 +1,6 @@
-// backend/src/controllers/transaction.controller.ts
-
 import type { Request, Response, NextFunction } from 'express'
 import * as transactionService from '../services/transactionService'
+import type { UserRole } from '@prisma/client'
 import type {
   CreateTransactionDTO,
   UpdateTransactionDTO,
@@ -11,8 +10,15 @@ import type {
 
 export async function createTransactionController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
-    const transaction = await transactionService.createTransaction(tenantId, clinicId, req.body as CreateTransactionDTO)
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const transaction = await transactionService.createTransaction(
+      tenantId,
+      clinicId,
+      req.body as CreateTransactionDTO,
+      actor
+    )
     res.status(201).json(transaction)
   } catch (error) {
     next(error)
@@ -51,9 +57,17 @@ export async function getTransactionByIdController(req: Request, res: Response, 
 
 export async function updateTransactionController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    const transaction = await transactionService.updateTransaction(tenantId, clinicId, id as string, req.body as UpdateTransactionDTO)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const transaction = await transactionService.updateTransaction(
+      tenantId,
+      clinicId,
+      id as string,
+      req.body as UpdateTransactionDTO,
+      actor
+    )
     res.status(200).json(transaction)
   } catch (error) {
     next(error)
@@ -62,9 +76,11 @@ export async function updateTransactionController(req: Request, res: Response, n
 
 export async function deleteTransactionController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    await transactionService.deleteTransaction(tenantId, clinicId, id as string)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    await transactionService.deleteTransaction(tenantId, clinicId, id as string, actor)
     res.status(204).send()
   } catch (error) {
     next(error)
@@ -78,10 +94,12 @@ export async function getFinancialReportController(req: Request, res: Response, 
       startDate: req.query.startDate as string,
       endDate: req.query.endDate as string,
     }
+
     if (!filters.startDate || !filters.endDate) {
       res.status(400).json({ message: 'Informe startDate e endDate para o relatório.' })
       return
     }
+
     const report = await transactionService.getFinancialReport(tenantId, clinicId, filters)
     res.status(200).json(report)
   } catch (error) {
