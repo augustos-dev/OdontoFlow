@@ -1,7 +1,15 @@
+import { UserRole } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
 import { findMedicalRecord } from './medicalRecordService'
+import { auditLogService } from './auditLog.service'
 import type { CreateEvolutionDTO } from '../types/medicalRecord.types'
+
+interface ActorContext {
+  userId: string
+  userName: string
+  userRole?: UserRole
+}
 
 export class EvolutionService {
   /**
@@ -12,7 +20,8 @@ export class EvolutionService {
     clinicId: string,
     patientOrRecordId: string,
     dentistId: string,
-    data: CreateEvolutionDTO
+    data: CreateEvolutionDTO,
+    actor?: ActorContext
   ) {
     // 1. Busca o prontuário garantindo isolamento de tenant
     const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
@@ -23,8 +32,8 @@ export class EvolutionService {
         id: dentistId,
         tenantId,
         isActive: true,
-        role: { in: ['DENTIST', 'ADMIN'] }
-      }
+        role: { in: ['DENTIST', 'ADMIN'] },
+      },
     })
 
     if (!dentist) {
@@ -46,19 +55,19 @@ export class EvolutionService {
     }
 
     // 4. Executa transação ACID (Evolução + Atualização das Peças)
-    return prisma.$transaction(async (tx) => {
+    const evolution = await prisma.$transaction(async (tx) => {
       // 4.1 Cria a Evolução no histórico
-      const evolution = await tx.evolution.create({
+      const createdEvolution = await tx.evolution.create({
         data: {
           tenantId,
           medicalRecordId: medicalRecord.id,
           dentistId: dentist.id,
           description: data.description,
           odontogramSnapshot: parsedSnapshot ?? undefined,
-          attachments: data.attachments || [], // 👈 Salva o array de fotos/anexos
+          attachments: data.attachments || [],
         },
         include: {
-          dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } }
+          dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
         },
       })
 
@@ -70,7 +79,11 @@ export class EvolutionService {
 
           if (isNaN(toothNumber) || !item) continue
 
-          const faces = item.faces ? (Array.isArray(item.faces) ? item.faces : Object.keys(item.faces)) : []
+          const faces = item.faces
+            ? Array.isArray(item.faces)
+              ? item.faces
+              : Object.keys(item.faces)
+            : []
           const condition = item.condition || (item.faces ? Object.values(item.faces)[0] : 'outros')
 
           await tx.toothCondition.upsert({
@@ -98,8 +111,23 @@ export class EvolutionService {
         }
       }
 
-      return evolution
+      return createdEvolution
     })
+
+    // 🟢 Log de Auditoria
+    await auditLogService.createLog({
+      tenantId,
+      clinicId,
+      userId: actor?.userId || dentist.id,
+      userName: actor?.userName || dentist.name,
+      userRole: actor?.userRole || (dentist.role as UserRole),
+      action: 'CREATE',
+      entity: 'EVOLUTION',
+      entityId: evolution.id,
+      details: `Registrou evolução clínica. Profissional: Dr(a). ${dentist.name}`,
+    })
+
+    return evolution
   }
 
   /**
@@ -127,9 +155,14 @@ export class EvolutionService {
   /**
    * Tranca a evolução contra edições futuras
    */
-  async lockEvolution(tenantId: string, evolutionId: string) {
+  async lockEvolution(
+    tenantId: string,
+    clinicId: string,
+    evolutionId: string,
+    actor: ActorContext
+  ) {
     const evolution = await prisma.evolution.findFirst({
-      where: { id: evolutionId, tenantId }
+      where: { id: evolutionId, tenantId },
     })
 
     if (!evolution) {
@@ -139,18 +172,39 @@ export class EvolutionService {
       throw new AppError('Evolução já está travada.', 400)
     }
 
-    return prisma.evolution.update({
+    const updated = await prisma.evolution.update({
       where: { id: evolutionId },
-      data: { isLocked: true, lockedAt: new Date() }
+      data: { isLocked: true, lockedAt: new Date() },
     })
+
+    // 🟢 Log de Auditoria
+    await auditLogService.createLog({
+      tenantId,
+      clinicId,
+      userId: actor.userId,
+      userName: actor.userName,
+      userRole: actor.userRole || 'DENTIST',
+      action: 'UPDATE',
+      entity: 'EVOLUTION',
+      entityId: evolutionId,
+      details: `Trava de segurança aplicada na evolução clínica ID: ${evolutionId}`,
+    })
+
+    return updated
   }
 
   /**
    * Edita a descrição caso a evolução não esteja travada
    */
-  async updateEvolution(tenantId: string, evolutionId: string, description: string) {
+  async updateEvolution(
+    tenantId: string,
+    clinicId: string,
+    evolutionId: string,
+    description: string,
+    actor: ActorContext
+  ) {
     const evolution = await prisma.evolution.findFirst({
-      where: { id: evolutionId, tenantId }
+      where: { id: evolutionId, tenantId },
     })
 
     if (!evolution) {
@@ -160,9 +214,24 @@ export class EvolutionService {
       throw new AppError('Evolução travada não pode ser editada.', 400)
     }
 
-    return prisma.evolution.update({
+    const updated = await prisma.evolution.update({
       where: { id: evolutionId },
-      data: { description }
+      data: { description },
     })
+
+    // 🟢 Log de Auditoria
+    await auditLogService.createLog({
+      tenantId,
+      clinicId,
+      userId: actor.userId,
+      userName: actor.userName,
+      userRole: actor.userRole || 'DENTIST',
+      action: 'UPDATE',
+      entity: 'EVOLUTION',
+      entityId: evolutionId,
+      details: `Editou a descrição da evolução clínica ID: ${evolutionId}`,
+    })
+
+    return updated
   }
 }

@@ -1,8 +1,7 @@
-// backend/src/services/appointment.service.ts
-
-import { Prisma, $Enums } from '@prisma/client'
+import { Prisma, $Enums, UserRole } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
+import { auditLogService } from './auditLog.service'
 import type {
   CreateAppointmentDTO,
   UpdateAppointmentDTO,
@@ -10,7 +9,11 @@ import type {
   AppointmentFiltersDTO,
 } from '../types/appointment.types'
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+interface ActorContext {
+  userId: string
+  userName: string
+  userRole?: UserRole
+}
 
 function calcEndTime(dateTime: Date, durationMin: number): Date {
   return new Date(dateTime.getTime() + durationMin * 60 * 1000)
@@ -26,8 +29,6 @@ const ACTIVE_STATUSES: $Enums.AppointmentStatus[] = [
   'EM_ATENDIMENTO',
   'ESPERA',
 ]
-
-// ─── Validação de conflito ────────────────────────────────────────────────────
 
 async function checkConflicts(
   clinicId: string,
@@ -70,12 +71,11 @@ async function checkConflicts(
   }
 }
 
-// ─── Create ──────────────────────────────────────────────────────────────────
-
 export async function createAppointment(
   tenantId: string,
   clinicId: string,
-  data: CreateAppointmentDTO
+  data: CreateAppointmentDTO,
+  actor: ActorContext
 ) {
   const { patientId, dentistId, dateTime, durationMin = 60, type, room, notes } = data
 
@@ -96,16 +96,28 @@ export async function createAppointment(
 
   await checkConflicts(clinicId, room, dentistId, startTime, endTime)
 
-  return prisma.appointment.create({
+  const appointment = await prisma.appointment.create({
     data: { tenantId, clinicId, patientId, dentistId, dateTime: startTime, durationMin, type, room, notes },
     include: {
       patient: { select: { id: true, name: true, phone: true } },
       dentist: { select: { id: true, name: true } },
     },
   })
-}
 
-// ─── List ─────────────────────────────────────────────────────────────────────
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'SECRETARY',
+    action: 'CREATE',
+    entity: 'APPOINTMENT',
+    entityId: appointment.id,
+    details: `Agendou consulta (${type}) para o paciente ${patient.name} com Dr(a). ${dentist.name} na sala ${room} em ${startTime.toLocaleString('pt-BR')}`,
+  })
+
+  return appointment
+}
 
 export async function listAppointments(
   tenantId: string,
@@ -152,8 +164,6 @@ export async function listAppointments(
   }
 }
 
-// ─── Get by ID ────────────────────────────────────────────────────────────────
-
 export async function getAppointmentById(
   tenantId: string,
   clinicId: string,
@@ -173,16 +183,16 @@ export async function getAppointmentById(
   return appointment
 }
 
-// ─── Update ───────────────────────────────────────────────────────────────────
-
 export async function updateAppointment(
   tenantId: string,
   clinicId: string,
   appointmentId: string,
-  data: UpdateAppointmentDTO
+  data: UpdateAppointmentDTO,
+  actor: ActorContext
 ) {
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, tenantId, clinicId },
+    include: { patient: { select: { name: true } } },
   })
 
   if (!appointment) throw new AppError('Agendamento não encontrado.', 404)
@@ -197,14 +207,9 @@ export async function updateAppointment(
   const newDentistId = data.dentistId ?? appointment.dentistId
   const endTime = calcEndTime(newDateTime, newDuration)
 
-  // COMENTADO OU REMOVIDO: Permite remarcar no dia atual mesmo se o horário já passou um pouco
-  // if (data.dateTime && newDateTime < new Date()) {
-  //   throw new AppError('Não é possível agendar em uma data/hora passada.', 400)
-  // }
-
   await checkConflicts(clinicId, newRoom, newDentistId, newDateTime, endTime, appointmentId)
 
-  return prisma.appointment.update({
+  const updatedAppointment = await prisma.appointment.update({
     where: { id: appointmentId },
     data: { ...data, dateTime: newDateTime },
     include: {
@@ -212,17 +217,32 @@ export async function updateAppointment(
       dentist: { select: { id: true, name: true } },
     },
   })
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'SECRETARY',
+    action: 'UPDATE',
+    entity: 'APPOINTMENT',
+    entityId: appointmentId,
+    details: `Remarcou/editou consulta do paciente ${appointment.patient.name} para ${newDateTime.toLocaleString('pt-BR')}`,
+  })
+
+  return updatedAppointment
 }
-// ─── Update Status ────────────────────────────────────────────────────────────
 
 export async function updateAppointmentStatus(
   tenantId: string,
   clinicId: string,
   appointmentId: string,
-  data: UpdateAppointmentStatusDTO
+  data: UpdateAppointmentStatusDTO,
+  actor: ActorContext
 ) {
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, tenantId, clinicId },
+    include: { patient: { select: { name: true } } },
   })
 
   if (!appointment) throw new AppError('Agendamento não encontrado.', 404)
@@ -232,7 +252,7 @@ export async function updateAppointmentStatus(
     throw new AppError('Informe o motivo do cancelamento.', 400)
   }
 
-  return prisma.appointment.update({
+  const updatedAppointment = await prisma.appointment.update({
     where: { id: appointmentId },
     data: {
       status: data.status,
@@ -242,17 +262,31 @@ export async function updateAppointmentStatus(
       }),
     },
   })
-}
 
-// ─── Delete ───────────────────────────────────────────────────────────────────
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'SECRETARY',
+    action: 'UPDATE',
+    entity: 'APPOINTMENT',
+    entityId: appointmentId,
+    details: `Alterou status da consulta do paciente ${appointment.patient.name} de ${appointment.status} para ${data.status}${data.cancellationReason ? ` (Motivo: ${data.cancellationReason})` : ''}`,
+  })
+
+  return updatedAppointment
+}
 
 export async function deleteAppointment(
   tenantId: string,
   clinicId: string,
-  appointmentId: string
+  appointmentId: string,
+  actor: ActorContext
 ) {
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, tenantId, clinicId },
+    include: { patient: { select: { name: true } } },
   })
 
   if (!appointment) throw new AppError('Agendamento não encontrado.', 404)
@@ -262,4 +296,16 @@ export async function deleteAppointment(
   }
 
   await prisma.appointment.delete({ where: { id: appointmentId } })
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'SECRETARY',
+    action: 'DELETE',
+    entity: 'APPOINTMENT',
+    entityId: appointmentId,
+    details: `Excluiu o agendamento do paciente ${appointment.patient.name}`,
+  })
 }

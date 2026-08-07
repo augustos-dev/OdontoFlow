@@ -1,7 +1,6 @@
-// backend/src/controllers/appointment.controller.ts
-
 import type { Request, Response, NextFunction } from 'express'
 import * as appointmentService from '../services/appointmentService'
+import type { UserRole } from '@prisma/client'
 import type {
   CreateAppointmentDTO,
   UpdateAppointmentDTO,
@@ -11,8 +10,15 @@ import type {
 
 export async function createAppointmentController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
-    const appointment = await appointmentService.createAppointment(tenantId, clinicId, req.body as CreateAppointmentDTO)
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const appointment = await appointmentService.createAppointment(
+      tenantId, 
+      clinicId, 
+      req.body as CreateAppointmentDTO, 
+      actor
+    )
     res.status(201).json(appointment)
   } catch (error) {
     next(error)
@@ -51,9 +57,17 @@ export async function getAppointmentByIdController(req: Request, res: Response, 
 
 export async function updateAppointmentController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    const appointment = await appointmentService.updateAppointment(tenantId, clinicId, id as string, req.body as UpdateAppointmentDTO)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const appointment = await appointmentService.updateAppointment(
+      tenantId, 
+      clinicId, 
+      id as string, 
+      req.body as UpdateAppointmentDTO, 
+      actor
+    )
     res.status(200).json(appointment)
   } catch (error) {
     next(error)
@@ -62,9 +76,17 @@ export async function updateAppointmentController(req: Request, res: Response, n
 
 export async function updateAppointmentStatusController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    const appointment = await appointmentService.updateAppointmentStatus(tenantId, clinicId, id as string, req.body as UpdateAppointmentStatusDTO)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const appointment = await appointmentService.updateAppointmentStatus(
+      tenantId, 
+      clinicId, 
+      id as string, 
+      req.body as UpdateAppointmentStatusDTO, 
+      actor
+    )
     res.status(200).json(appointment)
   } catch (error) {
     next(error)
@@ -73,9 +95,11 @@ export async function updateAppointmentStatusController(req: Request, res: Respo
 
 export async function deleteAppointmentController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    await appointmentService.deleteAppointment(tenantId, clinicId, id as string)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    await appointmentService.deleteAppointment(tenantId, clinicId, id as string, actor)
     res.status(204).send()
   } catch (error) {
     next(error)
