@@ -1,9 +1,14 @@
-// backend/src/services/patient.service.ts
-
-import { Prisma } from '@prisma/client'
+import { Prisma, UserRole } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
+import { auditLogService } from './auditLog.service'
 import type { CreatePatientDTO, UpdatePatientDTO, PatientFiltersDTO } from '../types/patient.types'
+
+interface ActorContext {
+  userId: string
+  userName: string
+  userRole?: UserRole
+}
 
 // Helpers de Higienização de Payload
 const clean = (val?: string) => (val && val.trim() !== '' ? val.trim() : null)
@@ -12,7 +17,12 @@ const parseDate = (val?: string) => (val && val.trim() !== '' ? new Date(val) : 
 
 // ─── Create ──────────────────────────────────────────────────────────────────
 
-export async function createPatient(tenantId: string, clinicId: string, data: CreatePatientDTO) {
+export async function createPatient(
+  tenantId: string,
+  clinicId: string,
+  data: CreatePatientDTO,
+  actor: ActorContext
+) {
   const sanitizedCpf = cleanDoc(data.cpf)
 
   if (sanitizedCpf) {
@@ -22,7 +32,6 @@ export async function createPatient(tenantId: string, clinicId: string, data: Cr
     if (existing) throw new AppError('CPF já cadastrado neste tenant.', 409)
   }
 
-  // Separando campos do Patient dos campos da Anamnese (MedicalRecord)
   const {
     historyNotes,
     allergies,
@@ -76,6 +85,19 @@ export async function createPatient(tenantId: string, clinicId: string, data: Cr
     include: {
       medicalRecord: { select: { id: true } },
     },
+  })
+
+  // 🟢 Log de Auditoria
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'ADMIN',
+    action: 'CREATE',
+    entity: 'PATIENT',
+    entityId: patient.id,
+    details: `Cadastrou o novo paciente: "${patient.name}" (CPF: ${patient.cpf || 'Não informado'})`,
   })
 
   return patient
@@ -177,7 +199,8 @@ export async function updatePatient(
   tenantId: string,
   clinicId: string,
   patientId: string,
-  data: UpdatePatientDTO
+  data: UpdatePatientDTO,
+  actor: ActorContext
 ) {
   const patient = await prisma.patient.findFirst({
     where: { id: patientId, tenantId, clinicId, deletedAt: null },
@@ -205,7 +228,7 @@ export async function updatePatient(
     ...patientData
   } = data
 
-  return prisma.patient.update({
+  const updatedPatient = await prisma.patient.update({
     where: { id: patientId },
     data: {
       ...(patientData.name && { name: patientData.name.trim() }),
@@ -245,11 +268,31 @@ export async function updatePatient(
       }),
     },
   })
+
+  // 🟢 Log de Auditoria
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'ADMIN',
+    action: 'UPDATE',
+    entity: 'PATIENT',
+    entityId: patientId,
+    details: `Atualizou informações do cadastrais/prontuário do paciente "${updatedPatient.name}"`,
+  })
+
+  return updatedPatient
 }
 
 // ─── Soft Delete ──────────────────────────────────────────────────────────────
 
-export async function deletePatient(tenantId: string, clinicId: string, patientId: string) {
+export async function deletePatient(
+  tenantId: string,
+  clinicId: string,
+  patientId: string,
+  actor: ActorContext
+) {
   const patient = await prisma.patient.findFirst({
     where: { id: patientId, tenantId, clinicId, deletedAt: null },
   })
@@ -259,5 +302,18 @@ export async function deletePatient(tenantId: string, clinicId: string, patientI
   await prisma.patient.update({
     where: { id: patientId },
     data: { deletedAt: new Date() },
+  })
+
+  // 🟢 Log de Auditoria
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'ADMIN',
+    action: 'DELETE',
+    entity: 'PATIENT',
+    entityId: patientId,
+    details: `Efetuou remoção (soft delete) do paciente "${patient.name}"`,
   })
 }

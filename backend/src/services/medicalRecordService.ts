@@ -1,12 +1,13 @@
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
+import { auditLogService } from './auditLog.service'
+import type { UserRole } from '@prisma/client'
 import type {
   UpdateMedicalRecordsDTO,
   CreateEvolutionDTO,
-  ToothConditionDTO
+  ToothConditionDTO,
 } from '../types/medicalRecord.types'
 
-// Notação FDI válida (11-18, 21-28, 31-38, 41-48)
 const VALID_TOOTH_NUMBERS = [
   ...Array.from({ length: 8 }, (_, i) => 11 + i),
   ...Array.from({ length: 8 }, (_, i) => 21 + i),
@@ -14,9 +15,12 @@ const VALID_TOOTH_NUMBERS = [
   ...Array.from({ length: 8 }, (_, i) => 41 + i),
 ]
 
-/**
- * Auxiliar interno para localizar o Prontuário garantindo o isolamento Multi-tenant.
- */
+interface ActorContext {
+  userId: string
+  userName: string
+  userRole?: UserRole
+}
+
 export async function findMedicalRecord(
   tenantId: string,
   clinicId: string,
@@ -25,11 +29,8 @@ export async function findMedicalRecord(
   const medicalRecord = await prisma.medicalRecord.findFirst({
     where: {
       tenantId,
-      OR: [
-        { id: recordOrPatientId },
-        { patientId: recordOrPatientId }
-      ]
-    }
+      OR: [{ id: recordOrPatientId }, { patientId: recordOrPatientId }],
+    },
   })
 
   if (!medicalRecord) {
@@ -39,9 +40,6 @@ export async function findMedicalRecord(
   return medicalRecord
 }
 
-// -----------------------------------------------------------------------------
-// GET MEDICAL RECORD BY PATIENT OR RECORD ID
-// -----------------------------------------------------------------------------
 export async function getMedicalRecordByPatient(
   tenantId: string,
   clinicId: string,
@@ -55,13 +53,13 @@ export async function getMedicalRecordByPatient(
       evolutions: {
         orderBy: { createdAt: 'desc' },
         include: {
-          dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } }
+          dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
         },
       },
       toothConditions: {
-        orderBy: { toothNumber: 'asc' }
-      }
-    }
+        orderBy: { toothNumber: 'asc' },
+      },
+    },
   })
 
   if (!medicalRecord) {
@@ -71,9 +69,6 @@ export async function getMedicalRecordByPatient(
   return medicalRecord
 }
 
-// -----------------------------------------------------------------------------
-// GET EVOLUTIONS
-// -----------------------------------------------------------------------------
 export async function getEvolutionsByPatient(
   tenantId: string,
   clinicId: string,
@@ -95,53 +90,58 @@ export async function getEvolutionsByPatient(
 
 export const getEvolutions = getEvolutionsByPatient
 
-// -----------------------------------------------------------------------------
-// UPDATE ANAMNESE / PRONTUÁRIO
-// -----------------------------------------------------------------------------
 export async function updateMedicalRecord(
   tenantId: string,
   clinicId: string,
   patientOrRecordId: string,
-  data: UpdateMedicalRecordsDTO
+  data: UpdateMedicalRecordsDTO,
+  actor: ActorContext
 ) {
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-  return prisma.medicalRecord.update({
+  const updatedRecord = await prisma.medicalRecord.update({
     where: { id: medicalRecord.id },
     data,
   })
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'ADMIN',
+    action: 'UPDATE',
+    entity: 'MEDICAL_RECORD',
+    entityId: medicalRecord.id,
+    details: `Atualizou anamnese/dados clínicos do prontuário do paciente ID: ${medicalRecord.patientId}`,
+  })
+
+  return updatedRecord
 }
 
-// -----------------------------------------------------------------------------
-// CREATE EVOLUTION (Com Odontograma Snapshot + Anexos/Fotos Otimizados)
-// -----------------------------------------------------------------------------
 export async function CreateEvolution(
   tenantId: string,
   clinicId: string,
   patientOrRecordId: string,
   dentistId: string,
-  data: CreateEvolutionDTO
+  data: CreateEvolutionDTO,
+  actor?: ActorContext
 ) {
-  // 1. Localiza o prontuário
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-  // 2. Valida o profissional no Tenant
   const dentist = await prisma.user.findFirst({
     where: {
       id: dentistId,
       tenantId,
       isActive: true,
-      role: {
-        in: ['DENTIST', 'ADMIN']
-      }
-    }
+      role: { in: ['DENTIST', 'ADMIN'] },
+    },
   })
 
   if (!dentist) {
     throw new AppError('Dentista/Profissional não encontrado ou inativo.', 404)
   }
 
-  // 3. Normalização do odontogramSnapshot
   let parsedSnapshot: Record<string, any> | null = null
   if (data.odontogramSnapshot) {
     if (typeof data.odontogramSnapshot === 'string') {
@@ -155,8 +155,7 @@ export async function CreateEvolution(
     }
   }
 
-  // 4. Transação ACID
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const evolution = await tx.evolution.create({
       data: {
         tenantId,
@@ -167,11 +166,10 @@ export async function CreateEvolution(
         attachments: data.attachments || [],
       },
       include: {
-        dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } }
+        dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
       },
     })
 
-    // Sincroniza estado vivo no Odontograma
     if (parsedSnapshot && typeof parsedSnapshot === 'object') {
       const toothEntries = Object.entries(parsedSnapshot)
 
@@ -181,11 +179,13 @@ export async function CreateEvolution(
 
         if (isNaN(toothNumber) || !item) continue
 
-        const faces = item.faces 
-          ? (Array.isArray(item.faces) ? item.faces : Object.keys(item.faces)) 
+        const faces = item.faces
+          ? Array.isArray(item.faces)
+            ? item.faces
+            : Object.keys(item.faces)
           : []
-          
-        const condition = item.condition || (item.faces ? Object.values(item.faces)[0] : 'HIGIENE_OK')
+
+        const condition = item.condition || (item.faces ? Object.values(item.faces)[0] : 'SAUDAVEL')
 
         await tx.toothCondition.upsert({
           where: {
@@ -214,17 +214,30 @@ export async function CreateEvolution(
 
     return evolution
   })
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor?.userId || dentist.id,
+    userName: actor?.userName || dentist.name,
+    userRole: actor?.userRole || (dentist.role as UserRole),
+    action: 'CREATE',
+    entity: 'EVOLUTION',
+    entityId: result.id,
+    details: `Registrou evolução clínica. Profissional: Dr(a). ${dentist.name}`,
+  })
+
+  return result
 }
 
-// -----------------------------------------------------------------------------
-// LOCK EVOLUTION
-// -----------------------------------------------------------------------------
 export async function lockEvolution(
   tenantId: string,
-  evolutionId: string
+  clinicId: string,
+  evolutionId: string,
+  actor: ActorContext
 ) {
   const evolution = await prisma.evolution.findFirst({
-    where: { id: evolutionId, tenantId }
+    where: { id: evolutionId, tenantId },
   })
 
   if (!evolution) {
@@ -234,22 +247,35 @@ export async function lockEvolution(
     throw new AppError('Evolução já está travada.', 400)
   }
 
-  return prisma.evolution.update({
+  const updated = await prisma.evolution.update({
     where: { id: evolutionId },
-    data: { isLocked: true, lockedAt: new Date() }
+    data: { isLocked: true, lockedAt: new Date() },
   })
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'DENTIST',
+    action: 'UPDATE',
+    entity: 'EVOLUTION',
+    entityId: evolutionId,
+    details: `Bloqueou/Trancou permanentemente a evolução clínica ID: ${evolutionId}`,
+  })
+
+  return updated
 }
 
-// -----------------------------------------------------------------------------
-// UPDATE EVOLUTION
-// -----------------------------------------------------------------------------
 export async function updateEvolution(
   tenantId: string,
+  clinicId: string,
   evolutionId: string,
-  description: string
+  description: string,
+  actor: ActorContext
 ) {
   const evolution = await prisma.evolution.findFirst({
-    where: { id: evolutionId, tenantId }
+    where: { id: evolutionId, tenantId },
   })
 
   if (!evolution) {
@@ -259,20 +285,32 @@ export async function updateEvolution(
     throw new AppError('Evolução travada não pode ser editada.', 400)
   }
 
-  return prisma.evolution.update({
+  const updated = await prisma.evolution.update({
     where: { id: evolutionId },
-    data: { description }
+    data: { description },
   })
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'DENTIST',
+    action: 'UPDATE',
+    entity: 'EVOLUTION',
+    entityId: evolutionId,
+    details: `Editou a descrição da evolução clínica ID: ${evolutionId}`,
+  })
+
+  return updated
 }
 
-// -----------------------------------------------------------------------------
-// UPSERT TOOTH CONDITION
-// -----------------------------------------------------------------------------
 export async function upsertToothCondition(
   tenantId: string,
   clinicId: string,
   patientOrRecordId: string,
-  data: ToothConditionDTO
+  data: ToothConditionDTO,
+  actor: ActorContext
 ) {
   const { toothNumber, condition, faces, notes } = data
 
@@ -285,7 +323,7 @@ export async function upsertToothCondition(
 
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-  return prisma.toothCondition.upsert({
+  const result = await prisma.toothCondition.upsert({
     where: {
       medicalRecordId_toothNumber: {
         medicalRecordId: medicalRecord.id,
@@ -306,11 +344,22 @@ export async function upsertToothCondition(
       notes,
     },
   })
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'DENTIST',
+    action: 'UPDATE',
+    entity: 'ODONTOGRAM',
+    entityId: result.id,
+    details: `Atualizou dente #${toothNumber} para condição "${condition}"`,
+  })
+
+  return result
 }
 
-// -----------------------------------------------------------------------------
-// GET ODONTOGRAM
-// -----------------------------------------------------------------------------
 export async function getOdontogram(
   tenantId: string,
   clinicId: string,
@@ -322,7 +371,7 @@ export async function getOdontogram(
     where: { id: medicalRecord.id },
     include: {
       toothConditions: {
-        orderBy: { toothNumber: 'asc' }
+        orderBy: { toothNumber: 'asc' },
       },
     },
   })
@@ -332,23 +381,23 @@ export async function getOdontogram(
 
   return VALID_TOOTH_NUMBERS.map((toothNumber) => {
     const existing = conditionMap.get(toothNumber)
-    return existing ?? {
-      toothNumber,
-      condition: 'SAUDAVEL',
-      faces: [],
-      notes: null
-    }
+    return (
+      existing ?? {
+        toothNumber,
+        condition: 'SAUDAVEL',
+        faces: [],
+        notes: null,
+      }
+    )
   })
 }
 
-// -----------------------------------------------------------------------------
-// DELETE TOOTH CONDITION
-// -----------------------------------------------------------------------------
 export async function deleteToothCondition(
   tenantId: string,
   clinicId: string,
   patientOrRecordId: string,
-  toothNumber: number
+  toothNumber: number,
+  actor: ActorContext
 ) {
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
@@ -366,7 +415,19 @@ export async function deleteToothCondition(
   }
 
   await prisma.toothCondition.delete({
-    where: { id: toothCondition.id }
+    where: { id: toothCondition.id },
+  })
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'DENTIST',
+    action: 'DELETE',
+    entity: 'ODONTOGRAM',
+    entityId: toothCondition.id,
+    details: `Removeu marcação do dente #${toothNumber}`,
   })
 }
 
@@ -376,12 +437,17 @@ export class EvolutionService {
     clinicId: string,
     patientOrRecordId: string,
     dentistId: string,
-    data: CreateEvolutionDTO
+    data: CreateEvolutionDTO,
+    actor?: ActorContext
   ) {
-    return CreateEvolution(tenantId, clinicId, patientOrRecordId, dentistId, data)
+    return CreateEvolution(tenantId, clinicId, patientOrRecordId, dentistId, data, actor)
   }
 
-  async getEvolutionsByMedicalRecord(tenantId: string, clinicId: string, patientOrRecordId: string) {
+  async getEvolutionsByMedicalRecord(
+    tenantId: string,
+    clinicId: string,
+    patientOrRecordId: string
+  ) {
     return getEvolutionsByPatient(tenantId, clinicId, patientOrRecordId)
   }
 
@@ -389,7 +455,30 @@ export class EvolutionService {
     return getEvolutionsByPatient(tenantId, clinicId, patientOrRecordId)
   }
 
-  async getCurrentOdontogram(tenantId: string, clinicId: string, patientOrRecordId: string) {
+  async getCurrentOdontogram(
+    tenantId: string,
+    clinicId: string,
+    patientOrRecordId: string
+  ) {
     return getOdontogram(tenantId, clinicId, patientOrRecordId)
+  }
+
+  async lockEvolution(
+    tenantId: string,
+    clinicId: string,
+    evolutionId: string,
+    actor: ActorContext
+  ) {
+    return lockEvolution(tenantId, clinicId, evolutionId, actor)
+  }
+
+  async updateEvolution(
+    tenantId: string,
+    clinicId: string,
+    evolutionId: string,
+    description: string,
+    actor: ActorContext
+  ) {
+    return updateEvolution(tenantId, clinicId, evolutionId, description, actor)
   }
 }

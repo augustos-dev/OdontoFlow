@@ -1,13 +1,14 @@
-
-
 import type { Request, Response, NextFunction } from 'express'
 import * as clinicService from '../services/clinicService'
+import type { UserRole } from '@prisma/client'
 import type { CreateClinicDTO, UpdateClinicDTO, ClinicFiltersDTO } from '../types/clinics.types'
 
 export async function createClinicController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId } = req.user!
-    const clinic = await clinicService.createClinic(tenantId, req.body as CreateClinicDTO)
+    const { tenantId, sub: userId, name: userName, role } = req.user!
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const clinic = await clinicService.createClinic(tenantId, req.body as CreateClinicDTO, actor)
     res.status(201).json(clinic)
   } catch (error) {
     next(error)
@@ -43,9 +44,11 @@ export async function getClinicByIdController(req: Request, res: Response, next:
 
 export async function updateClinicController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId } = req.user!
+    const { tenantId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    const clinic = await clinicService.updateClinic(tenantId, id as string, req.body as UpdateClinicDTO)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const clinic = await clinicService.updateClinic(tenantId, id as string, req.body as UpdateClinicDTO, actor)
     res.status(200).json(clinic)
   } catch (error) {
     next(error)
@@ -54,9 +57,11 @@ export async function updateClinicController(req: Request, res: Response, next: 
 
 export async function deactivateClinicController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId } = req.user!
+    const { tenantId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    const clinic = await clinicService.deactivateClinic(tenantId, id as string)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const clinic = await clinicService.deactivateClinic(tenantId, id as string, actor)
     res.status(200).json(clinic)
   } catch (error) {
     next(error)
@@ -65,9 +70,11 @@ export async function deactivateClinicController(req: Request, res: Response, ne
 
 export async function reactivateClinicController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId } = req.user!
+    const { tenantId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    const clinic = await clinicService.reactivateClinic(tenantId, id as string)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const clinic = await clinicService.reactivateClinic(tenantId, id as string, actor)
     res.status(200).json(clinic)
   } catch (error) {
     next(error)

@@ -1,37 +1,30 @@
 import { Request, Response, NextFunction } from 'express'
 import * as medicalRecordService from '../services/medicalRecordService'
 import { uploadToSupabase } from '../services/storageService'
+import type { UserRole } from '@prisma/client'
 import type {
   UpdateMedicalRecordsDTO,
   ToothConditionDTO,
   CreateEvolutionDTO
 } from '../types/medicalRecord.types'
 
-/**
- * Auxiliar para extrair o ID de paciente/prontuário dos parâmetros da rota
- */
 function getRecordIdParam(req: Request): string {
   const { id, patientId, medicalRecordId } = req.params
   return (id || patientId || medicalRecordId) as string
 }
 
-/**
- * Processa uploads com sanitização de nomes e suporte completo para PDFs e Imagens
- */
 async function processAttachments(req: Request): Promise<string[]> {
   const files = req.files as Express.Multer.File[] | undefined
   let attachmentUrls: string[] = []
 
   if (files && files.length > 0) {
     const uploadPromises = files.map(file => {
-      // 1. Garante higienização do nome para evitar rejeição por path inválido no Supabase
       const ext = file.originalname.includes('.')
         ? file.originalname.split('.').pop()
         : file.mimetype === 'application/pdf' ? 'pdf' : 'jpg'
 
       const sanitizedFileName = `evo_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`
       
-      // Cria objeto limpo mantendo buffer e mimetype intactos
       const cleanFile: Express.Multer.File = {
         ...file,
         filename: sanitizedFileName,
@@ -44,7 +37,6 @@ async function processAttachments(req: Request): Promise<string[]> {
     attachmentUrls = await Promise.all(uploadPromises)
   }
 
-  // 2. Anexos legados/enviados no body
   if (req.body?.attachments) {
     let bodyAttachments = req.body.attachments
 
@@ -93,14 +85,13 @@ export async function createEvolutionController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId, sub } = req.user!
+    const { tenantId, clinicId, sub, name: userName, role } = req.user!
     const dentistId = sub || (req.user as any).id
     const targetId = getRecordIdParam(req)
+    const actor = { userId: dentistId, userName: userName || 'Usuário', userRole: role as UserRole }
 
-    // Upload seguro de anexos
     const attachmentUrls = await processAttachments(req)
 
-    // Parse seguro de FormData
     let parsedSnapshot = req.body.odontogramSnapshot
     if (typeof parsedSnapshot === 'string') {
       try {
@@ -121,7 +112,8 @@ export async function createEvolutionController(
       clinicId,
       targetId,
       dentistId,
-      evolutionData
+      evolutionData,
+      actor
     )
 
     res.status(201).json(evolution)
@@ -136,14 +128,17 @@ export async function updateEvolutionController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { evolutionId } = req.params
     const { description } = req.body
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
 
     const updatedEvolution = await medicalRecordService.updateEvolution(
       tenantId,
+      clinicId,
       evolutionId as string,
-      description
+      description,
+      actor
     )
 
     res.status(200).json(updatedEvolution)
@@ -158,12 +153,15 @@ export async function lockEvolutionController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { evolutionId } = req.params
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
 
     const lockedEvolution = await medicalRecordService.lockEvolution(
       tenantId,
-      evolutionId as string
+      clinicId,
+      evolutionId as string,
+      actor
     )
 
     res.status(200).json(lockedEvolution)
@@ -195,13 +193,16 @@ export async function updateMedicalRecordController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const targetId = getRecordIdParam(req)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
     const record = await medicalRecordService.updateMedicalRecord(
       tenantId, 
       clinicId, 
       targetId, 
-      req.body as UpdateMedicalRecordsDTO
+      req.body as UpdateMedicalRecordsDTO,
+      actor
     )
     res.status(200).json(record)
   } catch (error) {
@@ -230,13 +231,16 @@ export async function upsertToothConditionController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const targetId = getRecordIdParam(req)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
     const toothCondition = await medicalRecordService.upsertToothCondition(
       tenantId,
       clinicId,
       targetId,
-      req.body as ToothConditionDTO
+      req.body as ToothConditionDTO,
+      actor
     )
     res.status(200).json(toothCondition)
   } catch (error) {
@@ -250,10 +254,18 @@ export async function deleteToothConditionController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { toothNumber } = req.params
     const targetId = getRecordIdParam(req)
-    await medicalRecordService.deleteToothCondition(tenantId, clinicId, targetId, Number(toothNumber))
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    await medicalRecordService.deleteToothCondition(
+      tenantId, 
+      clinicId, 
+      targetId, 
+      Number(toothNumber),
+      actor
+    )
     res.status(204).send()
   } catch (error) {
     next(error)

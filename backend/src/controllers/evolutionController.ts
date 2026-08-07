@@ -1,31 +1,24 @@
 import { Request, Response, NextFunction } from 'express'
 import { EvolutionService } from '../services/evolutionService'
+import type { UserRole } from '@prisma/client'
 import type { CreateEvolutionDTO } from '../types/medicalRecord.types'
 import 'multer'
 
 const evolutionService = new EvolutionService()
 
-/**
- * Auxiliar interno para extrair parâmetro da URL de forma flexível
- */
 function getRecordIdParam(req: Request): string {
   const { id, patientId, medicalRecordId } = req.params
   return (id || patientId || medicalRecordId) as string
 }
 
-/**
- * Auxiliar para extrair URLs dos arquivos gravados (via Multer / S3 / Supabase)
- */
 function extractAttachmentUrls(req: Request): string[] {
   const files = (req as any).files as Express.Multer.File[] | undefined
   const body = req.body || {}
 
-  // 1. Se vieram arquivos via Multer (multipart/form-data)
   if (files && Array.isArray(files) && files.length > 0) {
     return files.map(file => file.filename)
   }
 
-  // 2. Fallback caso venha via JSON puro
   if (body.attachments) {
     return Array.isArray(body.attachments)
       ? body.attachments
@@ -36,9 +29,6 @@ function extractAttachmentUrls(req: Request): string[] {
 }
 
 export class EvolutionController {
-  /**
-   * Cria uma nova evolução clínica, salvando fotos/anexos e o snapshot do odontograma
-   */
   async createEvolution(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
@@ -46,9 +36,10 @@ export class EvolutionController {
         return
       }
 
-      const { tenantId, clinicId, sub: dentistId } = req.user
+      const { tenantId, clinicId, sub: dentistId, name: userName, role } = req.user
       const targetId = getRecordIdParam(req)
       const attachmentUrls = extractAttachmentUrls(req)
+      const actor = { userId: dentistId, userName: userName || 'Usuário', userRole: role as UserRole }
 
       const dto: CreateEvolutionDTO = {
         description: req.body.description,
@@ -61,7 +52,8 @@ export class EvolutionController {
         clinicId,
         targetId,
         dentistId as string,
-        dto
+        dto,
+        actor
       )
 
       res.status(201).json(evolution)
@@ -70,9 +62,6 @@ export class EvolutionController {
     }
   }
 
-  /**
-   * Lista a timeline de evoluções clínicas do prontuário/paciente
-   */
   async getEvolutions(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
@@ -95,9 +84,6 @@ export class EvolutionController {
     }
   }
 
-  /**
-   * Atualiza a descrição de uma evolução (se não estiver travada)
-   */
   async updateEvolution(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
@@ -105,14 +91,17 @@ export class EvolutionController {
         return
       }
 
-      const { tenantId } = req.user
+      const { tenantId, clinicId, sub: userId, name: userName, role } = req.user
       const { evolutionId } = req.params
       const { description } = req.body as { description: string }
+      const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
 
       const evolution = await evolutionService.updateEvolution(
         tenantId,
+        clinicId,
         evolutionId as string,
-        description
+        description,
+        actor
       )
 
       res.status(200).json(evolution)
@@ -121,9 +110,6 @@ export class EvolutionController {
     }
   }
 
-  /**
-   * Tranca a evolução contra edições futuras
-   */
   async lockEvolution(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
@@ -131,12 +117,15 @@ export class EvolutionController {
         return
       }
 
-      const { tenantId } = req.user
+      const { tenantId, clinicId, sub: userId, name: userName, role } = req.user
       const { evolutionId } = req.params
+      const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
 
       const evolution = await evolutionService.lockEvolution(
         tenantId,
-        evolutionId as string
+        clinicId,
+        evolutionId as string,
+        actor
       )
 
       res.status(200).json(evolution)
