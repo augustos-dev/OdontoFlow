@@ -22,17 +22,18 @@ import styles from './modal.module.css'
 export interface StockProductInput {
   id: string
   name: string
+  batchNumber: string
   quantity: number
   minQuantity: number
   expirationDate: string
   supplierId: string
-  lotNumber: string
   observation: string
 }
 
 interface ProductDb {
   id: string
   name: string
+  batchNumber?: string
   quantity: number
   minQuantity: number
   expiryDate?: string
@@ -52,7 +53,6 @@ interface StockManagementModalProps {
   planType?: 'BASIC' | 'PREMIUM'
 }
 
-// Motivos padrão para o Plano Premium
 const REASONS_INCREASE = [
   'Compra / Reposição de Estoque',
   'Ajuste de Contagem (Inventário)',
@@ -79,31 +79,31 @@ export function StockManagementModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
 
-  // ─── ESTADOS DA ABA 1: ALTERAR QUANTIDADE ───
+  // ─── ABA 1: ALTERAR QUANTIDADE ───
   const [dbProducts, setDbProducts] = useState<ProductDb[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [adjustments, setAdjustments] = useState<Record<string, number>>({})
 
-  // ─── ESTADO PREMIUM: MOTIVOS ───
+  // ─── RECURSO PREMIUM ───
   const [showReasonsStep, setShowReasonsStep] = useState(false)
   const [reasonsMap, setReasonsMap] = useState<Record<string, string>>({})
 
-  // ─── ESTADOS DA ABA 2: CADASTRAR NOVO PRODUTO ───
+  // ─── ABA 2: CADASTRAR NOVO PRODUTO ───
   const [suppliers, setSuppliers] = useState<SupplierDb[]>([])
   const [products, setProducts] = useState<StockProductInput[]>([
     {
       id: String(Date.now()),
       name: '',
+      batchNumber: '',
       quantity: 1,
       minQuantity: 1,
       expirationDate: '',
       supplierId: '',
-      lotNumber: '',
       observation: '',
     },
   ])
 
-  // ─── ESTADOS DA ABA 3: IMPORTAR PLANILHA ───
+  // ─── ABA 3: IMPORTAR PLANILHA ───
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
@@ -131,7 +131,7 @@ export function StockManagementModal({
       })
       setAdjustments(initialMap)
     } catch (err) {
-      console.error('Erro ao carregar produtos para ajuste:', err)
+      console.error('Erro ao carregar produtos:', err)
     } finally {
       setIsLoadingProducts(false)
     }
@@ -149,20 +149,16 @@ export function StockManagementModal({
 
   if (!isOpen) return null
 
-  // ─── HANDLERS DA ABA 1 ───
+  // ─── HANDLERS ABA 1 ───
   const handleQuantityChange = (id: string, delta: number) => {
     setAdjustments((prev) => {
       const current = prev[id] ?? 0
-      const updated = Math.max(0, current + delta)
-      return { ...prev, [id]: updated }
+      return { ...prev, [id]: Math.max(0, current + delta) }
     })
   }
 
   const handleQuantityInput = (id: string, val: number) => {
-    setAdjustments((prev) => ({
-      ...prev,
-      [id]: Math.max(0, val),
-    }))
+    setAdjustments((prev) => ({ ...prev, [id]: Math.max(0, val) }))
   }
 
   const changedProducts = dbProducts.filter(
@@ -195,7 +191,6 @@ export function StockManagementModal({
         changedProducts.map((p) => {
           const newQty = Number(adjustments[p.id])
           const delta = newQty - p.quantity
-
           const reason =
             planType === 'PREMIUM'
               ? reasonsMap[p.id] || (delta > 0 ? 'Entrada manual' : 'Saída manual')
@@ -219,7 +214,7 @@ export function StockManagementModal({
     }
   }
 
-  // ─── HANDLERS DA ABA 2 (CADASTRAR PRODUTO) ───
+  // ─── HANDLERS ABA 2 (CADASTRAR COM LOTE) ───
   const handleProductChange = (index: number, field: keyof StockProductInput, value: any) => {
     const updated = [...products]
     updated[index] = { ...updated[index], [field]: value }
@@ -232,11 +227,11 @@ export function StockManagementModal({
       {
         id: String(Date.now() + Math.random()),
         name: '',
+        batchNumber: '',
         quantity: 1,
         minQuantity: 1,
         expirationDate: '',
         supplierId: '',
-        lotNumber: '',
         observation: '',
       },
     ])
@@ -263,10 +258,10 @@ export function StockManagementModal({
         validProducts.map(async (p) => {
           const payload = {
             name: p.name,
+            batchNumber: p.batchNumber.trim() || undefined,
             quantity: Number(p.quantity),
             minQuantity: Number(p.minQuantity),
             supplierId: p.supplierId || undefined,
-            lotNumber: p.lotNumber || undefined,
             expiryDate: p.expirationDate ? new Date(p.expirationDate).toISOString() : undefined,
             notes: p.observation || undefined,
           }
@@ -281,24 +276,24 @@ export function StockManagementModal({
         {
           id: String(Date.now()),
           name: '',
+          batchNumber: '',
           quantity: 1,
           minQuantity: 1,
           expirationDate: '',
           supplierId: '',
-          lotNumber: '',
           observation: '',
         },
       ])
       onClose()
     } catch (err: any) {
-      console.error('Erro ao cadastrar produtos no banco:', err)
+      console.error('Erro ao cadastrar produtos:', err)
       alert(`Erro ao cadastrar produtos: ${err.response?.data?.message || 'Falha no servidor.'}`)
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  // ─── HANDLERS DA ABA 3 (IMPORTAR PLANILHA) ───
+  // ─── HANDLERS ABA 3 ───
   const handleDropzoneClick = () => {
     fileInputRef.current?.click()
   }
@@ -310,10 +305,10 @@ export function StockManagementModal({
 
   const handleDownloadTemplate = (e: React.MouseEvent) => {
     e.preventDefault()
-    const csvHeader = 'nome;quantidade;quantidade_minima;validade;lote;observacoes\n'
+    const csvHeader = 'nome;lote;quantidade;quantidade_minima;validade;observacoes\n'
     const csvRows = [
-      'Anestésico Tubete;50;10;2026-12-31;LT-8842;Mantenha refrigerado',
-      'Caixa de Luvas P;20;5;2027-05-15;LT-9910;Marca Supermax',
+      'Anestésico Tubete;LT-8842;50;10;2026-12-31;Mantenha refrigerado',
+      'Caixa de Luvas P;LT-9910;20;5;2027-05-15;Marca Supermax',
     ].join('\n')
 
     const csvContent = '\uFEFF' + csvHeader + csvRows
@@ -351,10 +346,10 @@ export function StockManagementModal({
           const cols = row.split(delimiter).map((c) => c.trim().replace(/^"|"$/g, ''))
           return {
             name: cols[0] || '',
-            quantity: Number(cols[1]) || 0,
-            minQuantity: Number(cols[2]) || 0,
-            expiryDate: cols[3] ? new Date(cols[3]).toISOString() : undefined,
-            lotNumber: cols[4] || undefined,
+            batchNumber: cols[1] || undefined,
+            quantity: Number(cols[2]) || 0,
+            minQuantity: Number(cols[3]) || 0,
+            expiryDate: cols[4] ? new Date(cols[4]).toISOString() : undefined,
             notes: cols[5] || undefined,
           }
         })
@@ -380,7 +375,6 @@ export function StockManagementModal({
           <X size={20} />
         </button>
 
-        {/* ─── NAVEGAÇÃO DE ABAS ─── */}
         {!showReasonsStep && (
           <div className={styles.tabNav}>
             <button
@@ -426,7 +420,7 @@ export function StockManagementModal({
                 {isLoadingProducts ? (
                   <div className={styles.loadingState}>
                     <Loader2 size={24} className={styles.spinner} />
-                    <span>Carregando produtos do estoque...</span>
+                    <span>Carregando produtos...</span>
                   </div>
                 ) : dbProducts.length === 0 ? (
                   <div className={styles.emptyTabState}>
@@ -450,7 +444,9 @@ export function StockManagementModal({
                           <div key={item.id} className={styles.adjustRow}>
                             <div className={styles.productMeta}>
                               <span className={styles.productName}>{item.name}</span>
-                              <span className={styles.productSub}>Estoque Mínimo: {item.minQuantity} un.</span>
+                              <span className={styles.productSub}>
+                                Lote: {item.batchNumber || '—'} | Min: {item.minQuantity} un.
+                              </span>
                             </div>
 
                             <div className={styles.counterWrapper}>
@@ -504,14 +500,13 @@ export function StockManagementModal({
                 </div>
               </>
             ) : (
-              /* PASSO 2 PREMIUM: JUSTIFICATIVAS */
               <div className={styles.reasonsStepContainer}>
                 <div className={styles.reasonsHeader}>
                   <div className={styles.premiumBadgeHeader}>
                     <Sparkles size={14} /> <span>Recurso Premium</span>
                   </div>
-                  <h3>Justificativa de Movimentação de Estoque</h3>
-                  <p>Selecione o motivo da alteração para rastreabilidade nos relatórios e auditoria.</p>
+                  <h3>Justificativa de Movimentação</h3>
+                  <p>Selecione o motivo da alteração para rastreabilidade nos relatórios.</p>
                 </div>
 
                 <div className={styles.adjustListScroll}>
@@ -567,7 +562,7 @@ export function StockManagementModal({
                         <span>Confirmando...</span>
                       </>
                     ) : (
-                      <span>Confirmar e Salvar Motivos</span>
+                      <span>Confirmar e Salvar</span>
                     )}
                   </button>
                 </div>
@@ -576,17 +571,17 @@ export function StockManagementModal({
           </div>
         )}
 
-        {/* ─── ABA 2: CADASTRAR NOVO PRODUTO ─── */}
+        {/* ─── ABA 2: CADASTRAR NOVO PRODUTO (COM CAMPO LOTE) ─── */}
         {activeTab === 'create' && (
           <form onSubmit={handleSubmitCreate}>
             <div className={styles.formListScroll}>
               {products.map((item, index) => (
-                <div key={item.id} className={styles.formRow}>
-                  <div className={styles.col3}>
+                <div key={item.id} className={styles.formRowWithLot}>
+                  <div className={styles.colName}>
                     {index === 0 && <label className={styles.label}>Nome do produto *</label>}
                     <input
                       type="text"
-                      placeholder="Ex: Anestésico Tubete 2%"
+                      placeholder="Ex: Anestésico Tubete"
                       value={item.name}
                       onChange={(e) => handleProductChange(index, 'name', e.target.value)}
                       className={styles.input}
@@ -594,7 +589,18 @@ export function StockManagementModal({
                     />
                   </div>
 
-                  <div className={styles.col2}>
+                  <div className={styles.colLot}>
+                    {index === 0 && <label className={styles.label}>Lote / Código</label>}
+                    <input
+                      type="text"
+                      placeholder="Ex: LT-8842"
+                      value={item.batchNumber}
+                      onChange={(e) => handleProductChange(index, 'batchNumber', e.target.value)}
+                      className={styles.input}
+                    />
+                  </div>
+
+                  <div className={styles.colNumber}>
                     {index === 0 && <label className={styles.label}>Qtd. Inicial</label>}
                     <input
                       type="number"
@@ -605,7 +611,7 @@ export function StockManagementModal({
                     />
                   </div>
 
-                  <div className={styles.col2}>
+                  <div className={styles.colNumber}>
                     {index === 0 && <label className={styles.label}>Qtd. Mínima</label>}
                     <input
                       type="number"
@@ -616,7 +622,7 @@ export function StockManagementModal({
                     />
                   </div>
 
-                  <div className={styles.col2}>
+                  <div className={styles.colSelect}>
                     {index === 0 && <label className={styles.label}>Fornecedor</label>}
                     <select
                       value={item.supplierId}
@@ -632,7 +638,7 @@ export function StockManagementModal({
                     </select>
                   </div>
 
-                  <div className={styles.col2}>
+                  <div className={styles.colDate}>
                     {index === 0 && <label className={styles.label}>Validade</label>}
                     <input
                       type="date"
@@ -642,7 +648,7 @@ export function StockManagementModal({
                     />
                   </div>
 
-                  <div className={styles.col1Flex}>
+                  <div className={styles.colAction}>
                     {products.length > 1 && (
                       <button
                         type="button"
@@ -699,8 +705,8 @@ export function StockManagementModal({
             />
 
             <div className={styles.importHeader}>
-              <h3 className={styles.importTitle}>Importe seus produtos a partir de uma planilha</h3>
-              <p className={styles.importSub}>Envie um arquivo CSV com os dados dos seus produtos.</p>
+              <h3 className={styles.importTitle}>Importe seus produtos via planilha</h3>
+              <p className={styles.importSub}>Envie um arquivo CSV com os dados do seu estoque.</p>
             </div>
 
             <div className={styles.dropzone} onClick={handleDropzoneClick}>
@@ -729,10 +735,10 @@ export function StockManagementModal({
             <div className={styles.instructionsBox}>
               <p className={styles.instructionsTitle}>Colunas da planilha:</p>
               <p><strong>nome</strong> — nome do produto (obrigatório)</p>
-              <p><strong>quantidade</strong> — quantidade em estoque</p>
+              <p><strong>lote</strong> — código/número do lote</p>
+              <p><strong>quantidade</strong> — quantidade inicial em estoque</p>
               <p><strong>quantidade_minima</strong> — estoque mínimo para alertas</p>
               <p><strong>validade</strong> — AAAA-MM-DD</p>
-              <p><strong>lote</strong> — número do lote</p>
             </div>
 
             <div className={styles.modalFooter}>

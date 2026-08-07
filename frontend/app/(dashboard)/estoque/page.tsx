@@ -9,41 +9,92 @@ import {
   Loader2,
   Plus,
   BarChart3,
-  TrendingDown
+  TrendingDown,
+  Building2,
+  Search,
+  Phone,
+  Mail,
+  History,
+  Calendar,
+  X,
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react'
 import api from '@/lib/api'
 import { StockManagementModal, StockProductInput } from '../../components/estoque/StockManagementModal'
 import styles from './estoque.module.css'
 
+interface Supplier {
+  id: string
+  name: string
+  corporateName?: string
+  cnpj?: string
+  phone?: string
+  email?: string
+}
+
+interface StockMovement {
+  id: string
+  type: 'IN' | 'OUT' | 'ADJUSTMENT'
+  quantity: number
+  reason?: string
+  createdAt: string
+  user?: { name: string }
+}
+
+interface ProductDetails {
+  id: string
+  name: string
+  batchNumber?: string
+  quantity: number
+  minQuantity: number
+  expirationDate?: string
+  supplier?: Supplier
+  stockMovements?: StockMovement[]
+}
+
 interface Product {
   id: string
   name: string
+  batchNumber?: string
   quantity: number
   minQuantity: number
   expiryDate?: string
   stockStatus?: 'OK' | 'BAIXO' | 'CRITICO'
-  supplier?: { id: string; name: string }
+  supplier?: Supplier
   usageCount?: number
 }
 
 export default function EstoquePage() {
+  const [mainTab, setMainTab] = useState<'products' | 'suppliers'>('products')
   const [products, setProducts] = useState<Product[]>([])
   const [lowStock, setLowStock] = useState<Product[]>([])
   const [expiring, setExpiring] = useState<Product[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'all' | 'critical' | 'expiring'>('all')
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false)
   
+  const [productFilterTab, setProductFilterTab] = useState<'all' | 'critical' | 'expiring'>('all')
+  const [searchTerm, setSearchTerm] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Função central para buscar estoque com tratamento de resiliência por rota
+  // Visão Detalhada do Produto
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
+  const [productDetails, setProductDetails] = useState<ProductDetails | null>(null)
+  const [loadingDetails, setLoadingDetails] = useState(false)
+
+  // Cadastro Rápido de Fornecedor
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
+  const [newSupplier, setNewSupplier] = useState({ name: '', cnpj: '', phone: '', email: '' })
+  const [savingSupplier, setSavingSupplier] = useState(false)
+
+  // Carrega Estoque
   const loadStockData = useCallback(async () => {
     setLoading(true)
     try {
-      // 1. Busca a lista principal
       const allRes = await api.get('/products?limit=100')
       const fetchedProducts: Product[] = allRes.data.data || allRes.data || []
       
-      // Mapeia o stockStatus caso não venha calculado do backend
       const mappedProducts = fetchedProducts.map((p) => {
         const isCritical = p.quantity <= p.minQuantity
         return {
@@ -54,45 +105,90 @@ export default function EstoquePage() {
       
       setProducts(mappedProducts)
 
-      // 2. Busca endpoints auxiliares de forma segura (não bloqueia a tela se falharem)
       try {
         const lowRes = await api.get('/products/low-stock')
         setLowStock(lowRes.data || [])
-      } catch (err) {
-        // Fallback local caso o endpoint retorne 404
+      } catch {
         setLowStock(mappedProducts.filter((p) => p.quantity <= p.minQuantity))
       }
 
       try {
         const expRes = await api.get('/products/expiring')
         setExpiring(expRes.data || [])
-      } catch (err) {
+      } catch {
         setExpiring([])
       }
 
     } catch (err) {
-      console.error('Erro ao carregar lista principal de estoque:', err)
+      console.error('Erro ao carregar estoque:', err)
     } finally {
       setLoading(false)
     }
   }, [])
 
+  // Carrega Fornecedores
+  const loadSuppliers = useCallback(async () => {
+    setLoadingSuppliers(true)
+    try {
+      const res = await api.get('/suppliers')
+      setSuppliers(res.data.data || res.data || [])
+    } catch (err) {
+      console.error('Erro ao carregar fornecedores:', err)
+    } finally {
+      setLoadingSuppliers(false)
+    }
+  }, [])
+
   useEffect(() => {
     loadStockData()
-  }, [loadStockData])
+    loadSuppliers()
+  }, [loadStockData, loadSuppliers])
+
+  // Detalhes do Produto
+  const handleOpenProductDetails = async (productId: string) => {
+    setSelectedProductId(productId)
+    setLoadingDetails(true)
+    try {
+      const res = await api.get(`/products/${productId}/details`)
+      setProductDetails(res.data)
+    } catch {
+      const fallbackProd = products.find((p) => p.id === productId)
+      if (fallbackProd) {
+        setProductDetails({
+          id: fallbackProd.id,
+          name: fallbackProd.name,
+          batchNumber: fallbackProd.batchNumber,
+          quantity: fallbackProd.quantity,
+          minQuantity: fallbackProd.minQuantity,
+          expirationDate: fallbackProd.expiryDate,
+          supplier: fallbackProd.supplier,
+          stockMovements: [],
+        })
+      }
+    } finally {
+      setLoadingDetails(false)
+    }
+  }
+
+  // Salvar Fornecedor
+  const handleCreateSupplier = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newSupplier.name) return
+    setSavingSupplier(true)
+    try {
+      await api.post('/suppliers', newSupplier)
+      setNewSupplier({ name: '', cnpj: '', phone: '', email: '' })
+      setIsSupplierModalOpen(false)
+      loadSuppliers()
+    } catch (err) {
+      console.error('Erro ao cadastrar fornecedor:', err)
+    } finally {
+      setSavingSupplier(false)
+    }
+  }
 
   const handleSaveNewProducts = (newProducts: StockProductInput[]) => {
-    const formatted: Product[] = newProducts.map((p) => ({
-      id: p.id,
-      name: p.name,
-      quantity: p.quantity,
-      minQuantity: p.minQuantity,
-      expiryDate: p.expirationDate,
-      stockStatus: p.quantity <= p.minQuantity ? 'CRITICO' : 'OK',
-      usageCount: 0,
-    }))
-
-    setProducts((prev) => [...formatted, ...prev])
+    loadStockData()
   }
 
   const getComputedStatus = (p: Product) => {
@@ -100,7 +196,14 @@ export default function EstoquePage() {
     return p.quantity <= p.minQuantity ? 'CRITICO' : 'OK'
   }
 
-  const displayed = tab === 'all' ? products : tab === 'critical' ? lowStock : expiring
+  const rawDisplayed = productFilterTab === 'all' ? products : productFilterTab === 'critical' ? lowStock : expiring
+  const displayed = rawDisplayed.filter((p) => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
+
+  const filteredSuppliers = suppliers.filter((s) => 
+    s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (s.cnpj && s.cnpj.includes(searchTerm))
+  )
+
   const totalOk = products.filter((p) => getComputedStatus(p) === 'OK').length
   const totalCritico = products.filter((p) => {
     const status = getComputedStatus(p)
@@ -134,19 +237,42 @@ export default function EstoquePage() {
   return (
     <div className={styles.page}>
       
-      {/* ─── Ações de Topo ─── */}
+      {/* ─── Ações de Topo (Sem título duplicado) ─── */}
       <div className={styles.topActionBar}>
         <p className={styles.pageSubtitle}>
-          Gerencie o consumo e reposição de materiais da clínica em tempo real
+          Gerencie o consumo, reposição e a rede de fornecedores da clínica em tempo real
         </p>
-        <button 
-          type="button"
-          className={styles.btnPrimary} 
-          onClick={() => setIsModalOpen(true)}
-        >
-          <Plus size={16} />
-          <span>Gerenciar estoque</span>
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button 
+            type="button" 
+            className={styles.btnSecondary} 
+            onClick={() => { loadStockData(); loadSuppliers(); }}
+            title="Recarregar Dados"
+            style={{ padding: '8px 12px' }}
+          >
+            <RefreshCw size={14} />
+          </button>
+
+          {mainTab === 'products' ? (
+            <button 
+              type="button"
+              className={styles.btnPrimary} 
+              onClick={() => setIsModalOpen(true)}
+            >
+              <Plus size={16} />
+              <span>Gerenciar estoque</span>
+            </button>
+          ) : (
+            <button 
+              type="button"
+              className={styles.btnPrimary} 
+              onClick={() => setIsSupplierModalOpen(true)}
+            >
+              <Plus size={16} />
+              <span>Novo Fornecedor</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ─── Cards de Métricas ─── */}
@@ -182,8 +308,8 @@ export default function EstoquePage() {
         </div>
       </div>
 
-      {/* ─── Seção do Gráfico de Consumo ─── */}
-      {topUsedProducts.length > 0 && (
+      {/* ─── Gráfico de Saídas ─── */}
+      {topUsedProducts.length > 0 && mainTab === 'products' && (
         <div className={styles.chartCard}>
           <div className={styles.chartHeader}>
             <div className={styles.chartTitleRow}>
@@ -224,95 +350,388 @@ export default function EstoquePage() {
         </div>
       )}
 
-      {/* ─── Tabela Principal de Produtos ─── */}
+      {/* ─── Card Principal / Tabela ─── */}
       <div className={styles.card}>
         <div className={styles.cardHeader}>
-          <div className={styles.cardTitleRow}>
-            <div className={styles.titleIconBg}>
-              <Package size={20} color="var(--primary)" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            
+            {/* Abas Principais (Materiais / Fornecedores) */}
+            <div className={styles.tabs}>
+              <button 
+                type="button"
+                className={`${styles.tab} ${mainTab === 'products' ? styles.tabActive : ''}`} 
+                onClick={() => { setMainTab('products'); setSearchTerm(''); }}
+              >
+                <Package size={13} style={{ marginRight: '4px', display: 'inline' }} />
+                Materiais & Produtos
+              </button>
+              <button 
+                type="button"
+                className={`${styles.tab} ${mainTab === 'suppliers' ? styles.tabActive : ''}`} 
+                onClick={() => { setMainTab('suppliers'); setSearchTerm(''); }}
+              >
+                <Building2 size={13} style={{ marginRight: '4px', display: 'inline' }} />
+                Fornecedores
+              </button>
             </div>
-            <div>
-              <h2 className={styles.cardTitle}>Controle de Estoque</h2>
-              <p className={styles.cardSub}>Materiais monitorados em tempo real</p>
+
+            {/* Busca Rápida */}
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+              <input 
+                type="text" 
+                placeholder={mainTab === 'products' ? 'Buscar produto...' : 'Buscar fornecedor...'}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  paddingLeft: '30px',
+                  paddingRight: '12px',
+                  paddingTop: '6px',
+                  paddingBottom: '6px',
+                  fontSize: '12px',
+                  border: '1px solid var(--border, #e2e8f0)',
+                  borderRadius: 'var(--radius-sm, 8px)',
+                  outline: 'none',
+                  background: '#f8fafc',
+                  width: '200px'
+                }}
+              />
             </div>
           </div>
-          <div className={styles.tabs}>
-            <button 
-              type="button"
-              className={`${styles.tab} ${tab === 'all' ? styles.tabActive : ''}`} 
-              onClick={() => setTab('all')}
-            >
-              Todos
-            </button>
-            <button 
-              type="button"
-              className={`${styles.tab} ${tab === 'critical' ? styles.tabActive : ''}`} 
-              onClick={() => setTab('critical')}
-            >
-              Críticos ({lowStock.length})
-            </button>
-            <button 
-              type="button"
-              className={`${styles.tab} ${tab === 'expiring' ? styles.tabActive : ''}`} 
-              onClick={() => setTab('expiring')}
-            >
-              Vencendo ({expiring.length})
-            </button>
-          </div>
+
+          {/* Filtros Secundários de Produtos */}
+          {mainTab === 'products' && (
+            <div className={styles.tabs}>
+              <button 
+                type="button"
+                className={`${styles.tab} ${productFilterTab === 'all' ? styles.tabActive : ''}`} 
+                onClick={() => setProductFilterTab('all')}
+              >
+                Todos
+              </button>
+              <button 
+                type="button"
+                className={`${styles.tab} ${productFilterTab === 'critical' ? styles.tabActive : ''}`} 
+                onClick={() => setProductFilterTab('critical')}
+              >
+                Críticos ({lowStock.length})
+              </button>
+              <button 
+                type="button"
+                className={`${styles.tab} ${productFilterTab === 'expiring' ? styles.tabActive : ''}`} 
+                onClick={() => setProductFilterTab('expiring')}
+              >
+                Vencendo ({expiring.length})
+              </button>
+            </div>
+          )}
         </div>
 
-        {loading ? (
-          <div className={styles.loading}>
-            <Loader2 size={24} className={styles.spinner} />
-            <span>Carregando estoque...</span>
-          </div>
-        ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>NOME DO MATERIAL</th>
-                <th>QUANTIDADE ATUAL</th>
-                <th>ESTOQUE MÍNIMO</th>
-                <th>VALIDADE</th>
-                <th>ALERTA</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayed.length === 0 && (
+        {/* ─── TABELA DE PRODUTOS ─── */}
+        {mainTab === 'products' && (
+          loading ? (
+            <div className={styles.loading}>
+              <Loader2 size={24} className={styles.spinner} />
+              <span>Carregando estoque...</span>
+            </div>
+          ) : (
+            <table className={styles.table}>
+              <thead>
                 <tr>
-                  <td colSpan={5} className={styles.empty}>
-                    Nenhum produto encontrado
-                  </td>
+                  <th>NOME DO MATERIAL</th>
+                  <th>LOTE / CÓDIGO</th>
+                  <th>QUANTIDADE ATUAL</th>
+                  <th>ESTOQUE MÍNIMO</th>
+                  <th>VALIDADE</th>
+                  <th>ALERTA</th>
                 </tr>
-              )}
-              {displayed.map((p) => {
-                const alert = getAlertLabel(p)
-                const computedStatus = getComputedStatus(p)
-                return (
-                  <tr key={p.id} className={styles.row}>
-                    <td className={styles.productName}>{p.name}</td>
-                    <td>
-                      <span className={`${styles.qtyBadge} ${getStockClass(computedStatus)}`}>
-                        {p.quantity}
+              </thead>
+              <tbody>
+                {displayed.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className={styles.empty}>
+                      Nenhum produto encontrado
+                    </td>
+                  </tr>
+                )}
+                {displayed.map((p) => {
+                  const alert = getAlertLabel(p)
+                  const computedStatus = getComputedStatus(p)
+                  return (
+                    <tr 
+                      key={p.id} 
+                      className={styles.row}
+                      onClick={() => handleOpenProductDetails(p.id)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <td className={styles.productName}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{p.name}</span>
+                          <ExternalLink size={12} color="#0284c7" />
+                        </div>
+                      </td>
+                      <td className={styles.minQty}>
+                        {p.batchNumber ? (
+                          <span style={{ fontFamily: 'monospace', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+                            {p.batchNumber}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td>
+                        <span className={`${styles.qtyBadge} ${getStockClass(computedStatus)}`}>
+                          {p.quantity}
+                        </span>
+                      </td>
+                      <td className={styles.minQty}>Min. {p.minQuantity}</td>
+                      <td className={styles.expiry}>{formatDate(p.expiryDate)}</td>
+                      <td>
+                        <span className={`${styles.alertBadge} ${alert.cls}`}>
+                          {alert.isAlert && <AlertTriangle size={12} />}
+                          <span>{alert.label}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )
+        )}
+
+        {/* ─── TABELA DE FORNECEDORES ─── */}
+        {mainTab === 'suppliers' && (
+          loadingSuppliers ? (
+            <div className={styles.loading}>
+              <Loader2 size={24} className={styles.spinner} />
+              <span>Carregando fornecedores...</span>
+            </div>
+          ) : (
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>RAZÃO SOCIAL / NOME</th>
+                  <th>CNPJ / CPF</th>
+                  <th>CONTATO / WHATSAPP</th>
+                  <th>E-MAIL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSuppliers.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className={styles.empty}>
+                      Nenhum fornecedor cadastrado.
+                    </td>
+                  </tr>
+                )}
+                {filteredSuppliers.map((sup) => (
+                  <tr key={sup.id} className={styles.row}>
+                    <td className={styles.productName}>
+                      {sup.corporateName || sup.name}
+                    </td>
+                    <td className={styles.minQty}>{sup.cnpj || 'Não informado'}</td>
+                    <td style={{ fontSize: '12px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Phone size={12} color="#0284c7" /> {sup.phone || '—'}
                       </span>
                     </td>
-                    <td className={styles.minQty}>Min. {p.minQuantity}</td>
-                    <td className={styles.expiry}>{formatDate(p.expiryDate)}</td>
-                    <td>
-                      <span className={`${styles.alertBadge} ${alert.cls}`}>
-                        {alert.isAlert && <AlertTriangle size={12} />}
-                        <span>{alert.label}</span>
+                    <td style={{ fontSize: '12px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Mail size={12} color="#64748b" /> {sup.email || '—'}
                       </span>
                     </td>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          )
         )}
       </div>
 
-      {/* Modal de Gerenciamento em Abas */}
+      {/* ─── MODAL VISÃO DETALHADA DO PRODUTO ─── */}
+      {selectedProductId && (
+        <div className={styles.modalOverlay} onClick={() => setSelectedProductId(null)}>
+          <div className={styles.detailsModalCard} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.detailsHeader}>
+              <div className={styles.titleIconBg}>
+                <Package size={20} color="var(--primary)" />
+              </div>
+              <div>
+                <h3 className={styles.detailsTitle}>{productDetails?.name || 'Detalhes do Material'}</h3>
+                <p className={styles.chartSub}>
+                  Lote: {productDetails?.batchNumber || 'Não informado'}
+                </p>
+              </div>
+              <button 
+                type="button" 
+                className={styles.closeBtn} 
+                onClick={() => setSelectedProductId(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {loadingDetails ? (
+              <div className={styles.loading}>
+                <Loader2 size={24} className={styles.spinner} />
+                <span>Buscando histórico do produto...</span>
+              </div>
+            ) : (
+              <div className={styles.detailsBody}>
+                
+                {/* Cards Rápidos */}
+                <div className={styles.detailsInfoGrid}>
+                  <div className={styles.infoBox}>
+                    <span className={styles.infoBoxLabel}>Estoque Atual</span>
+                    <span className={styles.infoBoxValue}>{productDetails?.quantity || 0}</span>
+                  </div>
+                  <div className={styles.infoBox}>
+                    <span className={styles.infoBoxLabel}>Estoque Mínimo</span>
+                    <span className={styles.infoBoxValue}>Min. {productDetails?.minQuantity || 0}</span>
+                  </div>
+                  <div className={styles.infoBox}>
+                    <span className={styles.infoBoxLabel}>Validade</span>
+                    <span className={styles.infoBoxValue}>{formatDate(productDetails?.expirationDate)}</span>
+                  </div>
+                </div>
+
+                {/* Card do Fornecedor */}
+                {productDetails?.supplier && (
+                  <div className={styles.supplierCardBox}>
+                    <div className={styles.supplierCardHeader}>
+                      <Building2 size={16} color="var(--primary)" />
+                      <span className={styles.supplierCardTitle}>Fornecedor Responsável</span>
+                    </div>
+                    <p className={styles.supplierName}>{productDetails.supplier.name}</p>
+                    <div className={styles.supplierContactsRow}>
+                      {productDetails.supplier.phone && (
+                        <span><Phone size={12} /> {productDetails.supplier.phone}</span>
+                      )}
+                      {productDetails.supplier.email && (
+                        <span><Mail size={12} /> {productDetails.supplier.email}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Histórico de Entradas e Saídas */}
+                <div className={styles.movementsSection}>
+                  <div className={styles.movementsHeader}>
+                    <History size={16} color="var(--primary)" />
+                    <h4>Últimas Movimentações</h4>
+                  </div>
+
+                  {!productDetails?.stockMovements || productDetails.stockMovements.length === 0 ? (
+                    <p className={styles.emptyMovements}>Nenhuma movimentação registrada recentemente.</p>
+                  ) : (
+                    <div className={styles.movementsList}>
+                      {productDetails.stockMovements.map((mov) => (
+                        <div key={mov.id} className={styles.movementItem}>
+                          <div className={styles.movLeft}>
+                            <span className={`${styles.movBadge} ${mov.type === 'IN' ? styles.movIn : styles.movOut}`}>
+                              {mov.type === 'IN' ? '+ Entrada' : '- Saída'}
+                            </span>
+                            <span className={styles.movQty}>{mov.quantity} un.</span>
+                          </div>
+                          <div className={styles.movRight}>
+                            <span className={styles.movUser}>{mov.user?.name || 'Sistema'}</span>
+                            <span className={styles.movDate}>
+                              <Calendar size={11} />
+                              {new Date(mov.createdAt).toLocaleString('pt-BR')}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL NOVO FORNECEDOR ─── */}
+      {isSupplierModalOpen && (
+        <div className={styles.modalOverlay} onClick={() => setIsSupplierModalOpen(false)}>
+          <div className={styles.supplierModalCard} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.detailsHeader}>
+              <Building2 size={20} color="var(--primary)" />
+              <h3 className={styles.detailsTitle}>Novo Fornecedor</h3>
+              <button 
+                type="button" 
+                className={styles.closeBtn} 
+                onClick={() => setIsSupplierModalOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSupplier} className={styles.supplierForm}>
+              <div className={styles.formGroup}>
+                <label>Razão Social / Nome Fantasia *</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="Ex: Dental Cremer" 
+                  value={newSupplier.name}
+                  onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>CNPJ / CPF</label>
+                <input 
+                  type="text" 
+                  placeholder="00.000.000/0000-00" 
+                  value={newSupplier.cnpj}
+                  onChange={(e) => setNewSupplier({ ...newSupplier, cnpj: e.target.value })}
+                />
+              </div>
+
+              <div className={styles.formTwoCols}>
+                <div className={styles.formGroup}>
+                  <label>Telefone / WhatsApp</label>
+                  <input 
+                    type="text" 
+                    placeholder="(85) 99999-0000" 
+                    value={newSupplier.phone}
+                    onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })}
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>E-mail</label>
+                  <input 
+                    type="email" 
+                    placeholder="contato@dental.com" 
+                    value={newSupplier.email}
+                    onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.formActions}>
+                <button 
+                  type="button" 
+                  className={styles.btnSecondary}
+                  onClick={() => setIsSupplierModalOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className={styles.btnPrimary}
+                  disabled={savingSupplier}
+                >
+                  {savingSupplier ? <Loader2 size={16} className={styles.spinner} /> : 'Salvar Fornecedor'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Gerenciamento em Abas Existente */}
       <StockManagementModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
