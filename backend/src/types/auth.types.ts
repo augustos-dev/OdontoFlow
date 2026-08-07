@@ -21,6 +21,8 @@ export interface JwtPayload {
   tenantId: string
   clinicId: string
   role: string
+  name: string     // 🟢 Adicionado: garante o nome do usuário no log de auditoria
+  plan?: string    // 🟢 Adicionado: permite verificar se é BASIC, PREMIUM ou ENTERPRISE
   iat?: number
   exp?: number
 }
