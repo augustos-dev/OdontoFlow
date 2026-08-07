@@ -18,7 +18,8 @@ import {
   Calendar,
   X,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  UserCheck
 } from 'lucide-react'
 import api from '@/lib/api'
 import { StockManagementModal, StockProductInput } from '../../components/estoque/StockManagementModal'
@@ -31,11 +32,12 @@ interface Supplier {
   cnpj?: string
   phone?: string
   email?: string
+  contact?: string
 }
 
 interface StockMovement {
   id: string
-  type: 'IN' | 'OUT' | 'ADJUSTMENT'
+  type: 'IN' | 'OUT' | 'ADJUSTMENT' | 'ENTRY' | 'EXIT_MANUAL' | 'EXIT_AUTO'
   quantity: number
   reason?: string
   createdAt: string
@@ -83,12 +85,18 @@ export default function EstoquePage() {
   const [productDetails, setProductDetails] = useState<ProductDetails | null>(null)
   const [loadingDetails, setLoadingDetails] = useState(false)
 
-  // Cadastro Rápido de Fornecedor
+  // Cadastro Rápido de Fornecedor (Com o campo `contact` tipado no estado inicial)
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
-  const [newSupplier, setNewSupplier] = useState({ name: '', cnpj: '', phone: '', email: '' })
+  const [newSupplier, setNewSupplier] = useState({ 
+    name: '', 
+    cnpj: '', 
+    phone: '', 
+    email: '', 
+    contact: '' 
+  })
   const [savingSupplier, setSavingSupplier] = useState(false)
 
-  // Carrega Estoque
+  // ─── CARREGAR ESTOQUE ───
   const loadStockData = useCallback(async () => {
     setLoading(true)
     try {
@@ -126,7 +134,7 @@ export default function EstoquePage() {
     }
   }, [])
 
-  // Carrega Fornecedores
+  // ─── CARREGAR FORNECEDORES (Consome GET /api/suppliers) ───
   const loadSuppliers = useCallback(async () => {
     setLoadingSuppliers(true)
     try {
@@ -144,7 +152,7 @@ export default function EstoquePage() {
     loadSuppliers()
   }, [loadStockData, loadSuppliers])
 
-  // Detalhes do Produto
+  // ─── BUSCAR DETALHES DO PRODUTO (Consome GET /api/products/:id/details) ───
   const handleOpenProductDetails = async (productId: string) => {
     setSelectedProductId(productId)
     setLoadingDetails(true)
@@ -170,18 +178,26 @@ export default function EstoquePage() {
     }
   }
 
-  // Salvar Fornecedor
+  // ─── SALVAR NOVO FORNECEDOR (Consome POST /api/suppliers) ───
   const handleCreateSupplier = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newSupplier.name) return
+    if (!newSupplier.name.trim()) return
     setSavingSupplier(true)
     try {
-      await api.post('/suppliers', newSupplier)
-      setNewSupplier({ name: '', cnpj: '', phone: '', email: '' })
+      await api.post('/suppliers', {
+        name: newSupplier.name.trim(),
+        cnpj: newSupplier.cnpj.trim() || undefined,
+        phone: newSupplier.phone.trim() || undefined,
+        email: newSupplier.email.trim() || undefined,
+        contact: newSupplier.contact.trim() || undefined,
+      })
+      
+      setNewSupplier({ name: '', cnpj: '', phone: '', email: '', contact: '' })
       setIsSupplierModalOpen(false)
       loadSuppliers()
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao cadastrar fornecedor:', err)
+      alert(err.response?.data?.message || 'Erro ao cadastrar fornecedor.')
     } finally {
       setSavingSupplier(false)
     }
@@ -201,7 +217,8 @@ export default function EstoquePage() {
 
   const filteredSuppliers = suppliers.filter((s) => 
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (s.cnpj && s.cnpj.includes(searchTerm))
+    (s.cnpj && s.cnpj.includes(searchTerm)) ||
+    (s.contact && s.contact.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
   const totalOk = products.filter((p) => getComputedStatus(p) === 'OK').length
@@ -237,7 +254,7 @@ export default function EstoquePage() {
   return (
     <div className={styles.page}>
       
-      {/* ─── Ações de Topo (Sem título duplicado) ─── */}
+      {/* ─── Ações de Topo ─── */}
       <div className={styles.topActionBar}>
         <p className={styles.pageSubtitle}>
           Gerencie o consumo, reposição e a rede de fornecedores da clínica em tempo real
@@ -380,7 +397,7 @@ export default function EstoquePage() {
               <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
               <input 
                 type="text" 
-                placeholder={mainTab === 'products' ? 'Buscar produto...' : 'Buscar fornecedor...'}
+                placeholder={mainTab === 'products' ? 'Buscar produto...' : 'Buscar fornecedor ou contato...'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
@@ -393,7 +410,7 @@ export default function EstoquePage() {
                   borderRadius: 'var(--radius-sm, 8px)',
                   outline: 'none',
                   background: '#f8fafc',
-                  width: '200px'
+                  width: '220px'
                 }}
               />
             </div>
@@ -511,6 +528,7 @@ export default function EstoquePage() {
                 <tr>
                   <th>RAZÃO SOCIAL / NOME</th>
                   <th>CNPJ / CPF</th>
+                  <th>VENDEDOR / CONTATO</th>
                   <th>CONTATO / WHATSAPP</th>
                   <th>E-MAIL</th>
                 </tr>
@@ -518,7 +536,7 @@ export default function EstoquePage() {
               <tbody>
                 {filteredSuppliers.length === 0 && (
                   <tr>
-                    <td colSpan={4} className={styles.empty}>
+                    <td colSpan={5} className={styles.empty}>
                       Nenhum fornecedor cadastrado.
                     </td>
                   </tr>
@@ -529,6 +547,12 @@ export default function EstoquePage() {
                       {sup.corporateName || sup.name}
                     </td>
                     <td className={styles.minQty}>{sup.cnpj || 'Não informado'}</td>
+                    <td style={{ fontSize: '12px', color: '#334155' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <UserCheck size={12} color="#0284c7" />
+                        {sup.contact || '—'}
+                      </span>
+                    </td>
                     <td style={{ fontSize: '12px' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <Phone size={12} color="#0284c7" /> {sup.phone || '—'}
@@ -603,6 +627,9 @@ export default function EstoquePage() {
                     </div>
                     <p className={styles.supplierName}>{productDetails.supplier.name}</p>
                     <div className={styles.supplierContactsRow}>
+                      {productDetails.supplier.contact && (
+                        <span><UserCheck size={12} /> {productDetails.supplier.contact}</span>
+                      )}
                       {productDetails.supplier.phone && (
                         <span><Phone size={12} /> {productDetails.supplier.phone}</span>
                       )}
@@ -624,23 +651,26 @@ export default function EstoquePage() {
                     <p className={styles.emptyMovements}>Nenhuma movimentação registrada recentemente.</p>
                   ) : (
                     <div className={styles.movementsList}>
-                      {productDetails.stockMovements.map((mov) => (
-                        <div key={mov.id} className={styles.movementItem}>
-                          <div className={styles.movLeft}>
-                            <span className={`${styles.movBadge} ${mov.type === 'IN' ? styles.movIn : styles.movOut}`}>
-                              {mov.type === 'IN' ? '+ Entrada' : '- Saída'}
-                            </span>
-                            <span className={styles.movQty}>{mov.quantity} un.</span>
+                      {productDetails.stockMovements.map((mov) => {
+                        const isEntry = mov.type === 'IN' || mov.type === 'ENTRY'
+                        return (
+                          <div key={mov.id} className={styles.movementItem}>
+                            <div className={styles.movLeft}>
+                              <span className={`${styles.movBadge} ${isEntry ? styles.movIn : styles.movOut}`}>
+                                {isEntry ? '+ Entrada' : '- Saída'}
+                              </span>
+                              <span className={styles.movQty}>{Math.abs(mov.quantity)} un.</span>
+                            </div>
+                            <div className={styles.movRight}>
+                              <span className={styles.movUser}>{mov.user?.name || 'Sistema'}</span>
+                              <span className={styles.movDate}>
+                                <Calendar size={11} />
+                                {new Date(mov.createdAt).toLocaleString('pt-BR')}
+                              </span>
+                            </div>
                           </div>
-                          <div className={styles.movRight}>
-                            <span className={styles.movUser}>{mov.user?.name || 'Sistema'}</span>
-                            <span className={styles.movDate}>
-                              <Calendar size={11} />
-                              {new Date(mov.createdAt).toLocaleString('pt-BR')}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -670,40 +700,51 @@ export default function EstoquePage() {
             <form onSubmit={handleCreateSupplier} className={styles.supplierForm}>
               <div className={styles.formGroup}>
                 <label>Razão Social / Nome Fantasia *</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   required
-                  placeholder="Ex: Dental Cremer" 
+                  placeholder="Ex: Dental Cremer"
                   value={newSupplier.name}
                   onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
                 />
               </div>
 
-              <div className={styles.formGroup}>
-                <label>CNPJ / CPF</label>
-                <input 
-                  type="text" 
-                  placeholder="00.000.000/0000-00" 
-                  value={newSupplier.cnpj}
-                  onChange={(e) => setNewSupplier({ ...newSupplier, cnpj: e.target.value })}
-                />
+              <div className={styles.formTwoCols}>
+                <div className={styles.formGroup}>
+                  <label>CNPJ / CPF</label>
+                  <input
+                    type="text"
+                    placeholder="00.000.000/0000-00"
+                    value={newSupplier.cnpj}
+                    onChange={(e) => setNewSupplier({ ...newSupplier, cnpj: e.target.value })}
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>Nome do Vendedor / Contato</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: João Vendedor"
+                    value={newSupplier.contact}
+                    onChange={(e) => setNewSupplier({ ...newSupplier, contact: e.target.value })}
+                  />
+                </div>
               </div>
 
               <div className={styles.formTwoCols}>
                 <div className={styles.formGroup}>
                   <label>Telefone / WhatsApp</label>
-                  <input 
-                    type="text" 
-                    placeholder="(85) 99999-0000" 
+                  <input
+                    type="text"
+                    placeholder="(85) 99999-0000"
                     value={newSupplier.phone}
                     onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })}
                   />
                 </div>
                 <div className={styles.formGroup}>
                   <label>E-mail</label>
-                  <input 
-                    type="email" 
-                    placeholder="contato@dental.com" 
+                  <input
+                    type="email"
+                    placeholder="contato@dental.com"
                     value={newSupplier.email}
                     onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })}
                   />
@@ -711,15 +752,15 @@ export default function EstoquePage() {
               </div>
 
               <div className={styles.formActions}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className={styles.btnSecondary}
                   onClick={() => setIsSupplierModalOpen(false)}
                 >
                   Cancelar
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className={styles.btnPrimary}
                   disabled={savingSupplier}
                 >
