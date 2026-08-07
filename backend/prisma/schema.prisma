@@ -1,5 +1,5 @@
 // =============================================================================
-// OdontoFlow - Schema Prisma Final
+// OdontoFlow - Schema Prisma (Sprint 3 + Compliance, Audit & Lote Rastreável)
 // Multi-tenant SaaS de Gerenciamento Clínico Odontológico
 // =============================================================================
 
@@ -77,6 +77,14 @@ enum Gender {
   NAO_INFORMADO
 }
 
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  EXPORT
+}
+
 // =============================================================================
 // MODELS
 // =============================================================================
@@ -105,22 +113,24 @@ model Tenant {
   procedures      Procedure[]
   planProcedures  PlanProcedure[]
   medicalFiles    MedicalFile[]
+  auditLogs       AuditLog[]
 
   @@map("tenants")
 }
 
 model Clinic {
-  id        String   @id @default(uuid())
-  tenantId  String
-  name      String
-  cnpj      String?  @unique
-  phone     String?
-  email     String?
-  address   String?
-  logoUrl   String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                       String   @id @default(uuid())
+  tenantId                 String
+  name                     String
+  cnpj                     String?  @unique
+  phone                    String?
+  email                    String?
+  address                  String?
+  logoUrl                  String?
+  paymentIntegrationActive Boolean  @default(false) // 🚩 Feature Flag para Checkout/Gateways
+  isActive                 Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   users          User[]
@@ -131,6 +141,8 @@ model Clinic {
   suppliers      Supplier[]
   medicalRecords MedicalRecord[]
   treatmentPlans TreatmentPlan[]
+  medicalFiles   MedicalFile[]
+  auditLogs      AuditLog[]
 
   @@index([tenantId])
   @@map("clinics")
@@ -157,9 +169,11 @@ model User {
   appointments   Appointment[]   @relation("DentistAppointments")
   evolutions     Evolution[]
   treatmentPlans TreatmentPlan[]
+  auditLogs      AuditLog[]
 
   @@index([tenantId])
   @@index([clinicId])
+  @@index([tenantId, clinicId])
   @@index([email])
   @@map("users")
 }
@@ -180,9 +194,9 @@ model Patient {
   updatedAt DateTime  @updatedAt
 
   // 📍 Endereço detalhado
-  zipCode   String?
-  city      String?
-  state     String?
+  zipCode String?
+  city    String?
+  state   String?
 
   // 👨‍👩‍👦 Responsável Legal (Pacientes Menores)
   guardianName      String?
@@ -190,7 +204,7 @@ model Patient {
   guardianBirthDate DateTime?
 
   // 💳 Dados do Convênio
-  insuranceName       String?  @default("Particular")
+  insuranceName       String? @default("Particular")
   insuranceCardNumber String?
   insuranceHolderName String?
   insuranceHolderCpf  String?
@@ -205,8 +219,9 @@ model Patient {
   @@unique([tenantId, cpf])
   @@index([tenantId])
   @@index([clinicId])
+  @@index([tenantId, clinicId])
   @@index([clinicId, name])
-  @@index([clinicId, deletedAt]) // Filtra ativos rapidamente
+  @@index([clinicId, deletedAt])
   @@map("patients")
 }
 
@@ -232,31 +247,30 @@ model MedicalRecord {
   toothConditions ToothCondition[]
 
   @@unique([tenantId, patientId])
-  @@index([clinicId])
+  @@index([tenantId, clinicId])
   @@map("medical_records")
 }
 
 model Evolution {
-  id              String        @id @default(uuid())
+  id              String   @id @default(uuid())
   tenantId        String
   medicalRecordId String
   dentistId       String
-  description     String        @db.Text
+  description     String   @db.Text
 
-  // 📸 Snapshot em JSON do estado do odontograma
+  // 📸 Snapshot do odontograma e anexos
   odontogramSnapshot Json?
+  attachments        String[]  @default([])
 
-  // 🖼️ NOVO CAMPO: Guardar as URLs das fotos anexadas nesta evolução
-  attachments     String[]      @default([])
+  // 🔒 Trava de Imutabilidade (Compliance LGPD/CFO - Trava de 12h)
+  isLocked  Boolean   @default(false)
+  lockedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  isLocked        Boolean       @default(false)
-  lockedAt        DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  medicalRecord   MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
-  dentist         User          @relation(fields: [dentistId], references: [id])
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  medicalRecord MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
+  dentist       User          @relation(fields: [dentistId], references: [id])
 
   @@index([tenantId])
   @@index([medicalRecordId])
@@ -301,11 +315,12 @@ model TreatmentPlan {
   patient        Patient         @relation(fields: [patientId], references: [id])
   dentist        User            @relation(fields: [dentistId], references: [id])
   planProcedures PlanProcedure[]
+  transactions   Transaction[]
 
   @@index([tenantId])
   @@index([clinicId])
-  @@index([patientId])
-  @@index([clinicId, status]) // Dashboard de orçamentos por status
+  @@index([tenantId, clinicId])
+  @@index([clinicId, status])
   @@map("treatment_plans")
 }
 
@@ -344,21 +359,21 @@ model PlanProcedure {
 }
 
 model Appointment {
-  id        String            @id @default(uuid())
-  tenantId  String
-  clinicId  String
-  patientId String
-  dentistId String
-  dateTime  DateTime
-  durationMin Int             @default(60)
-  status    AppointmentStatus @default(AGENDADO)
-  type      AppointmentType   @default(PARTICULAR)
-  room      Room              @default(SALA_1)
-  notes     String?           @db.Text
+  id                 String            @id @default(uuid())
+  tenantId           String
+  clinicId           String
+  patientId          String
+  dentistId          String
+  dateTime           DateTime
+  durationMin        Int               @default(60)
+  status             AppointmentStatus @default(AGENDADO)
+  type               AppointmentType   @default(PARTICULAR)
+  room               Room              @default(SALA_1)
+  notes              String?           @db.Text
   cancellationReason String?
-  cancelledAt DateTime?
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  cancelledAt        DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   clinic      Clinic       @relation(fields: [clinicId], references: [id])
@@ -367,24 +382,28 @@ model Appointment {
   transaction Transaction?
 
   @@index([tenantId])
+  @@index([tenantId, clinicId])
   @@index([clinicId, dateTime])
-  @@index([clinicId, dentistId, dateTime]) // Agenda do dentista por dia
-  @@index([clinicId, status])              // Dashboard de status
-  @@index([clinicId, patientId])           // Histórico do paciente
+  @@index([clinicId, dentistId, dateTime])
+  @@index([clinicId, status])
+  @@index([clinicId, patientId])
   @@map("appointments")
 }
 
 model Product {
-  id          String    @id @default(uuid())
-  tenantId    String
-  clinicId    String
-  supplierId  String?
-  name        String
-  quantity    Int
-  minQuantity Int
-  expiryDate  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                String    @id @default(uuid())
+  tenantId          String
+  clinicId          String
+  supplierId        String?
+  name              String
+  quantity          Int
+  minQuantity       Int
+  lotNumber         String?   // 📦 Número do Lote (Rastreabilidade Sanitária)
+  manufacturingDate DateTime? // 🏭 Data de Fabricação
+  expiryDate        DateTime? // ⏳ Data de Validade
+  notes             String?   @db.Text // 📝 Observações / Instruções
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   clinic   Clinic    @relation(fields: [clinicId], references: [id])
@@ -392,7 +411,9 @@ model Product {
 
   @@index([tenantId])
   @@index([clinicId])
-  @@index([clinicId, quantity, minQuantity]) // Alerta de estoque crítico
+  @@index([tenantId, clinicId])
+  @@index([clinicId, quantity, minQuantity]) // Rota GET /products/low-stock
+  @@index([clinicId, lotNumber])             // Busca de rastreabilidade por lote
   @@map("products")
 }
 
@@ -414,47 +435,85 @@ model Supplier {
 
   @@index([tenantId])
   @@index([clinicId])
+  @@index([tenantId, clinicId])
   @@map("suppliers")
 }
 
 model Transaction {
-  id            String          @id @default(uuid())
-  tenantId      String
-  clinicId      String
-  appointmentId String?         @unique
-  amount        Decimal         @db.Decimal(10, 2)
-  type          TransactionType @default(RECEITA)
-  paymentMethod PaymentMethod
-  description   String?
-  category      String?
-  paidAt        DateTime        @default(now())
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id              String          @id @default(uuid())
+  tenantId        String
+  clinicId        String
+  appointmentId   String?         @unique
+  treatmentPlanId String?         // 🔗 Vínculo opcional com orçamento
+  amount          Decimal         @db.Decimal(10, 2)
+  type            TransactionType @default(RECEITA)
+  paymentMethod   PaymentMethod
+  description     String?
+  category        String?
+  paidAt          DateTime        @default(now())
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  clinic      Clinic       @relation(fields: [clinicId], references: [id])
-  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic        Clinic         @relation(fields: [clinicId], references: [id])
+  appointment   Appointment?   @relation(fields: [appointmentId], references: [id])
+  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id])
 
   @@index([tenantId, createdAt])
-  @@index([clinicId])
-  @@index([clinicId, type, paidAt])        // Relatório financeiro por período
-  @@index([clinicId, paymentMethod])       // Breakdown por método de pagamento
+  @@index([tenantId, clinicId])
+  @@index([clinicId, type, paidAt])
+  @@index([clinicId, paymentMethod])
   @@map("transactions")
 }
 
 model MedicalFile {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   tenantId  String
+  clinicId  String
   patientId String
   url       String
   name      String
   size      Int
-  createdAt DateTime @default(now())
+  deletedAt DateTime? // 🖼️ Soft Delete (>24h retenção CFO/LGPD)
+  createdAt DateTime  @default(now())
 
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic  Clinic  @relation(fields: [clinicId], references: [id])
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([patientId])
+  @@index([tenantId, clinicId])
+  @@index([clinicId, deletedAt])
   @@map("medical_files")
+}
+
+// =============================================================================
+// AUDIT LOGS (NOVO - SPRINT 3/5)
+// =============================================================================
+
+model AuditLog {
+  id        String      @id @default(uuid())
+  tenantId  String
+  clinicId  String
+  userId    String?
+  userName  String?
+  userRole  UserRole?
+  action    AuditAction
+  entity    String      // Ex: "APPOINTMENT", "TRANSACTION", "EVOLUTION", "PRODUCT", "MEDICAL_FILE"
+  entityId  String?
+  details   String?     @db.Text
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic Clinic  @relation(fields: [clinicId], references: [id])
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([tenantId, clinicId])
+  @@index([clinicId, createdAt])
+  @@index([entity, entityId])
+  @@map("audit_logs")
 }
