@@ -27,6 +27,6 @@ router.use('/users', userRoutes)
 router.use('/clinics', clinicRoutes)
 router.use('/dashboard', dashboardRoutes)
 router.use('/audit-logs', auditLogRoutes) 
-router.use('/api/suppliers', supplierRoutes)
+router.use('/suppliers', supplierRoutes) // 👈 CORRIGIDO! (Apenas /suppliers)
 
 export default router
