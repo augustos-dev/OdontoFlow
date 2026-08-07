@@ -1,13 +1,14 @@
-// backend/src/controllers/procedure.controller.ts
-
 import type { Request, Response, NextFunction } from 'express'
 import * as procedureService from '../services/procedureService'
+import type { UserRole } from '@prisma/client'
 import type { CreateProcedureDTO, UpdateProcedureDTO, ProcedureFiltersDTO } from '../types/procedure.types'
 
 export async function createProcedureController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId } = req.user!
-    const procedure = await procedureService.createProcedure(tenantId, req.body as CreateProcedureDTO)
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const actor = { clinicId, userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const procedure = await procedureService.createProcedure(tenantId, req.body as CreateProcedureDTO, actor)
     res.status(201).json(procedure)
   } catch (error) {
     next(error)
@@ -42,9 +43,11 @@ export async function getProcedureByIdController(req: Request, res: Response, ne
 
 export async function updateProcedureController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    const procedure = await procedureService.updateProcedure(tenantId, id as string , req.body as UpdateProcedureDTO)
+    const actor = { clinicId, userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const procedure = await procedureService.updateProcedure(tenantId, id as string, req.body as UpdateProcedureDTO, actor)
     res.status(200).json(procedure)
   } catch (error) {
     next(error)
@@ -53,9 +56,11 @@ export async function updateProcedureController(req: Request, res: Response, nex
 
 export async function deleteProcedureController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    await procedureService.deleteProcedure(tenantId, id as string)
+    const actor = { clinicId, userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    await procedureService.deleteProcedure(tenantId, id as string, actor)
     res.status(204).send()
   } catch (error) {
     next(error)

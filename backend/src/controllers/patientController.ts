@@ -1,7 +1,6 @@
-// backend/src/controllers/patient.controller.ts
-
 import type { Request, Response, NextFunction } from 'express'
-import * as patientService from '../services/patientServices' // Nome no singular alinhado
+import * as patientService from '../services/patientServices'
+import type { UserRole } from '@prisma/client'
 import type { CreatePatientDTO, UpdatePatientDTO, PatientFiltersDTO } from '../types/patient.types'
 
 export async function createPatientController(
@@ -10,8 +9,10 @@ export async function createPatientController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
-    const patient = await patientService.createPatient(tenantId, clinicId, req.body as CreatePatientDTO)
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const patient = await patientService.createPatient(tenantId, clinicId, req.body as CreatePatientDTO, actor)
     
     res.status(201).json(patient)
   } catch (error) {
@@ -65,14 +66,16 @@ export async function updatePatientController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
 
     const patient = await patientService.updatePatient(
       tenantId, 
       clinicId, 
       id as string, 
-      req.body as UpdatePatientDTO
+      req.body as UpdatePatientDTO,
+      actor
     )
     
     res.status(200).json(patient)
@@ -87,10 +90,11 @@ export async function deletePatientController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
 
-    await patientService.deletePatient(tenantId, clinicId, id as string)
+    await patientService.deletePatient(tenantId, clinicId, id as string, actor)
     
     res.status(204).send()
   } catch (error) {
