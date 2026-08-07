@@ -206,12 +206,21 @@ export async function adjustStockService(
     throw new AppError('Produto não encontrado.', 404)
   }
 
-  const newQuantity = product.quantity + data.quantity
+  // 🔴 CORREÇÃO AQUI: Força a conversão para Number para evitar concatenação de String
+  const change = Number(data.quantity)
+  const currentQuantity = Number(product.quantity)
+
+  if (isNaN(change)) {
+    throw new AppError('A quantidade enviada deve ser um número válido.', 400)
+  }
+
+  // Calcula o novo valor exato (ex: 250 + (-1) = 249)
+  const newQuantity = currentQuantity + change
 
   // Não permite estoque negativo
   if (newQuantity < 0) {
     throw new AppError(
-      `Estoque insuficiente. Disponível: ${product.quantity} unidade(s).`,
+      `Estoque insuficiente. Disponível: ${currentQuantity} unidade(s). Tentativa de alteração: ${change}`,
       400
     )
   }
@@ -230,8 +239,8 @@ export async function adjustStockService(
     ...updated,
     stockStatus: getStockStatus(updated.quantity, updated.minQuantity),
     adjustment: {
-      previous: product.quantity,
-      change: data.quantity,
+      previous: currentQuantity,
+      change,
       current: newQuantity,
       reason: data.reason,
     },
