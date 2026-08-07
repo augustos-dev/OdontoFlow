@@ -336,11 +336,13 @@
   background: var(--bg-page, #f8fafc);
   border: 1px solid var(--border, #e2e8f0);
   border-radius: var(--radius-sm, 8px);
+  min-height: 56px;
 }
 
 .productMeta {
   display: flex;
   flex-direction: column;
+  flex: 1; /* Ocupa todo o espaço esquerdo */
 }
 
 .productName {
@@ -354,6 +356,13 @@
   color: var(--text-secondary, #64748b);
 }
 
+/* Container do contador fixado à direita com alinhamento interno */
+.counterWrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .counterControl {
   display: flex;
   align-items: center;
@@ -361,10 +370,10 @@
 }
 
 .counterBtn {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 6px;
-  border: 1px solid var(--border, #e2e8f0);
+  border: 1px solid var(--border, #cbd5e1);
   background: #ffffff;
   display: flex;
   align-items: center;
@@ -377,31 +386,45 @@
 .counterBtn:hover:not(:disabled) {
   border-color: var(--primary, #0284c7);
   color: var(--primary, #0284c7);
+  background-color: #f0f9ff;
 }
 
 .counterBtn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .counterInput {
-  width: 48px;
-  height: 28px;
+  width: 52px;
+  height: 32px;
   text-align: center;
-  border: 1px solid var(--border, #e2e8f0);
+  border: 1px solid var(--border, #cbd5e1);
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
+  color: #0f172a;
   outline: none;
 }
 
+.counterInput:focus {
+  border-color: #0284c7;
+}
+
+/* Badge de "Alterado" em slot reservado para não empurrar os botões */
+.badgeSlot {
+  width: 64px; /* Largura fixa garantindo o alinhamento de todas as linhas */
+  display: flex;
+  justify-content: flex-end;
+}
+
 .changedBadge {
-  font-size: 10px;
-  font-weight: 700;
-  background: #fef9c3;
-  color: #ca8a04;
-  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #fef08a;
+  color: #854d0e;
+  padding: 3px 8px;
   border-radius: 4px;
+  white-space: nowrap;
 }
 
 .loadingState {
@@ -412,4 +435,90 @@
   padding: 40px;
   color: var(--text-muted, #94a3b8);
   font-size: 13px;
+}
+/* ─── PASSO 2: RECURSO PREMIUM (MOTIVOS) ─── */
+.reasonsStepContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reasonsHeader {
+  text-align: left;
+}
+
+.premiumBadgeHeader {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fef3c7;
+  color: #d97706;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  margin-bottom: 6px;
+}
+
+.reasonsHeader h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.reasonsHeader p {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.reasonRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  gap: 12px;
+}
+
+.reasonMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.deltaPositive {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #16a34a;
+}
+
+.deltaNegative {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #dc2626;
+}
+
+.reasonSelect {
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  outline: none;
+  cursor: pointer;
+  min-width: 240px;
+}
+
+.reasonSelect:focus {
+  border-color: #0284c7;
 }

@@ -12,6 +12,9 @@ import {
   Loader2,
   Search,
   FileText,
+  ArrowUpRight,
+  ArrowDownRight,
+  Sparkles,
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './modal.module.css'
@@ -22,6 +25,8 @@ export interface StockProductInput {
   quantity: number
   minQuantity: number
   expirationDate: string
+  supplierId: string
+  lotNumber: string
   observation: string
 }
 
@@ -34,22 +39,43 @@ interface ProductDb {
   supplierId?: string
 }
 
+interface SupplierDb {
+  id: string
+  name: string
+}
+
 interface StockManagementModalProps {
   isOpen: boolean
   onClose: () => void
   onSaveProducts?: (products: StockProductInput[]) => void
   onSuccess?: () => void
+  planType?: 'BASIC' | 'PREMIUM'
 }
 
-type TabType = 'adjust' | 'create' | 'import'
+// Motivos padrão para o Plano Premium
+const REASONS_INCREASE = [
+  'Compra / Reposição de Estoque',
+  'Ajuste de Contagem (Inventário)',
+  'Devolução de Paciente / Fornecedor',
+  'Outro Motivo',
+]
+
+const REASONS_DECREASE = [
+  'Uso Clínico (Não lançado)',
+  'Produto Vencido / Descartado',
+  'Avaria / Perda / Quebra',
+  'Ajuste de Contagem (Inventário)',
+  'Outro Motivo',
+]
 
 export function StockManagementModal({
   isOpen,
   onClose,
   onSaveProducts,
   onSuccess,
+  planType = 'BASIC',
 }: StockManagementModalProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('adjust')
+  const [activeTab, setActiveTab] = useState<'adjust' | 'create' | 'import'>('adjust')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
 
@@ -58,7 +84,12 @@ export function StockManagementModal({
   const [searchTerm, setSearchTerm] = useState('')
   const [adjustments, setAdjustments] = useState<Record<string, number>>({})
 
+  // ─── ESTADO PREMIUM: MOTIVOS ───
+  const [showReasonsStep, setShowReasonsStep] = useState(false)
+  const [reasonsMap, setReasonsMap] = useState<Record<string, string>>({})
+
   // ─── ESTADOS DA ABA 2: CADASTRAR NOVO PRODUTO ───
+  const [suppliers, setSuppliers] = useState<SupplierDb[]>([])
   const [products, setProducts] = useState<StockProductInput[]>([
     {
       id: String(Date.now()),
@@ -66,17 +97,24 @@ export function StockManagementModal({
       quantity: 1,
       minQuantity: 1,
       expirationDate: '',
+      supplierId: '',
+      lotNumber: '',
       observation: '',
     },
   ])
 
-  // ─── ESTADOS E REFS DA ABA 3: IMPORTAR PLANILHA ───
+  // ─── ESTADOS DA ABA 3: IMPORTAR PLANILHA ───
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   useEffect(() => {
-    if (isOpen && activeTab === 'adjust') {
-      loadDbProducts()
+    if (isOpen) {
+      if (activeTab === 'adjust') {
+        loadDbProducts()
+        setShowReasonsStep(false)
+      } else if (activeTab === 'create') {
+        loadSuppliers()
+      }
     }
   }, [isOpen, activeTab])
 
@@ -99,6 +137,16 @@ export function StockManagementModal({
     }
   }
 
+  async function loadSuppliers() {
+    try {
+      const response = await api.get('/suppliers')
+      const fetched = response.data.data || response.data || []
+      setSuppliers(fetched)
+    } catch (err) {
+      console.error('Erro ao carregar fornecedores:', err)
+    }
+  }
+
   if (!isOpen) return null
 
   // ─── HANDLERS DA ABA 1 ───
@@ -117,68 +165,62 @@ export function StockManagementModal({
     }))
   }
 
-  const handleSaveAdjustments = async () => {
+  const changedProducts = dbProducts.filter(
+    (p) => adjustments[p.id] !== undefined && adjustments[p.id] !== p.quantity
+  )
+
+  const handlePreSave = () => {
+    if (changedProducts.length === 0) {
+      onClose()
+      return
+    }
+
+    if (planType === 'PREMIUM') {
+      const initialReasons: Record<string, string> = {}
+      changedProducts.forEach((p) => {
+        const delta = adjustments[p.id] - p.quantity
+        initialReasons[p.id] = delta > 0 ? REASONS_INCREASE[0] : REASONS_DECREASE[0]
+      })
+      setReasonsMap(initialReasons)
+      setShowReasonsStep(true)
+    } else {
+      executeSaveAdjustments()
+    }
+  }
+
+  const executeSaveAdjustments = async () => {
     setIsSubmitting(true)
     try {
-      const changedProducts = dbProducts.filter(
-        (p) => adjustments[p.id] !== undefined && adjustments[p.id] !== p.quantity
+      await Promise.all(
+        changedProducts.map((p) => {
+          const newQty = Number(adjustments[p.id])
+          const delta = newQty - p.quantity
+
+          const reason =
+            planType === 'PREMIUM'
+              ? reasonsMap[p.id] || (delta > 0 ? 'Entrada manual' : 'Saída manual')
+              : 'Ajuste manual de saldo'
+
+          return api.patch(`/products/${p.id}/stock`, {
+            quantity: delta,
+            reason: reason,
+          })
+        })
       )
 
-      if (changedProducts.length === 0) {
-        onClose()
-        return
-      }
-
-      try {
-        await Promise.all(
-          changedProducts.map((p) => {
-            const newQty = Number(adjustments[p.id])
-            return api.patch(`/products/${p.id}/stock`, { quantity: newQty })
-          })
-        )
-      } catch (err: any) {
-        if (err.response?.status === 404) {
-          await Promise.all(
-            changedProducts.map((p) => {
-              const newQty = Number(adjustments[p.id])
-              return api.put(`/products/${p.id}`, {
-                name: p.name,
-                quantity: newQty,
-                minQuantity: p.minQuantity,
-                supplierId: p.supplierId || null,
-                expiryDate: p.expiryDate ? new Date(p.expiryDate).toISOString() : null,
-              })
-            })
-          )
-        } else {
-          throw err
-        }
-      }
-
-      if (onSuccess) {
-        onSuccess()
-      } else {
-        window.location.reload()
-      }
+      if (onSuccess) onSuccess()
+      else window.location.reload()
       onClose()
     } catch (err: any) {
       console.error('Erro ao atualizar estoque:', err)
-      alert(
-        `Erro (${err.response?.status || 500}): ${
-          err.response?.data?.message || 'Falha ao atualizar quantidade do produto.'
-        }`
-      )
+      alert(`Erro: ${err.response?.data?.message || 'Falha ao atualizar quantidade.'}`)
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  // ─── HANDLERS DA ABA 2 ───
-  const handleProductChange = (
-    index: number,
-    field: keyof StockProductInput,
-    value: any
-  ) => {
+  // ─── HANDLERS DA ABA 2 (CADASTRAR PRODUTO) ───
+  const handleProductChange = (index: number, field: keyof StockProductInput, value: any) => {
     const updated = [...products]
     updated[index] = { ...updated[index], [field]: value }
     setProducts(updated)
@@ -193,6 +235,8 @@ export function StockManagementModal({
         quantity: 1,
         minQuantity: 1,
         expirationDate: '',
+        supplierId: '',
+        lotNumber: '',
         observation: '',
       },
     ])
@@ -221,8 +265,10 @@ export function StockManagementModal({
             name: p.name,
             quantity: Number(p.quantity),
             minQuantity: Number(p.minQuantity),
-            expiryDate: p.expirationDate ? new Date(p.expirationDate).toISOString() : null,
-            observation: p.observation || null,
+            supplierId: p.supplierId || undefined,
+            lotNumber: p.lotNumber || undefined,
+            expiryDate: p.expirationDate ? new Date(p.expirationDate).toISOString() : undefined,
+            notes: p.observation || undefined,
           }
           await api.post('/products', payload)
         })
@@ -238,13 +284,15 @@ export function StockManagementModal({
           quantity: 1,
           minQuantity: 1,
           expirationDate: '',
+          supplierId: '',
+          lotNumber: '',
           observation: '',
         },
       ])
       onClose()
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao cadastrar produtos no banco:', err)
-      alert('Ocorreu um erro ao salvar os produtos no banco de dados.')
+      alert(`Erro ao cadastrar produtos: ${err.response?.data?.message || 'Falha no servidor.'}`)
     } finally {
       setIsSubmitting(false)
     }
@@ -257,21 +305,15 @@ export function StockManagementModal({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      setSelectedFile(file)
-    }
+    if (file) setSelectedFile(file)
   }
 
- // ─── ABA 3: GERAR PLANILHA COM PONTO E VÍRGULA (FORMATO EXCEL BRASIL) ───
   const handleDownloadTemplate = (e: React.MouseEvent) => {
     e.preventDefault()
-
-    // Usando ponto e vírgula (;) para o Excel abrir em colunas nativamente
-    const csvHeader = 'nome;quantidade;quantidade_minima;validade;observacoes\n'
+    const csvHeader = 'nome;quantidade;quantidade_minima;validade;lote;observacoes\n'
     const csvRows = [
-      'Anestésico Tubete;50;10;2026-12-31;Lote 8842A',
-      'Caixa de Luvas P;20;5;2027-05-15;Marca Supermax',
-      'Resina Fotopolimerizável A2;8;2;;Lote Especial',
+      'Anestésico Tubete;50;10;2026-12-31;LT-8842;Mantenha refrigerado',
+      'Caixa de Luvas P;20;5;2027-05-15;LT-9910;Marca Supermax',
     ].join('\n')
 
     const csvContent = '\uFEFF' + csvHeader + csvRows
@@ -279,16 +321,15 @@ export function StockManagementModal({
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.setAttribute('href', url)
-    link.setAttribute('download', 'modelo_importacao_odontoflow.csv')
+    link.setAttribute('download', 'modelo_importacao_estoque.csv')
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
   }
 
-  // ─── LEITURA HÍBRIDA (SUPORTA VÍRGULA E PONTO E VÍRGULA) ───
   const handleImportSubmit = async () => {
     if (!selectedFile) {
-      alert('Por favor, selecione um arquivo de planilha (.csv) primeiro.')
+      alert('Selecione um arquivo .csv primeiro.')
       return
     }
 
@@ -298,11 +339,10 @@ export function StockManagementModal({
       const lines = text.split('\n').filter((line) => line.trim() !== '')
 
       if (lines.length <= 1) {
-        alert('A planilha parece estar vazia ou contém apenas o cabeçalho.')
+        alert('A planilha parece estar vazia.')
         return
       }
 
-      // Identifica se o divisor da primeira linha é ';' ou ','
       const delimiter = lines[0].includes(';') ? ';' : ','
       const dataRows = lines.slice(1)
 
@@ -313,34 +353,25 @@ export function StockManagementModal({
             name: cols[0] || '',
             quantity: Number(cols[1]) || 0,
             minQuantity: Number(cols[2]) || 0,
-            expiryDate: cols[3] ? new Date(cols[3]).toISOString() : null,
-            observation: cols[4] || null,
+            expiryDate: cols[3] ? new Date(cols[3]).toISOString() : undefined,
+            lotNumber: cols[4] || undefined,
+            notes: cols[5] || undefined,
           }
         })
         .filter((p) => p.name !== '')
 
-      if (parsedProducts.length === 0) {
-        alert('Nenhum dado válido encontrado na planilha.')
-        return
-      }
-
-      await Promise.all(
-        parsedProducts.map((payload) => api.post('/products', payload))
-      )
+      await Promise.all(parsedProducts.map((payload) => api.post('/products', payload)))
 
       if (onSuccess) onSuccess()
       setSelectedFile(null)
       onClose()
     } catch (err) {
-      console.error('Erro ao processar planilha:', err)
-      alert('Erro ao importar produtos da planilha. Verifique o formato do arquivo.')
+      console.error('Erro ao importar planilha:', err)
+      alert('Erro ao importar planilha. Verifique o formato do arquivo.')
     } finally {
       setIsSubmitting(false)
     }
   }
-  const filteredDbProducts = dbProducts.filter((p) =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase())
-  )
 
   return (
     <div className={styles.overlay}>
@@ -349,129 +380,199 @@ export function StockManagementModal({
           <X size={20} />
         </button>
 
-        {/* NAVEGAÇÃO DE ABAS */}
-        <div className={styles.tabNav}>
-          <button
-            type="button"
-            onClick={() => setActiveTab('adjust')}
-            className={`${styles.tabBtn} ${activeTab === 'adjust' ? styles.tabActive : ''}`}
-          >
-            Alterar quantidade
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('create')}
-            className={`${styles.tabBtn} ${activeTab === 'create' ? styles.tabActive : ''}`}
-          >
-            Cadastrar novo produto
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('import')}
-            className={`${styles.tabBtn} ${activeTab === 'import' ? styles.tabActive : ''}`}
-          >
-            Importar planilha
-          </button>
-        </div>
+        {/* ─── NAVEGAÇÃO DE ABAS ─── */}
+        {!showReasonsStep && (
+          <div className={styles.tabNav}>
+            <button
+              type="button"
+              onClick={() => setActiveTab('adjust')}
+              className={`${styles.tabBtn} ${activeTab === 'adjust' ? styles.tabActive : ''}`}
+            >
+              Alterar quantidade
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('create')}
+              className={`${styles.tabBtn} ${activeTab === 'create' ? styles.tabActive : ''}`}
+            >
+              Cadastrar novo produto
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('import')}
+              className={`${styles.tabBtn} ${activeTab === 'import' ? styles.tabActive : ''}`}
+            >
+              Importar planilha
+            </button>
+          </div>
+        )}
 
         {/* ─── ABA 1: ALTERAR QUANTIDADE ─── */}
         {activeTab === 'adjust' && (
           <div className={styles.tabContent}>
-            <div className={styles.searchBox}>
-              <Search size={16} className={styles.searchIcon} />
-              <input
-                type="text"
-                placeholder="Buscar produto cadastrado..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className={styles.searchInput}
-              />
-            </div>
-
-            {isLoadingProducts ? (
-              <div className={styles.loadingState}>
-                <Loader2 size={24} className={styles.spinner} />
-                <span>Carregando produtos do estoque...</span>
-              </div>
-            ) : filteredDbProducts.length === 0 ? (
-              <div className={styles.emptyTabState}>
-                <div className={styles.iconCircle}>
-                  <Box size={32} color="var(--primary)" />
+            {!showReasonsStep ? (
+              <>
+                <div className={styles.searchBox}>
+                  <Search size={16} className={styles.searchIcon} />
+                  <input
+                    type="text"
+                    placeholder="Buscar produto cadastrado..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className={styles.searchInput}
+                  />
                 </div>
-                <h3 className={styles.emptyTitle}>Nenhum produto encontrado</h3>
-                <p className={styles.emptyDesc}>
-                  Cadastre novos itens na aba "Cadastrar novo produto" para poder ajustar os saldos.
-                </p>
-              </div>
-            ) : (
-              <div className={styles.adjustListScroll}>
-                {filteredDbProducts.map((item) => {
-                  const currentQty = adjustments[item.id] ?? item.quantity
-                  const hasChanged = currentQty !== item.quantity
 
-                  return (
-                    <div key={item.id} className={styles.adjustRow}>
-                      <div className={styles.productMeta}>
-                        <span className={styles.productName}>{item.name}</span>
-                        <span className={styles.productSub}>
-                          Estoque Mínimo: {item.minQuantity} un.
-                        </span>
-                      </div>
-
-                      <div className={styles.counterControl}>
-                        <button
-                          type="button"
-                          className={styles.counterBtn}
-                          onClick={() => handleQuantityChange(item.id, -1)}
-                          disabled={currentQty <= 0}
-                        >
-                          <Minus size={14} />
-                        </button>
-
-                        <input
-                          type="number"
-                          min="0"
-                          value={currentQty}
-                          onChange={(e) => handleQuantityInput(item.id, Number(e.target.value))}
-                          className={styles.counterInput}
-                        />
-
-                        <button
-                          type="button"
-                          className={styles.counterBtn}
-                          onClick={() => handleQuantityChange(item.id, 1)}
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-
-                      {hasChanged && <span className={styles.changedBadge}>Alterado</span>}
+                {isLoadingProducts ? (
+                  <div className={styles.loadingState}>
+                    <Loader2 size={24} className={styles.spinner} />
+                    <span>Carregando produtos do estoque...</span>
+                  </div>
+                ) : dbProducts.length === 0 ? (
+                  <div className={styles.emptyTabState}>
+                    <div className={styles.iconCircle}>
+                      <Box size={32} color="var(--primary, #0284c7)" />
                     </div>
-                  )
-                })}
+                    <h3 className={styles.emptyTitle}>Nenhum produto encontrado</h3>
+                    <p className={styles.emptyDesc}>
+                      Cadastre novos itens na aba "Cadastrar novo produto" para ajustar os saldos.
+                    </p>
+                  </div>
+                ) : (
+                  <div className={styles.adjustListScroll}>
+                    {dbProducts
+                      .filter((p) => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                      .map((item) => {
+                        const currentQty = adjustments[item.id] ?? item.quantity
+                        const hasChanged = currentQty !== item.quantity
+
+                        return (
+                          <div key={item.id} className={styles.adjustRow}>
+                            <div className={styles.productMeta}>
+                              <span className={styles.productName}>{item.name}</span>
+                              <span className={styles.productSub}>Estoque Mínimo: {item.minQuantity} un.</span>
+                            </div>
+
+                            <div className={styles.counterWrapper}>
+                              <div className={styles.counterControl}>
+                                <button
+                                  type="button"
+                                  className={styles.counterBtn}
+                                  onClick={() => handleQuantityChange(item.id, -1)}
+                                  disabled={currentQty <= 0}
+                                >
+                                  <Minus size={14} />
+                                </button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={currentQty}
+                                  onChange={(e) => handleQuantityInput(item.id, Number(e.target.value))}
+                                  className={styles.counterInput}
+                                />
+                                <button
+                                  type="button"
+                                  className={styles.counterBtn}
+                                  onClick={() => handleQuantityChange(item.id, 1)}
+                                >
+                                  <Plus size={14} />
+                                </button>
+                              </div>
+
+                              <div className={styles.badgeSlot}>
+                                {hasChanged && <span className={styles.changedBadge}>Alterado</span>}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
+                )}
+
+                <div className={styles.modalFooter}>
+                  <button type="button" onClick={onClose} className={styles.btnSecondary} disabled={isSubmitting}>
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePreSave}
+                    className={styles.btnPrimaryModal}
+                    disabled={isSubmitting || dbProducts.length === 0}
+                  >
+                    <span>Salvar quantidades</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* PASSO 2 PREMIUM: JUSTIFICATIVAS */
+              <div className={styles.reasonsStepContainer}>
+                <div className={styles.reasonsHeader}>
+                  <div className={styles.premiumBadgeHeader}>
+                    <Sparkles size={14} /> <span>Recurso Premium</span>
+                  </div>
+                  <h3>Justificativa de Movimentação de Estoque</h3>
+                  <p>Selecione o motivo da alteração para rastreabilidade nos relatórios e auditoria.</p>
+                </div>
+
+                <div className={styles.adjustListScroll}>
+                  {changedProducts.map((p) => {
+                    const newQty = adjustments[p.id]
+                    const delta = newQty - p.quantity
+                    const isIncrease = delta > 0
+
+                    return (
+                      <div key={p.id} className={styles.reasonRow}>
+                        <div className={styles.reasonMeta}>
+                          <span className={styles.productName}>{p.name}</span>
+                          <span className={isIncrease ? styles.deltaPositive : styles.deltaNegative}>
+                            {isIncrease ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                            {isIncrease ? `+${delta}` : `${delta}`} un. (Novo total: {newQty})
+                          </span>
+                        </div>
+
+                        <select
+                          value={reasonsMap[p.id] || ''}
+                          onChange={(e) => setReasonsMap((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                          className={styles.reasonSelect}
+                        >
+                          {(isIncrease ? REASONS_INCREASE : REASONS_DECREASE).map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div className={styles.modalFooter}>
+                  <button
+                    type="button"
+                    onClick={() => setShowReasonsStep(false)}
+                    className={styles.btnSecondary}
+                    disabled={isSubmitting}
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={executeSaveAdjustments}
+                    className={styles.btnPrimaryModal}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 size={16} className={styles.spinner} />
+                        <span>Confirmando...</span>
+                      </>
+                    ) : (
+                      <span>Confirmar e Salvar Motivos</span>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
-
-            <div className={styles.modalFooter}>
-              <button type="button" onClick={onClose} className={styles.btnSecondary} disabled={isSubmitting}>
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveAdjustments}
-                className={styles.btnPrimaryModal}
-                disabled={isSubmitting || dbProducts.length === 0}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 size={16} className={styles.spinner} />
-                    <span>Salvar alterações...</span>
-                  </>
-                ) : (
-                  <span>Salvar quantidades</span>
-                )}
-              </button>
-            </div>
           </div>
         )}
 
@@ -481,11 +582,11 @@ export function StockManagementModal({
             <div className={styles.formListScroll}>
               {products.map((item, index) => (
                 <div key={item.id} className={styles.formRow}>
-                  <div className={styles.col4}>
-                    {index === 0 && <label className={styles.label}>Nome do produto</label>}
+                  <div className={styles.col3}>
+                    {index === 0 && <label className={styles.label}>Nome do produto *</label>}
                     <input
                       type="text"
-                      placeholder="Ex: Resina Fotopolimerizável A2"
+                      placeholder="Ex: Anestésico Tubete 2%"
                       value={item.name}
                       onChange={(e) => handleProductChange(index, 'name', e.target.value)}
                       className={styles.input}
@@ -494,29 +595,41 @@ export function StockManagementModal({
                   </div>
 
                   <div className={styles.col2}>
-                    {index === 0 && <label className={styles.label}>Em estoque</label>}
+                    {index === 0 && <label className={styles.label}>Qtd. Inicial</label>}
                     <input
                       type="number"
                       min="0"
                       value={item.quantity}
-                      onChange={(e) =>
-                        handleProductChange(index, 'quantity', Number(e.target.value))
-                      }
+                      onChange={(e) => handleProductChange(index, 'quantity', Number(e.target.value))}
                       className={`${styles.input} ${styles.textCenter}`}
                     />
                   </div>
 
                   <div className={styles.col2}>
-                    {index === 0 && <label className={styles.label}>Qtd. mínima</label>}
+                    {index === 0 && <label className={styles.label}>Qtd. Mínima</label>}
                     <input
                       type="number"
                       min="0"
                       value={item.minQuantity}
-                      onChange={(e) =>
-                        handleProductChange(index, 'minQuantity', Number(e.target.value))
-                      }
+                      onChange={(e) => handleProductChange(index, 'minQuantity', Number(e.target.value))}
                       className={`${styles.input} ${styles.textCenter}`}
                     />
+                  </div>
+
+                  <div className={styles.col2}>
+                    {index === 0 && <label className={styles.label}>Fornecedor</label>}
+                    <select
+                      value={item.supplierId}
+                      onChange={(e) => handleProductChange(index, 'supplierId', e.target.value)}
+                      className={styles.input}
+                    >
+                      <option value="">Nenhum</option>
+                      {suppliers.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className={styles.col2}>
@@ -524,26 +637,12 @@ export function StockManagementModal({
                     <input
                       type="date"
                       value={item.expirationDate}
-                      onChange={(e) =>
-                        handleProductChange(index, 'expirationDate', e.target.value)
-                      }
+                      onChange={(e) => handleProductChange(index, 'expirationDate', e.target.value)}
                       className={`${styles.input} ${styles.inputDate}`}
                     />
                   </div>
 
-                  <div className={styles.col2Flex}>
-                    <div className={styles.flex1}>
-                      {index === 0 && <label className={styles.label}>Lote / Obs.</label>}
-                      <input
-                        type="text"
-                        placeholder="Ex: Lote 123"
-                        value={item.observation}
-                        onChange={(e) =>
-                          handleProductChange(index, 'observation', e.target.value)
-                        }
-                        className={styles.input}
-                      />
-                    </div>
+                  <div className={styles.col1Flex}>
                     {products.length > 1 && (
                       <button
                         type="button"
@@ -595,22 +694,16 @@ export function StockManagementModal({
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
-              accept=".csv,.xlsx,.xls"
+              accept=".csv"
               style={{ display: 'none' }}
             />
 
             <div className={styles.importHeader}>
               <h3 className={styles.importTitle}>Importe seus produtos a partir de uma planilha</h3>
-              <p className={styles.importSub}>
-                Envie um arquivo Excel (.xlsx) ou CSV com os dados dos seus produtos.
-              </p>
+              <p className={styles.importSub}>Envie um arquivo CSV com os dados dos seus produtos.</p>
             </div>
 
-            <div
-              className={styles.dropzone}
-              onClick={handleDropzoneClick}
-              style={{ cursor: 'pointer' }}
-            >
+            <div className={styles.dropzone} onClick={handleDropzoneClick}>
               {selectedFile ? (
                 <>
                   <FileText size={32} className={styles.dropzoneIcon} />
@@ -621,7 +714,7 @@ export function StockManagementModal({
                 <>
                   <UploadCloud size={32} className={styles.dropzoneIcon} />
                   <p className={styles.dropzoneText}>Clique para selecionar sua planilha</p>
-                  <span className={styles.dropzoneSub}>xlsx, xls ou csv</span>
+                  <span className={styles.dropzoneSub}>Apenas arquivos .csv</span>
                 </>
               )}
             </div>
@@ -636,10 +729,10 @@ export function StockManagementModal({
             <div className={styles.instructionsBox}>
               <p className={styles.instructionsTitle}>Colunas da planilha:</p>
               <p><strong>nome</strong> — nome do produto (obrigatório)</p>
-              <p><strong>quantidade</strong> — quantidade em estoque (obrigatório)</p>
-              <p><strong>quantidade_minima</strong> — quantidade mínima para alerta (obrigatório)</p>
-              <p><strong>validade</strong> — data de validade (AAAA-MM-DD)</p>
-              <p><strong>observacoes</strong> — observações sobre o produto / Lote</p>
+              <p><strong>quantidade</strong> — quantidade em estoque</p>
+              <p><strong>quantidade_minima</strong> — estoque mínimo para alertas</p>
+              <p><strong>validade</strong> — AAAA-MM-DD</p>
+              <p><strong>lote</strong> — número do lote</p>
             </div>
 
             <div className={styles.modalFooter}>
