@@ -1,7 +1,6 @@
-// backend/src/controllers/treatmentPlan.controller.ts
-
 import type { Request, Response, NextFunction } from 'express'
 import * as treatmentPlanService from '../services/treatamentService'
+import type { UserRole } from '@prisma/client'
 import type {
   CreateTreatmentPlanDTO,
   UpdateTreatmentPlanDTO,
@@ -11,8 +10,15 @@ import type {
 
 export async function createTreatmentPlanController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
-    const plan = await treatmentPlanService.createTreatmentPlan(tenantId, clinicId, req.body as CreateTreatmentPlanDTO)
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const plan = await treatmentPlanService.createTreatmentPlan(
+      tenantId,
+      clinicId,
+      req.body as CreateTreatmentPlanDTO,
+      actor
+    )
     res.status(201).json(plan)
   } catch (error) {
     next(error)
@@ -49,9 +55,17 @@ export async function getTreatmentPlanByIdController(req: Request, res: Response
 
 export async function updateTreatmentPlanController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    const plan = await treatmentPlanService.updateTreatmentPlan(tenantId, clinicId, id as string, req.body as UpdateTreatmentPlanDTO)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const plan = await treatmentPlanService.updateTreatmentPlan(
+      tenantId,
+      clinicId,
+      id as string,
+      req.body as UpdateTreatmentPlanDTO,
+      actor
+    )
     res.status(200).json(plan)
   } catch (error) {
     next(error)
@@ -60,9 +74,17 @@ export async function updateTreatmentPlanController(req: Request, res: Response,
 
 export async function updateTreatmentPlanStatusController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    const plan = await treatmentPlanService.updateTreatmentPlanStatus(tenantId, clinicId, id as string, req.body as UpdateTreatmentPlanStatusDTO)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const plan = await treatmentPlanService.updateTreatmentPlanStatus(
+      tenantId,
+      clinicId,
+      id as string,
+      req.body as UpdateTreatmentPlanStatusDTO,
+      actor
+    )
     res.status(200).json(plan)
   } catch (error) {
     next(error)
@@ -71,9 +93,11 @@ export async function updateTreatmentPlanStatusController(req: Request, res: Res
 
 export async function deleteTreatmentPlanController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
-    await treatmentPlanService.deleteTreatmentPlan(tenantId, clinicId, id as string)
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    await treatmentPlanService.deleteTreatmentPlan(tenantId, clinicId, id as string, actor)
     res.status(204).send()
   } catch (error) {
     next(error)

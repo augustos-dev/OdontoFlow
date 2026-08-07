@@ -1,8 +1,7 @@
-// backend/src/services/transaction.service.ts
-
-import { Prisma, $Enums } from '@prisma/client'
+import { Prisma, $Enums, UserRole } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
+import { auditLogService } from './auditLog.service'
 import type {
   CreateTransactionDTO,
   UpdateTransactionDTO,
@@ -10,12 +9,19 @@ import type {
   TransactionReportDTO,
 } from '../types/transaction.types'
 
+interface ActorContext {
+  userId: string
+  userName: string
+  userRole?: UserRole
+}
+
 // ─── Create ──────────────────────────────────────────────────────────────────
 
 export async function createTransaction(
   tenantId: string,
   clinicId: string,
-  data: CreateTransactionDTO
+  data: CreateTransactionDTO,
+  actor: ActorContext
 ) {
   const { type, amount, paymentMethod, description, category, appointmentId, paidAt } = data
 
@@ -28,7 +34,6 @@ export async function createTransaction(
     const existing = await prisma.transaction.findUnique({ where: { appointmentId } })
     if (existing) throw new AppError('Já existe uma transação vinculada a este agendamento.', 409)
 
-    // Finaliza o agendamento automaticamente ao registrar pagamento
     if (appointment.status !== 'FINALIZADO') {
       await prisma.appointment.update({
         where: { id: appointmentId },
@@ -37,7 +42,7 @@ export async function createTransaction(
     }
   }
 
-  return prisma.transaction.create({
+  const transaction = await prisma.transaction.create({
     data: {
       tenantId,
       clinicId,
@@ -59,6 +64,21 @@ export async function createTransaction(
       },
     },
   })
+
+  // 🟢 Log de Auditoria
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole,
+    action: 'CREATE',
+    entity: 'TRANSACTION',
+    entityId: transaction.id,
+    details: `Registrou ${type}: R$ ${Number(amount).toFixed(2)} (${paymentMethod}) - ${description || category}`,
+  })
+
+  return transaction
 }
 
 // ─── List ─────────────────────────────────────────────────────────────────────
@@ -148,7 +168,8 @@ export async function updateTransaction(
   tenantId: string,
   clinicId: string,
   transactionId: string,
-  data: UpdateTransactionDTO
+  data: UpdateTransactionDTO,
+  actor: ActorContext
 ) {
   const transaction = await prisma.transaction.findFirst({
     where: { id: transactionId, tenantId, clinicId },
@@ -160,13 +181,28 @@ export async function updateTransaction(
     throw new AppError('Não é possível alterar o valor de uma transação vinculada a um agendamento.', 400)
   }
 
-  return prisma.transaction.update({
+  const updatedTransaction = await prisma.transaction.update({
     where: { id: transactionId },
     data: {
       ...data,
       paidAt: data.paidAt ? new Date(data.paidAt) : undefined,
     },
   })
+
+  // 🟢 Log de Auditoria
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole,
+    action: 'UPDATE',
+    entity: 'TRANSACTION',
+    entityId: transactionId,
+    details: `Atualizou transação (${transaction.type}). Novo valor: R$ ${Number(updatedTransaction.amount).toFixed(2)}`,
+  })
+
+  return updatedTransaction
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
@@ -174,7 +210,8 @@ export async function updateTransaction(
 export async function deleteTransaction(
   tenantId: string,
   clinicId: string,
-  transactionId: string
+  transactionId: string,
+  actor: ActorContext
 ) {
   const transaction = await prisma.transaction.findFirst({
     where: { id: transactionId, tenantId, clinicId },
@@ -187,6 +224,19 @@ export async function deleteTransaction(
   }
 
   await prisma.transaction.delete({ where: { id: transactionId } })
+
+  // 🟢 Log de Auditoria
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole,
+    action: 'DELETE',
+    entity: 'TRANSACTION',
+    entityId: transactionId,
+    details: `Deletou transação de ${transaction.type} no valor de R$ ${Number(transaction.amount).toFixed(2)} (${transaction.description || 'Sem descrição'})`,
+  })
 }
 
 // ─── Report ───────────────────────────────────────────────────────────────────
