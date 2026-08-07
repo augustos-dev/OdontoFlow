@@ -15,6 +15,16 @@ datasource db {
 // ENUMS
 // =============================================================================
 
+
+// =============================================================================
+// NOVO ENUM: TIPO DE MOVIMENTAÇÃO DE ESTOQUE
+// =============================================================================
+enum StockMovementType {
+  ENTRY        // Entrada de compra/reposição
+  EXIT_MANUAL  // Saída por descarte/perda/ajuste
+  EXIT_AUTO    // Baixa Automática por Procedimento Realizado
+}
+
 enum TenantPlan {
   STANDARD
   PREMIUM
@@ -170,6 +180,7 @@ model User {
   evolutions     Evolution[]
   treatmentPlans TreatmentPlan[]
   auditLogs      AuditLog[]
+  stockMovements StockMovement[] // 👈 ADICIONE ESTA LINHA AQUI!
 
   @@index([tenantId])
   @@index([clinicId])
@@ -325,16 +336,17 @@ model TreatmentPlan {
 }
 
 model Procedure {
-  id        String   @id @default(uuid())
-  tenantId  String
-  name      String
-  code      String?
-  basePrice Decimal  @db.Decimal(10, 2)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(uuid())
+  tenantId   String
+  name       String
+  code       String?
+  basePrice  Decimal  @db.Decimal(10, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   planProcedures PlanProcedure[]
+  procedureProducts ProcedureProduct[] // 🔗 Vínculo com Insumos do Estoque
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -398,23 +410,62 @@ model Product {
   name              String
   quantity          Int
   minQuantity       Int
-  lotNumber         String?   // 📦 Número do Lote (Rastreabilidade Sanitária)
-  manufacturingDate DateTime? // 🏭 Data de Fabricação
-  expiryDate        DateTime? // ⏳ Data de Validade
-  notes             String?   @db.Text // 📝 Observações / Instruções
+  lotNumber         String?   // 📦 Número do Lote
+  manufacturingDate DateTime? 
+  expiryDate        DateTime? 
+  notes             String?   @db.Text 
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  clinic   Clinic    @relation(fields: [clinicId], references: [id])
-  supplier Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic            Clinic             @relation(fields: [clinicId], references: [id])
+  supplier          Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  procedureProducts ProcedureProduct[] // 🔗 Relacionamento com procedimentos
+  stockMovements    StockMovement[]    // 📊 Histórico de movimentações (Entradas/Saídas)
 
   @@index([tenantId])
   @@index([clinicId])
   @@index([tenantId, clinicId])
-  @@index([clinicId, quantity, minQuantity]) // Rota GET /products/low-stock
-  @@index([clinicId, lotNumber])             // Busca de rastreabilidade por lote
+  @@index([clinicId, quantity, minQuantity])
+  @@index([clinicId, lotNumber])
   @@map("products")
+}
+
+// 🧪 Tabela Pivot: Ficha Técnica do Procedimento (Mapeamento de Insumos)
+model ProcedureProduct {
+  id           String   @id @default(uuid())
+  tenantId     String
+  procedureId  String
+  productId    String
+  quantity     Int      @default(1) // Quantidade gasta deste produto por procedimento
+
+  procedure    Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([procedureId, productId])
+  @@index([tenantId])
+  @@map("procedure_products")
+}
+
+
+// 📦 Histórico de Movimentação de Estoque
+model StockMovement {
+  id          String            @id @default(uuid())
+  tenantId    String
+  clinicId    String
+  productId   String
+  userId      String?
+  type        StockMovementType
+  quantity    Int               // Quantidade movimentada (positiva ou negativa)
+  reason      String?           // Ex: "Baixa Automática: Limpeza Tártaro (Proc: XYZ)"
+  createdAt   DateTime          @default(now())
+
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, clinicId])
+  @@index([productId, createdAt])
+  @@map("stock_movements")
 }
 
 model Supplier {
