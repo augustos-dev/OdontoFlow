@@ -10,6 +10,7 @@ import treatmentPlanRoutes from './treatment.routes'
 import userRoutes from './user.routes'
 import clinicRoutes from './clinic.routes'
 import dashboardRoutes from './dashboard.routes'
+import auditLogRoutes from './auditLog.routes' // 🛡️ Importação da rota de auditoria
 
 const router = Router()
 
@@ -21,13 +22,9 @@ router.use('/products', productRouter)
 router.use('/medical-records', medicalRecordRouter)
 router.use('/procedures', procedureRoutes)
 router.use('/treatment-plans', treatmentPlanRoutes)
-router.use('/users',userRoutes)
+router.use('/users', userRoutes)
 router.use('/clinics', clinicRoutes)
 router.use('/dashboard', dashboardRoutes)
- 
-
-
-
-
+router.use('/audit-logs', auditLogRoutes) 
 
 export default router

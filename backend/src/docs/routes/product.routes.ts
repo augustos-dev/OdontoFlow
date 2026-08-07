@@ -1,15 +1,13 @@
-// backend/src/routes/product.routes.ts
-
 import { Router } from 'express'
 import {
   createProductController,
-    listProductController,
-    adjustStockController,
-    expringProductController,
-    productByIdController,
-    deleteProductController,
-    lowStockController,
-    updateProductController
+  listProductController,
+  adjustStockController,
+  expringProductController,
+  productByIdController,
+  deleteProductController,
+  lowStockController,
+  updateProductController
 } from '../../controllers/productController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
 
@@ -21,14 +19,28 @@ router.use(authenticate)
 
 /**
  * @openapi
+ * tags:
+ *   name: Products
+ *   description: Gestão de estoque, insumos e rastreabilidade sanitária
+ */
+
+/**
+ * @openapi
  * /products:
  *   get:
  *     summary: Lista produtos do estoque com filtros e paginação
  *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: name
  *         schema: { type: string }
+ *         description: Nome do produto para busca parcial
+ *       - in: query
+ *         name: lotNumber
+ *         schema: { type: string }
+ *         description: Filtra por número do lote
  *       - in: query
  *         name: supplierId
  *         schema: { type: string, format: uuid }
@@ -48,7 +60,7 @@ router.use(authenticate)
  *         schema: { type: integer, default: 20 }
  *     responses:
  *       200:
- *         description: Lista paginada de produtos com status de estoque (semáforo)
+ *         description: Lista paginada de produtos com status de estoque e lote
  *         content:
  *           application/json:
  *             schema:
@@ -61,7 +73,7 @@ router.use(authenticate)
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-router.get('/',  listProductController)
+router.get('/', listProductController)
 
 /**
  * @openapi
@@ -69,6 +81,8 @@ router.get('/',  listProductController)
  *   get:
  *     summary: Lista produtos com estoque crítico (quantity <= minQuantity)
  *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Lista de produtos em estoque crítico
@@ -77,8 +91,10 @@ router.get('/',  listProductController)
  *             schema:
  *               type: array
  *               items: { $ref: '#/components/schemas/Product' }
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  */
-router.get('/low-stock',  lowStockController)
+router.get('/low-stock', lowStockController)
 
 /**
  * @openapi
@@ -86,6 +102,8 @@ router.get('/low-stock',  lowStockController)
  *   get:
  *     summary: Lista produtos vencendo nos próximos 30 dias
  *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Lista de produtos próximos do vencimento
@@ -94,8 +112,10 @@ router.get('/low-stock',  lowStockController)
  *             schema:
  *               type: array
  *               items: { $ref: '#/components/schemas/Product' }
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  */
-router.get('/expiring',   expringProductController)
+router.get('/expiring', expringProductController)
 
 /**
  * @openapi
@@ -103,6 +123,8 @@ router.get('/expiring',   expringProductController)
  *   get:
  *     summary: Busca um produto por ID
  *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -110,22 +132,26 @@ router.get('/expiring',   expringProductController)
  *         schema: { type: string, format: uuid }
  *     responses:
  *       200:
- *         description: Dados completos do produto
+ *         description: Dados completos do produto (incluindo lote e fabricante)
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Product'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.get('/:id',   productByIdController)
+router.get('/:id', productByIdController)
 
 /**
  * @openapi
  * /products:
  *   post:
- *     summary: Cria um novo produto no estoque
+ *     summary: Cria um novo produto no estoque com rastreabilidade de lote e auditoria
  *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -134,11 +160,13 @@ router.get('/:id',   productByIdController)
  *             $ref: '#/components/schemas/CreateProductDTO'
  *     responses:
  *       201:
- *         description: Produto criado com sucesso
+ *         description: Produto criado com sucesso e registrado no AuditLog
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Product'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
@@ -150,8 +178,10 @@ router.post('/', authorize('ADMIN', 'SECRETARY'), createProductController)
  * @openapi
  * /products/{id}:
  *   put:
- *     summary: Atualiza os dados de um produto
+ *     summary: Atualiza os dados de um produto (Lote, Validade, Qtds, Observações)
  *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -166,6 +196,12 @@ router.post('/', authorize('ADMIN', 'SECRETARY'), createProductController)
  *     responses:
  *       200:
  *         description: Produto atualizado com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Product'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
@@ -177,8 +213,10 @@ router.put('/:id', authorize('ADMIN', 'SECRETARY'), updateProductController)
  * @openapi
  * /products/{id}/stock:
  *   patch:
- *     summary: Ajusta o estoque de um produto (entrada ou saída)
+ *     summary: Ajusta o estoque de um produto (Entrada ou Saída)
  *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -195,6 +233,8 @@ router.put('/:id', authorize('ADMIN', 'SECRETARY'), updateProductController)
  *         description: Estoque ajustado com sucesso
  *       400:
  *         description: Estoque insuficiente para a saída solicitada
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
@@ -206,8 +246,10 @@ router.patch('/:id/stock', authorize('ADMIN', 'SECRETARY', 'DENTIST'), adjustSto
  * @openapi
  * /products/{id}:
  *   delete:
- *     summary: Remove um produto (apenas ADMIN, exige estoque zerado)
+ *     summary: Remove um produto (Apenas ADMIN, exige estoque zerado)
  *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -218,6 +260,8 @@ router.patch('/:id/stock', authorize('ADMIN', 'SECRETARY', 'DENTIST'), adjustSto
  *         description: Produto removido com sucesso
  *       400:
  *         description: Produto com estoque não pode ser removido
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
