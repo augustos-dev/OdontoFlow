@@ -19,7 +19,9 @@ import {
   X,
   ExternalLink,
   RefreshCw,
-  UserCheck
+  UserCheck,
+  DollarSign,
+  Boxes
 } from 'lucide-react'
 import api from '@/lib/api'
 import { StockManagementModal, StockProductInput } from '../../components/estoque/StockManagementModal'
@@ -47,9 +49,12 @@ interface StockMovement {
 interface ProductDetails {
   id: string
   name: string
+  lotNumber?: string
   batchNumber?: string
   quantity: number
   minQuantity: number
+  unit?: string
+  costPrice?: number
   expirationDate?: string
   supplier?: Supplier
   stockMovements?: StockMovement[]
@@ -58,9 +63,12 @@ interface ProductDetails {
 interface Product {
   id: string
   name: string
+  lotNumber?: string
   batchNumber?: string
   quantity: number
   minQuantity: number
+  unit?: string
+  costPrice?: number
   expiryDate?: string
   stockStatus?: 'OK' | 'BAIXO' | 'CRITICO'
   supplier?: Supplier
@@ -76,6 +84,9 @@ export default function EstoquePage() {
   const [loading, setLoading] = useState(true)
   const [loadingSuppliers, setLoadingSuppliers] = useState(false)
   
+  // 🟢 Feature Flag do Plano do Tenant ('BASIC' | 'PRO' | 'ENTERPRISE')
+  const [planType, setPlanType] = useState<'BASIC' | 'PRO' | 'ENTERPRISE'>('PRO')
+
   const [productFilterTab, setProductFilterTab] = useState<'all' | 'critical' | 'expiring'>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -85,7 +96,7 @@ export default function EstoquePage() {
   const [productDetails, setProductDetails] = useState<ProductDetails | null>(null)
   const [loadingDetails, setLoadingDetails] = useState(false)
 
-  // Cadastro Rápido de Fornecedor (Com o campo `contact` tipado no estado inicial)
+  // Cadastro Rápido de Fornecedor
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
   const [newSupplier, setNewSupplier] = useState({ 
     name: '', 
@@ -134,7 +145,7 @@ export default function EstoquePage() {
     }
   }, [])
 
-  // ─── CARREGAR FORNECEDORES (Consome GET /api/suppliers) ───
+  // ─── CARREGAR FORNECEDORES ───
   const loadSuppliers = useCallback(async () => {
     setLoadingSuppliers(true)
     try {
@@ -152,7 +163,7 @@ export default function EstoquePage() {
     loadSuppliers()
   }, [loadStockData, loadSuppliers])
 
-  // ─── BUSCAR DETALHES DO PRODUTO (Consome GET /api/products/:id/details) ───
+  // ─── BUSCAR DETALHES DO PRODUTO ───
   const handleOpenProductDetails = async (productId: string) => {
     setSelectedProductId(productId)
     setLoadingDetails(true)
@@ -165,9 +176,12 @@ export default function EstoquePage() {
         setProductDetails({
           id: fallbackProd.id,
           name: fallbackProd.name,
+          lotNumber: fallbackProd.lotNumber,
           batchNumber: fallbackProd.batchNumber,
           quantity: fallbackProd.quantity,
           minQuantity: fallbackProd.minQuantity,
+          unit: fallbackProd.unit,
+          costPrice: fallbackProd.costPrice,
           expirationDate: fallbackProd.expiryDate,
           supplier: fallbackProd.supplier,
           stockMovements: [],
@@ -178,7 +192,7 @@ export default function EstoquePage() {
     }
   }
 
-  // ─── SALVAR NOVO FORNECEDOR (Consome POST /api/suppliers) ───
+  // ─── SALVAR NOVO FORNECEDOR ───
   const handleCreateSupplier = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newSupplier.name.trim()) return
@@ -213,7 +227,11 @@ export default function EstoquePage() {
   }
 
   const rawDisplayed = productFilterTab === 'all' ? products : productFilterTab === 'critical' ? lowStock : expiring
-  const displayed = rawDisplayed.filter((p) => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  const displayed = rawDisplayed.filter((p) => 
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.lotNumber && p.lotNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (p.batchNumber && p.batchNumber.toLowerCase().includes(searchTerm.toLowerCase()))
+  )
 
   const filteredSuppliers = suppliers.filter((s) => 
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -227,6 +245,9 @@ export default function EstoquePage() {
     return status === 'CRITICO' || status === 'BAIXO'
   }).length
 
+  // 🧮 Métrica Financeira: Valor total acumulado do estoque em R$
+  const totalStockValue = products.reduce((acc, p) => acc + (p.costPrice || 0) * p.quantity, 0)
+
   const topUsedProducts = products
     .filter((p) => p.usageCount && p.usageCount > 0)
     .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))
@@ -235,6 +256,11 @@ export default function EstoquePage() {
   function formatDate(dt?: string) {
     if (!dt) return '—'
     return new Date(dt).toLocaleDateString('pt-BR')
+  }
+
+  function formatCurrency(val?: number) {
+    if (val === undefined || val === null) return '—'
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
 
   function getStockClass(status: string) {
@@ -257,7 +283,7 @@ export default function EstoquePage() {
       {/* ─── Ações de Topo ─── */}
       <div className={styles.topActionBar}>
         <p className={styles.pageSubtitle}>
-          Gerencie o consumo, reposição e a rede de fornecedores da clínica em tempo real
+          Gerencie o consumo, reposição, lote e o custo total de insumos da clínica em tempo real
         </p>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button 
@@ -293,7 +319,7 @@ export default function EstoquePage() {
       </div>
 
       {/* ─── Cards de Métricas ─── */}
-      <div className={styles.metricsGrid}>
+      <div className={styles.metricsGrid} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         <div className={styles.metricCard}>
           <div className={styles.metricHeader}>
             <div className={styles.metricIconBg}>
@@ -323,6 +349,19 @@ export default function EstoquePage() {
           <p className={styles.metricLabel}>EM ESTOQUE</p>
           <p className={`${styles.metricValue} ${styles.metricOk}`}>{totalOk}</p>
         </div>
+
+        {/* 🟢 Métrica Financeira: Valor do Estoque */}
+        <div className={styles.metricCard}>
+          <div className={styles.metricHeader}>
+            <div className={styles.metricIconBg} style={{ backgroundColor: '#f0fdf4' }}>
+              <DollarSign size={20} color="#16a34a" />
+            </div>
+          </div>
+          <p className={styles.metricLabel}>VALOR EM ESTOQUE</p>
+          <p className={styles.metricValue} style={{ fontSize: '20px', color: '#16a34a' }}>
+            {formatCurrency(totalStockValue)}
+          </p>
+        </div>
       </div>
 
       {/* ─── Gráfico de Saídas ─── */}
@@ -351,7 +390,7 @@ export default function EstoquePage() {
                     <span className={styles.chartBarName}>{item.name}</span>
                     <span className={styles.chartBarUsage}>
                       <TrendingDown size={14} className={styles.usageIcon} />
-                      {item.usageCount} unidades consumidas
+                      {item.usageCount} {item.unit || 'unidades'} consumidas
                     </span>
                   </div>
                   <div className={styles.barTrack}>
@@ -397,7 +436,7 @@ export default function EstoquePage() {
               <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
               <input 
                 type="text" 
-                placeholder={mainTab === 'products' ? 'Buscar produto...' : 'Buscar fornecedor ou contato...'}
+                placeholder={mainTab === 'products' ? 'Buscar produto, lote...' : 'Buscar fornecedor ou contato...'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
@@ -410,7 +449,7 @@ export default function EstoquePage() {
                   borderRadius: 'var(--radius-sm, 8px)',
                   outline: 'none',
                   background: '#f8fafc',
-                  width: '220px'
+                  width: '240px'
                 }}
               />
             </div>
@@ -457,6 +496,7 @@ export default function EstoquePage() {
                 <tr>
                   <th>NOME DO MATERIAL</th>
                   <th>LOTE / CÓDIGO</th>
+                  <th>PREÇO DE CUSTO</th>
                   <th>QUANTIDADE ATUAL</th>
                   <th>ESTOQUE MÍNIMO</th>
                   <th>VALIDADE</th>
@@ -466,7 +506,7 @@ export default function EstoquePage() {
               <tbody>
                 {displayed.length === 0 && (
                   <tr>
-                    <td colSpan={6} className={styles.empty}>
+                    <td colSpan={7} className={styles.empty}>
                       Nenhum produto encontrado
                     </td>
                   </tr>
@@ -474,6 +514,8 @@ export default function EstoquePage() {
                 {displayed.map((p) => {
                   const alert = getAlertLabel(p)
                   const computedStatus = getComputedStatus(p)
+                  const lotDisplay = p.lotNumber || p.batchNumber
+
                   return (
                     <tr 
                       key={p.id} 
@@ -483,23 +525,33 @@ export default function EstoquePage() {
                     >
                       <td className={styles.productName}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>{p.name}</span>
+                          <span style={{ fontWeight: 600 }}>{p.name}</span>
                           <ExternalLink size={12} color="#0284c7" />
                         </div>
                       </td>
+
+                      {/* Lote / Código com Mapeamento Corrigido */}
                       <td className={styles.minQty}>
-                        {p.batchNumber ? (
-                          <span style={{ fontFamily: 'monospace', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
-                            {p.batchNumber}
+                        {lotDisplay ? (
+                          <span style={{ fontFamily: 'monospace', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, color: '#334155' }}>
+                            {lotDisplay}
                           </span>
                         ) : '—'}
                       </td>
+
+                      {/* Custo Unitário */}
+                      <td style={{ fontWeight: 600, color: '#0f172a', fontSize: '13px' }}>
+                        {formatCurrency(p.costPrice)}
+                      </td>
+
+                      {/* Quantidade com Unidade */}
                       <td>
                         <span className={`${styles.qtyBadge} ${getStockClass(computedStatus)}`}>
-                          {p.quantity}
+                          {p.quantity} {p.unit || 'un.'}
                         </span>
                       </td>
-                      <td className={styles.minQty}>Min. {p.minQuantity}</td>
+
+                      <td className={styles.minQty}>Min. {p.minQuantity} {p.unit || 'un.'}</td>
                       <td className={styles.expiry}>{formatDate(p.expiryDate)}</td>
                       <td>
                         <span className={`${styles.alertBadge} ${alert.cls}`}>
@@ -582,7 +634,7 @@ export default function EstoquePage() {
               <div>
                 <h3 className={styles.detailsTitle}>{productDetails?.name || 'Detalhes do Material'}</h3>
                 <p className={styles.chartSub}>
-                  Lote: {productDetails?.batchNumber || 'Não informado'}
+                  Lote: {productDetails?.lotNumber || productDetails?.batchNumber || 'Não informado'}
                 </p>
               </div>
               <button 
@@ -606,7 +658,15 @@ export default function EstoquePage() {
                 <div className={styles.detailsInfoGrid}>
                   <div className={styles.infoBox}>
                     <span className={styles.infoBoxLabel}>Estoque Atual</span>
-                    <span className={styles.infoBoxValue}>{productDetails?.quantity || 0}</span>
+                    <span className={styles.infoBoxValue}>
+                      {productDetails?.quantity || 0} {productDetails?.unit || 'un.'}
+                    </span>
+                  </div>
+                  <div className={styles.infoBox}>
+                    <span className={styles.infoBoxLabel}>Custo Unitário</span>
+                    <span className={styles.infoBoxValue} style={{ color: '#0f172a' }}>
+                      {formatCurrency(productDetails?.costPrice)}
+                    </span>
                   </div>
                   <div className={styles.infoBox}>
                     <span className={styles.infoBoxLabel}>Estoque Mínimo</span>
@@ -644,7 +704,7 @@ export default function EstoquePage() {
                 <div className={styles.movementsSection}>
                   <div className={styles.movementsHeader}>
                     <History size={16} color="var(--primary)" />
-                    <h4>Últimas Movimentações</h4>
+                    <h4>Últimas Movimentações (Exit Inteligente)</h4>
                   </div>
 
                   {!productDetails?.stockMovements || productDetails.stockMovements.length === 0 ? (
@@ -659,7 +719,9 @@ export default function EstoquePage() {
                               <span className={`${styles.movBadge} ${isEntry ? styles.movIn : styles.movOut}`}>
                                 {isEntry ? '+ Entrada' : '- Saída'}
                               </span>
-                              <span className={styles.movQty}>{Math.abs(mov.quantity)} un.</span>
+                              <span className={styles.movQty}>
+                                {Math.abs(mov.quantity)} {productDetails.unit || 'un.'}
+                              </span>
                             </div>
                             <div className={styles.movRight}>
                               <span className={styles.movUser}>{mov.user?.name || 'Sistema'}</span>
@@ -772,12 +834,13 @@ export default function EstoquePage() {
         </div>
       )}
 
-      {/* Modal de Gerenciamento em Abas Existente */}
+      {/* 🟢 Modal de Gerenciamento em Abas passando a Feature Flag do Plano */}
       <StockManagementModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSaveProducts={handleSaveNewProducts}
         onSuccess={loadStockData}
+        planType={planType === 'BASIC' ? 'BASIC' : 'PREMIUM'}
       />
     </div>
   )

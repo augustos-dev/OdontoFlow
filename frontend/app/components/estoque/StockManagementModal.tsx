@@ -25,6 +25,8 @@ export interface StockProductInput {
   batchNumber: string
   quantity: number
   minQuantity: number
+  unit: string
+  costPrice?: string
   expirationDate: string
   supplierId: string
   observation: string
@@ -36,6 +38,8 @@ interface ProductDb {
   batchNumber?: string
   quantity: number
   minQuantity: number
+  unit?: string
+  costPrice?: number
   expiryDate?: string
   supplierId?: string
 }
@@ -52,6 +56,15 @@ interface StockManagementModalProps {
   onSuccess?: () => void
   planType?: 'BASIC' | 'PREMIUM'
 }
+
+const UNIT_OPTIONS = [
+  { value: 'UN', label: 'un' },
+  { value: 'ML', label: 'ml' },
+  { value: 'MG', label: 'mg' },
+  { value: 'G', label: 'g' },
+  { value: 'L', label: 'L' },
+  { value: 'CX', label: 'cx' },
+]
 
 const REASONS_INCREASE = [
   'Compra / Reposição de Estoque',
@@ -97,6 +110,8 @@ export function StockManagementModal({
       batchNumber: '',
       quantity: 1,
       minQuantity: 1,
+      unit: 'UN',
+      costPrice: '',
       expirationDate: '',
       supplierId: '',
       observation: '',
@@ -214,7 +229,7 @@ export function StockManagementModal({
     }
   }
 
-  // ─── HANDLERS ABA 2 (CADASTRAR COM LOTE) ───
+  // ─── HANDLERS ABA 2 (CADASTRAR PRODUTO) ───
   const handleProductChange = (index: number, field: keyof StockProductInput, value: any) => {
     const updated = [...products]
     updated[index] = { ...updated[index], [field]: value }
@@ -230,6 +245,8 @@ export function StockManagementModal({
         batchNumber: '',
         quantity: 1,
         minQuantity: 1,
+        unit: 'UN',
+        costPrice: '',
         expirationDate: '',
         supplierId: '',
         observation: '',
@@ -256,11 +273,16 @@ export function StockManagementModal({
     try {
       await Promise.all(
         validProducts.map(async (p) => {
+          const parsedCost = p.costPrice ? parseFloat(p.costPrice.replace(',', '.')) : undefined
+
           const payload = {
             name: p.name,
-            batchNumber: p.batchNumber.trim() || undefined,
+            lotNumber: p.batchNumber.trim() || undefined, // 🟢 Mapeado de batchNumber para lotNumber
+            batchNumber: p.batchNumber.trim() || undefined, // 🟢 Envia ambos por compatibilidade
             quantity: Number(p.quantity),
             minQuantity: Number(p.minQuantity),
+            unit: p.unit || 'UN',
+            costPrice: isNaN(parsedCost as number) ? undefined : parsedCost,
             supplierId: p.supplierId || undefined,
             expiryDate: p.expirationDate ? new Date(p.expirationDate).toISOString() : undefined,
             notes: p.observation || undefined,
@@ -279,6 +301,8 @@ export function StockManagementModal({
           batchNumber: '',
           quantity: 1,
           minQuantity: 1,
+          unit: 'UN',
+          costPrice: '',
           expirationDate: '',
           supplierId: '',
           observation: '',
@@ -305,10 +329,10 @@ export function StockManagementModal({
 
   const handleDownloadTemplate = (e: React.MouseEvent) => {
     e.preventDefault()
-    const csvHeader = 'nome;lote;quantidade;quantidade_minima;validade;observacoes\n'
+    const csvHeader = 'nome;lote;quantidade;quantidade_minima;unidade;preco_custo;validade;observacoes\n'
     const csvRows = [
-      'Anestésico Tubete;LT-8842;50;10;2026-12-31;Mantenha refrigerado',
-      'Caixa de Luvas P;LT-9910;20;5;2027-05-15;Marca Supermax',
+      'Anestésico Tubete;LT-8842;50;10;UN;3.50;2026-12-31;Mantenha refrigerado',
+      'Resina Fotopolimerizável A2;LT-9910;10;2;G;12.00;2027-05-15;Marca Zhermack',
     ].join('\n')
 
     const csvContent = '\uFEFF' + csvHeader + csvRows
@@ -344,13 +368,18 @@ export function StockManagementModal({
       const parsedProducts = dataRows
         .map((row) => {
           const cols = row.split(delimiter).map((c) => c.trim().replace(/^"|"$/g, ''))
+          const parsedCost = cols[5] ? parseFloat(cols[5].replace(',', '.')) : undefined
+
           return {
             name: cols[0] || '',
+            lotNumber: cols[1] || undefined, // 🟢 Mapeado para lotNumber
             batchNumber: cols[1] || undefined,
             quantity: Number(cols[2]) || 0,
             minQuantity: Number(cols[3]) || 0,
-            expiryDate: cols[4] ? new Date(cols[4]).toISOString() : undefined,
-            notes: cols[5] || undefined,
+            unit: cols[4] || 'UN',
+            costPrice: isNaN(parsedCost as number) ? undefined : parsedCost,
+            expiryDate: cols[6] ? new Date(cols[6]).toISOString() : undefined,
+            notes: cols[7] || undefined,
           }
         })
         .filter((p) => p.name !== '')
@@ -445,7 +474,7 @@ export function StockManagementModal({
                             <div className={styles.productMeta}>
                               <span className={styles.productName}>{item.name}</span>
                               <span className={styles.productSub}>
-                                Lote: {item.batchNumber || '—'} | Min: {item.minQuantity} un.
+                                Lote: {item.batchNumber || '—'} | Min: {item.minQuantity} {item.unit || 'un.'}
                               </span>
                             </div>
 
@@ -521,7 +550,7 @@ export function StockManagementModal({
                           <span className={styles.productName}>{p.name}</span>
                           <span className={isIncrease ? styles.deltaPositive : styles.deltaNegative}>
                             {isIncrease ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                            {isIncrease ? `+${delta}` : `${delta}`} un. (Novo total: {newQty})
+                            {isIncrease ? `+${delta}` : `${delta}`} {p.unit || 'un.'} (Novo total: {newQty})
                           </span>
                         </div>
 
@@ -571,95 +600,130 @@ export function StockManagementModal({
           </div>
         )}
 
-        {/* ─── ABA 2: CADASTRAR NOVO PRODUTO (COM CAMPO LOTE) ─── */}
+        {/* ─── ABA 2: CADASTRAR NOVO PRODUTO (RE-ESTRUTURADO EM BLOCOS/CARDS) ─── */}
         {activeTab === 'create' && (
           <form onSubmit={handleSubmitCreate}>
-            <div className={styles.formListScroll}>
+            <div className={styles.cardsContainerScroll}>
               {products.map((item, index) => (
-                <div key={item.id} className={styles.formRowWithLot}>
-                  <div className={styles.colName}>
-                    {index === 0 && <label className={styles.label}>Nome do produto *</label>}
-                    <input
-                      type="text"
-                      placeholder="Ex: Anestésico Tubete"
-                      value={item.name}
-                      onChange={(e) => handleProductChange(index, 'name', e.target.value)}
-                      className={styles.input}
-                      required
-                    />
-                  </div>
-
-                  <div className={styles.colLot}>
-                    {index === 0 && <label className={styles.label}>Lote / Código</label>}
-                    <input
-                      type="text"
-                      placeholder="Ex: LT-8842"
-                      value={item.batchNumber}
-                      onChange={(e) => handleProductChange(index, 'batchNumber', e.target.value)}
-                      className={styles.input}
-                    />
-                  </div>
-
-                  <div className={styles.colNumber}>
-                    {index === 0 && <label className={styles.label}>Qtd. Inicial</label>}
-                    <input
-                      type="number"
-                      min="0"
-                      value={item.quantity}
-                      onChange={(e) => handleProductChange(index, 'quantity', Number(e.target.value))}
-                      className={`${styles.input} ${styles.textCenter}`}
-                    />
-                  </div>
-
-                  <div className={styles.colNumber}>
-                    {index === 0 && <label className={styles.label}>Qtd. Mínima</label>}
-                    <input
-                      type="number"
-                      min="0"
-                      value={item.minQuantity}
-                      onChange={(e) => handleProductChange(index, 'minQuantity', Number(e.target.value))}
-                      className={`${styles.input} ${styles.textCenter}`}
-                    />
-                  </div>
-
-                  <div className={styles.colSelect}>
-                    {index === 0 && <label className={styles.label}>Fornecedor</label>}
-                    <select
-                      value={item.supplierId}
-                      onChange={(e) => handleProductChange(index, 'supplierId', e.target.value)}
-                      className={styles.input}
-                    >
-                      <option value="">Nenhum</option>
-                      {suppliers.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className={styles.colDate}>
-                    {index === 0 && <label className={styles.label}>Validade</label>}
-                    <input
-                      type="date"
-                      value={item.expirationDate}
-                      onChange={(e) => handleProductChange(index, 'expirationDate', e.target.value)}
-                      className={`${styles.input} ${styles.inputDate}`}
-                    />
-                  </div>
-
-                  <div className={styles.colAction}>
+                <div key={item.id} className={styles.productCardBlock}>
+                  {/* Cabeçalho do Bloco */}
+                  <div className={styles.cardHeader}>
+                    <span className={styles.cardTitle}>Item #{index + 1}</span>
                     {products.length > 1 && (
                       <button
                         type="button"
                         onClick={() => handleRemoveRow(index)}
-                        className={`${styles.removeRowBtn} ${index === 0 ? styles.withMargin : ''}`}
-                        title="Remover linha"
+                        className={styles.cardRemoveBtn}
+                        title="Remover este produto"
                         disabled={isSubmitting}
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={15} />
+                        <span>Remover</span>
                       </button>
                     )}
+                  </div>
+
+                  {/* Grid Interno do Card */}
+                  <div className={styles.cardGrid}>
+                    {/* Linha 1: Nome (8 colunas) + Lote (4 colunas) */}
+                    <div className={styles.colSpan8}>
+                      <label className={styles.label}>Nome do Produto *</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Anestésico Tubete 1:100.000"
+                        value={item.name}
+                        onChange={(e) => handleProductChange(index, 'name', e.target.value)}
+                        className={styles.input}
+                        required
+                      />
+                    </div>
+
+                    <div className={styles.colSpan4}>
+                      <label className={styles.label}>Lote / Código</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: LT-8842"
+                        value={item.batchNumber}
+                        onChange={(e) => handleProductChange(index, 'batchNumber', e.target.value)}
+                        className={styles.input}
+                      />
+                    </div>
+
+                    {/* Linha 2: Qtd Inicial + Unidade + Custo + Qtd Mínima */}
+                    <div className={styles.colSpan3}>
+                      <label className={styles.label}>Qtd. Inicial *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={item.quantity}
+                        onChange={(e) => handleProductChange(index, 'quantity', Number(e.target.value))}
+                        className={styles.input}
+                      />
+                    </div>
+
+                    <div className={styles.colSpan3}>
+                      <label className={styles.label}>Unidade</label>
+                      <select
+                        value={item.unit}
+                        onChange={(e) => handleProductChange(index, 'unit', e.target.value)}
+                        className={styles.select}
+                      >
+                        {UNIT_OPTIONS.map((u) => (
+                          <option key={u.value} value={u.value}>
+                            {u.label} ({u.value})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className={styles.colSpan3}>
+                      <label className={styles.label}>Custo / Compra (R$)</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: 3.50"
+                        value={item.costPrice}
+                        onChange={(e) => handleProductChange(index, 'costPrice', e.target.value)}
+                        className={styles.input}
+                      />
+                    </div>
+
+                    <div className={styles.colSpan3}>
+                      <label className={styles.label}>Estoque Mínimo</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={item.minQuantity}
+                        onChange={(e) => handleProductChange(index, 'minQuantity', Number(e.target.value))}
+                        className={styles.input}
+                      />
+                    </div>
+
+                    {/* Linha 3: Fornecedor (6 colunas) + Validade (6 colunas) */}
+                    <div className={styles.colSpan6}>
+                      <label className={styles.label}>Fornecedor</label>
+                      <select
+                        value={item.supplierId}
+                        onChange={(e) => handleProductChange(index, 'supplierId', e.target.value)}
+                        className={styles.select}
+                      >
+                        <option value="">Nenhum / Não especificado</option>
+                        {suppliers.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className={styles.colSpan6}>
+                      <label className={styles.label}>Data de Validade</label>
+                      <input
+                        type="date"
+                        value={item.expirationDate}
+                        onChange={(e) => handleProductChange(index, 'expirationDate', e.target.value)}
+                        className={styles.input}
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -738,6 +802,8 @@ export function StockManagementModal({
               <p><strong>lote</strong> — código/número do lote</p>
               <p><strong>quantidade</strong> — quantidade inicial em estoque</p>
               <p><strong>quantidade_minima</strong> — estoque mínimo para alertas</p>
+              <p><strong>unidade</strong> — UN, ML, MG, G, L, CX (opcional)</p>
+              <p><strong>preco_custo</strong> — valor de compra do item ex: 3.50 (opcional)</p>
               <p><strong>validade</strong> — AAAA-MM-DD</p>
             </div>
 
