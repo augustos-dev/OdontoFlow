@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import { EvolutionService } from '../services/evolutionService'
 import type { UserRole } from '@prisma/client'
 import type { CreateEvolutionDTO } from '../types/medicalRecord.types'
+import type { CustomJwtPayload } from '../types/express'
 import 'multer'
 
 const evolutionService = new EvolutionService()
@@ -16,7 +17,7 @@ function extractAttachmentUrls(req: Request): string[] {
   const body = req.body || {}
 
   if (files && Array.isArray(files) && files.length > 0) {
-    return files.map(file => file.filename)
+    return files.map((file) => file.filename)
   }
 
   if (body.attachments) {
@@ -36,20 +37,26 @@ export class EvolutionController {
         return
       }
 
-      const { tenantId, clinicId, sub: dentistId, name: userName, role } = req.user
+      const user = req.user as CustomJwtPayload
+      const dentistId = user.userId || (user as any).sub || (user as any).id
       const targetId = getRecordIdParam(req)
       const attachmentUrls = extractAttachmentUrls(req)
-      const actor = { userId: dentistId, userName: userName || 'Usuário', userRole: role as UserRole }
+      const actor = {
+        userId: dentistId,
+        userName: (user as any).name || 'Usuário',
+        userRole: (user.role as UserRole) || 'DENTIST',
+      }
 
       const dto: CreateEvolutionDTO = {
         description: req.body.description,
+        procedureId: req.body.procedureId, // 🚀 Gatilho para o Exit Inteligente
         odontogramSnapshot: req.body.odontogramSnapshot,
         attachments: attachmentUrls,
       }
 
       const evolution = await evolutionService.createEvolution(
-        tenantId,
-        clinicId,
+        user.tenantId,
+        user.clinicId!,
         targetId,
         dentistId as string,
         dto,
@@ -69,12 +76,12 @@ export class EvolutionController {
         return
       }
 
-      const { tenantId, clinicId } = req.user
+      const user = req.user as CustomJwtPayload
       const targetId = getRecordIdParam(req)
 
       const evolutions = await evolutionService.getEvolutionsByPatient(
-        tenantId,
-        clinicId,
+        user.tenantId,
+        user.clinicId!,
         targetId
       )
 
@@ -91,14 +98,19 @@ export class EvolutionController {
         return
       }
 
-      const { tenantId, clinicId, sub: userId, name: userName, role } = req.user
+      const user = req.user as CustomJwtPayload
+      const userId = user.userId || (user as any).sub || (user as any).id
       const { evolutionId } = req.params
       const { description } = req.body as { description: string }
-      const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+      const actor = {
+        userId,
+        userName: (user as any).name || 'Usuário',
+        userRole: (user.role as UserRole) || 'DENTIST',
+      }
 
       const evolution = await evolutionService.updateEvolution(
-        tenantId,
-        clinicId,
+        user.tenantId,
+        user.clinicId!,
         evolutionId as string,
         description,
         actor
@@ -117,13 +129,18 @@ export class EvolutionController {
         return
       }
 
-      const { tenantId, clinicId, sub: userId, name: userName, role } = req.user
+      const user = req.user as CustomJwtPayload
+      const userId = user.userId || (user as any).sub || (user as any).id
       const { evolutionId } = req.params
-      const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+      const actor = {
+        userId,
+        userName: (user as any).name || 'Usuário',
+        userRole: (user.role as UserRole) || 'DENTIST',
+      }
 
       const evolution = await evolutionService.lockEvolution(
-        tenantId,
-        clinicId,
+        user.tenantId,
+        user.clinicId!,
         evolutionId as string,
         actor
       )

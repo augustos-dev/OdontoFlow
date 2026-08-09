@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
 import { findMedicalRecord } from './medicalRecordService'
 import { auditLogService } from './auditLog.service'
+import { processAutoStockDeduction } from './stockService'
 import type { CreateEvolutionDTO } from '../types/medicalRecord.types'
 
 interface ActorContext {
@@ -13,7 +14,7 @@ interface ActorContext {
 
 export class EvolutionService {
   /**
-   * Cria uma nova Evolução Clínica com Odontograma e Anexos/Fotos
+   * Cria uma nova Evolução Clínica com Odontograma, Anexos e Gatilho do Exit Inteligente
    */
   async createEvolution(
     tenantId: string,
@@ -40,7 +41,17 @@ export class EvolutionService {
       throw new AppError('Dentista/Profissional não encontrado ou inativo.', 404)
     }
 
-    // 3. Normalização do snapshot (suporta string JSON via FormData ou Object direto)
+    // 3. Valida o procedimento (caso tenha sido selecionado na evolução)
+    if (data.procedureId) {
+      const procedureExists = await prisma.procedure.findFirst({
+        where: { id: data.procedureId, tenantId },
+      })
+      if (!procedureExists) {
+        throw new AppError('Procedimento selecionado não encontrado no catálogo.', 404)
+      }
+    }
+
+    // 4. Normalização do snapshot (suporta string JSON via FormData ou Object direto)
     let parsedSnapshot: any = null
     if (data.odontogramSnapshot) {
       if (typeof data.odontogramSnapshot === 'string') {
@@ -54,24 +65,26 @@ export class EvolutionService {
       }
     }
 
-    // 4. Executa transação ACID (Evolução + Atualização das Peças)
+    // 5. Executa transação ACID (Evolução + Atualização de Condições Dentárias)
     const evolution = await prisma.$transaction(async (tx) => {
-      // 4.1 Cria a Evolução no histórico
+      // 5.1 Cria a Evolução no histórico
       const createdEvolution = await tx.evolution.create({
         data: {
           tenantId,
           medicalRecordId: medicalRecord.id,
           dentistId: dentist.id,
+          procedureId: data.procedureId || null,
           description: data.description,
           odontogramSnapshot: parsedSnapshot ?? undefined,
           attachments: data.attachments || [],
         },
         include: {
           dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
+          procedure: { select: { id: true, name: true, basePrice: true } },
         },
       })
 
-      // 4.2 Se houver odontograma snapshot, atualiza o estado vivo da tabela tooth_conditions
+      // 5.2 Se houver odontograma snapshot, atualiza o estado vivo na tabela tooth_conditions
       if (parsedSnapshot && typeof parsedSnapshot === 'object') {
         for (const [toothStr, toothData] of Object.entries(parsedSnapshot)) {
           const item = toothData as any
@@ -114,6 +127,21 @@ export class EvolutionService {
       return createdEvolution
     })
 
+    // 🚀 EXIT INTELIGENTE: Se o dentista selecionou um procedimento na evolução, dá baixa nos insumos
+    if (data.procedureId) {
+      try {
+        await processAutoStockDeduction(
+          tenantId,
+          clinicId,
+          data.procedureId,
+          actor?.userId || dentist.id,
+          `Baixa Automática via Evolução Clínica ID: ${evolution.id}`
+        )
+      } catch (error) {
+        console.error('[Exit Inteligente Error]: Falha ao disparar baixa no estoque via Evolução', error)
+      }
+    }
+
     // 🟢 Log de Auditoria
     await auditLogService.createLog({
       tenantId,
@@ -124,7 +152,7 @@ export class EvolutionService {
       action: 'CREATE',
       entity: 'EVOLUTION',
       entityId: evolution.id,
-      details: `Registrou evolução clínica. Profissional: Dr(a). ${dentist.name}`,
+      details: `Registrou evolução clínica${evolution.procedure ? ` (Procedimento: ${evolution.procedure.name})` : ''}. Profissional: Dr(a). ${dentist.name}`,
     })
 
     return evolution
@@ -148,6 +176,7 @@ export class EvolutionService {
       orderBy: { createdAt: 'desc' },
       include: {
         dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
+        procedure: { select: { id: true, name: true, basePrice: true } },
       },
     })
   }

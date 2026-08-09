@@ -2,10 +2,11 @@ import { Request, Response, NextFunction } from 'express'
 import * as medicalRecordService from '../services/medicalRecordService'
 import { uploadToSupabase } from '../services/storageService'
 import type { UserRole } from '@prisma/client'
+import type { CustomJwtPayload } from '../types/express'
 import type {
   UpdateMedicalRecordsDTO,
   ToothConditionDTO,
-  CreateEvolutionDTO
+  CreateEvolutionDTO,
 } from '../types/medicalRecord.types'
 
 function getRecordIdParam(req: Request): string {
@@ -18,17 +19,19 @@ async function processAttachments(req: Request): Promise<string[]> {
   let attachmentUrls: string[] = []
 
   if (files && files.length > 0) {
-    const uploadPromises = files.map(file => {
+    const uploadPromises = files.map((file) => {
       const ext = file.originalname.includes('.')
         ? file.originalname.split('.').pop()
-        : file.mimetype === 'application/pdf' ? 'pdf' : 'jpg'
+        : file.mimetype === 'application/pdf'
+        ? 'pdf'
+        : 'jpg'
 
       const sanitizedFileName = `evo_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`
-      
+
       const cleanFile: Express.Multer.File = {
         ...file,
         filename: sanitizedFileName,
-        originalname: sanitizedFileName
+        originalname: sanitizedFileName,
       }
 
       return uploadToSupabase(cleanFile)
@@ -64,12 +67,12 @@ export async function getEvolutionsController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const user = req.user as CustomJwtPayload
     const targetId = getRecordIdParam(req)
 
     const evolutions = await medicalRecordService.getEvolutions(
-      tenantId,
-      clinicId,
+      user.tenantId,
+      user.clinicId!,
       targetId
     )
 
@@ -85,10 +88,14 @@ export async function createEvolutionController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId, sub, name: userName, role } = req.user!
-    const dentistId = sub || (req.user as any).id
+    const user = req.user as CustomJwtPayload
+    const dentistId = user.userId || (user as any).sub || (user as any).id
     const targetId = getRecordIdParam(req)
-    const actor = { userId: dentistId, userName: userName || 'Usuário', userRole: role as UserRole }
+    const actor = {
+      userId: dentistId,
+      userName: (user as any).name || 'Usuário',
+      userRole: (user.role as UserRole) || 'DENTIST',
+    }
 
     const attachmentUrls = await processAttachments(req)
 
@@ -103,13 +110,14 @@ export async function createEvolutionController(
 
     const evolutionData: CreateEvolutionDTO = {
       description: req.body.description,
+      procedureId: req.body.procedureId, // 🚀 Gatilho para o Exit Inteligente
       odontogramSnapshot: parsedSnapshot,
-      attachments: attachmentUrls
+      attachments: attachmentUrls,
     }
 
     const evolution = await medicalRecordService.CreateEvolution(
-      tenantId,
-      clinicId,
+      user.tenantId,
+      user.clinicId!,
       targetId,
       dentistId,
       evolutionData,
@@ -128,14 +136,19 @@ export async function updateEvolutionController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const user = req.user as CustomJwtPayload
+    const userId = user.userId || (user as any).sub || (user as any).id
     const { evolutionId } = req.params
     const { description } = req.body
-    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+    const actor = {
+      userId,
+      userName: (user as any).name || 'Usuário',
+      userRole: (user.role as UserRole) || 'DENTIST',
+    }
 
     const updatedEvolution = await medicalRecordService.updateEvolution(
-      tenantId,
-      clinicId,
+      user.tenantId,
+      user.clinicId!,
       evolutionId as string,
       description,
       actor
@@ -153,13 +166,18 @@ export async function lockEvolutionController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const user = req.user as CustomJwtPayload
+    const userId = user.userId || (user as any).sub || (user as any).id
     const { evolutionId } = req.params
-    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+    const actor = {
+      userId,
+      userName: (user as any).name || 'Usuário',
+      userRole: (user.role as UserRole) || 'DENTIST',
+    }
 
     const lockedEvolution = await medicalRecordService.lockEvolution(
-      tenantId,
-      clinicId,
+      user.tenantId,
+      user.clinicId!,
       evolutionId as string,
       actor
     )
@@ -173,14 +191,20 @@ export async function lockEvolutionController(
 // ─── MÓDULO DE PRONTUÁRIO & ODONTOGRAMA ─────────────────────────────────────
 
 export async function getMedicalRecordByPatientController(
-  req: Request, 
-  res: Response, 
+  req: Request,
+  res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const user = req.user as CustomJwtPayload
     const targetId = getRecordIdParam(req)
-    const record = await medicalRecordService.getMedicalRecordByPatient(tenantId, clinicId, targetId)
+
+    const record = await medicalRecordService.getMedicalRecordByPatient(
+      user.tenantId,
+      user.clinicId!,
+      targetId
+    )
+
     res.status(200).json(record)
   } catch (error) {
     next(error)
@@ -188,22 +212,28 @@ export async function getMedicalRecordByPatientController(
 }
 
 export async function updateMedicalRecordController(
-  req: Request, 
-  res: Response, 
+  req: Request,
+  res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const user = req.user as CustomJwtPayload
+    const userId = user.userId || (user as any).sub || (user as any).id
     const targetId = getRecordIdParam(req)
-    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+    const actor = {
+      userId,
+      userName: (user as any).name || 'Usuário',
+      userRole: (user.role as UserRole) || 'DENTIST',
+    }
 
     const record = await medicalRecordService.updateMedicalRecord(
-      tenantId, 
-      clinicId, 
-      targetId, 
+      user.tenantId,
+      user.clinicId!,
+      targetId,
       req.body as UpdateMedicalRecordsDTO,
       actor
     )
+
     res.status(200).json(record)
   } catch (error) {
     next(error)
@@ -211,14 +241,20 @@ export async function updateMedicalRecordController(
 }
 
 export async function getOdontogramController(
-  req: Request, 
-  res: Response, 
+  req: Request,
+  res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const user = req.user as CustomJwtPayload
     const targetId = getRecordIdParam(req)
-    const odontogram = await medicalRecordService.getOdontogram(tenantId, clinicId, targetId)
+
+    const odontogram = await medicalRecordService.getOdontogram(
+      user.tenantId,
+      user.clinicId!,
+      targetId
+    )
+
     res.status(200).json(odontogram)
   } catch (error) {
     next(error)
@@ -226,22 +262,28 @@ export async function getOdontogramController(
 }
 
 export async function upsertToothConditionController(
-  req: Request, 
-  res: Response, 
+  req: Request,
+  res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const user = req.user as CustomJwtPayload
+    const userId = user.userId || (user as any).sub || (user as any).id
     const targetId = getRecordIdParam(req)
-    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+    const actor = {
+      userId,
+      userName: (user as any).name || 'Usuário',
+      userRole: (user.role as UserRole) || 'DENTIST',
+    }
 
     const toothCondition = await medicalRecordService.upsertToothCondition(
-      tenantId,
-      clinicId,
+      user.tenantId,
+      user.clinicId!,
       targetId,
       req.body as ToothConditionDTO,
       actor
     )
+
     res.status(200).json(toothCondition)
   } catch (error) {
     next(error)
@@ -249,23 +291,29 @@ export async function upsertToothConditionController(
 }
 
 export async function deleteToothConditionController(
-  req: Request, 
-  res: Response, 
+  req: Request,
+  res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const user = req.user as CustomJwtPayload
+    const userId = user.userId || (user as any).sub || (user as any).id
     const { toothNumber } = req.params
     const targetId = getRecordIdParam(req)
-    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+    const actor = {
+      userId,
+      userName: (user as any).name || 'Usuário',
+      userRole: (user.role as UserRole) || 'DENTIST',
+    }
 
     await medicalRecordService.deleteToothCondition(
-      tenantId, 
-      clinicId, 
-      targetId, 
+      user.tenantId,
+      user.clinicId!,
+      targetId,
       Number(toothNumber),
       actor
     )
+
     res.status(204).send()
   } catch (error) {
     next(error)
