@@ -14,7 +14,8 @@ import {
   Search, 
   Bell, 
   Plus, 
-  Activity 
+  Activity, 
+  Stethoscope
 } from 'lucide-react'
 import styles from './layout.module.css'
 import { ModalProvider, useModal } from '@/app/components/ModalContext'
@@ -25,6 +26,7 @@ const navItems = [
   { href: '/pacientes', label: 'Pacientes', icon: Users },
   { href: '/estoque', label: 'Estoque', icon: Package },
   { href: '/financeiro', label: 'Financeiro', icon: CreditCard },
+  { href: '/procedimentos', label: 'Procedimentos', icon: Stethoscope},
   { href: '/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
