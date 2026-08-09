@@ -128,16 +128,28 @@ const options: swaggerJsdoc.Options = {
             cancellationReason: { type: 'string' },
           },
         },
-        Appointment: {
+       Appointment: {
           type: 'object',
           properties: {
             id: { type: 'string', format: 'uuid' },
+            patientId: { type: 'string', format: 'uuid' },
+            dentistId: { type: 'string', format: 'uuid' },
+            procedureId: { type: 'string', format: 'uuid', nullable: true },
             dateTime: { type: 'string', format: 'date-time' },
             durationMin: { type: 'integer' },
             status: { type: 'string' },
             type: { type: 'string' },
             room: { type: 'string' },
-            notes: { type: 'string' },
+            notes: { type: 'string', nullable: true },
+            procedure: {
+              type: 'object',
+              nullable: true,
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                name: { type: 'string', example: 'Limpeza e Profilaxia' },
+                basePrice: { type: 'number', example: 150.0 },
+              },
+            },
           },
         },
 
@@ -245,6 +257,29 @@ const options: swaggerJsdoc.Options = {
             details: { type: 'string', example: 'Cadastrou o produto: Anestésico Tubete | Lote: LT-2026-A' },
             ipAddress: { type: 'string', example: '187.19.120.4', nullable: true },
             userAgent: { type: 'string', example: 'Mozilla/5.0...', nullable: true },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        // ─── Stock Movements ────────────────────────────────────────────────
+        CreateStockMovementDTO: {
+          type: 'object',
+          required: ['productId', 'type', 'quantity'],
+          properties: {
+            productId: { type: 'string', format: 'uuid' },
+            type: { type: 'string', enum: ['ENTRY', 'EXIT_MANUAL'] },
+            quantity: { type: 'integer', example: 10 },
+            reason: { type: 'string', example: 'Ajuste de inventário' },
+          },
+        },
+        StockMovement: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            productId: { type: 'string', format: 'uuid' },
+            userId: { type: 'string', format: 'uuid', nullable: true },
+            type: { type: 'string', enum: ['ENTRY', 'EXIT_MANUAL', 'EXIT_AUTO'] },
+            quantity: { type: 'integer' },
+            reason: { type: 'string', nullable: true },
             createdAt: { type: 'string', format: 'date-time' },
           },
         },

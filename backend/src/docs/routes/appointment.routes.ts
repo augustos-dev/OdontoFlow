@@ -1,5 +1,3 @@
-// backend/src/routes/appointment.routes.ts
-
 import { Router } from 'express'
 import {
   createAppointmentController,
@@ -23,6 +21,8 @@ router.use(authenticate)
  *   get:
  *     summary: Lista agendamentos com filtros e paginação
  *     tags: [Appointments]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: date
@@ -34,6 +34,10 @@ router.use(authenticate)
  *       - in: query
  *         name: patientId
  *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: procedureId
+ *         schema: { type: string, format: uuid }
+ *         description: Filtra por procedimento vinculado
  *       - in: query
  *         name: status
  *         schema:
@@ -73,6 +77,8 @@ router.get('/', listAppointmentsController)
  *   get:
  *     summary: Busca um agendamento por ID
  *     tags: [Appointments]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -96,6 +102,8 @@ router.get('/:id', getAppointmentByIdController)
  *   post:
  *     summary: Cria um novo agendamento (valida conflito de sala e dentista)
  *     tags: [Appointments]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -130,6 +138,8 @@ router.post('/', authorize('ADMIN', 'SECRETARY', 'DENTIST'), createAppointmentCo
  *   put:
  *     summary: Atualiza um agendamento (revalida conflitos)
  *     tags: [Appointments]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -159,8 +169,10 @@ router.put('/:id', authorize('ADMIN', 'SECRETARY', 'DENTIST'), updateAppointment
  * @openapi
  * /appointments/{id}/status:
  *   patch:
- *     summary: Atualiza o status de um agendamento
+ *     summary: Atualiza o status de um agendamento (Dispara Baixa Automática de Estoque se FINALIZADO)
  *     tags: [Appointments]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -190,6 +202,8 @@ router.patch('/:id/status', authorize('ADMIN', 'SECRETARY', 'DENTIST'), updateAp
  *   delete:
  *     summary: Remove um agendamento
  *     tags: [Appointments]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id

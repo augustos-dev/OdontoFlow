@@ -127,7 +127,7 @@ router.use(authenticate)
 
 /**
  * @swagger
- * /api/suppliers:
+ * /suppliers:
  *   post:
  *     summary: Cadastra um novo fornecedor
  *     tags: [Suppliers]
@@ -189,7 +189,7 @@ router.get('/', listSuppliersController)
 
 /**
  * @swagger
- * /api/suppliers/{id}:
+ * /suppliers/{id}:
  *   get:
  *     summary: Busca a ficha detalhada de um fornecedor pelo ID
  *     tags: [Suppliers]

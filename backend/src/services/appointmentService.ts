@@ -2,6 +2,7 @@ import { Prisma, $Enums, UserRole } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
 import { auditLogService } from './auditLog.service'
+import { processAutoStockDeduction } from './stockService'
 import type {
   CreateAppointmentDTO,
   UpdateAppointmentDTO,
@@ -77,7 +78,7 @@ export async function createAppointment(
   data: CreateAppointmentDTO,
   actor: ActorContext
 ) {
-  const { patientId, dentistId, dateTime, durationMin = 60, type, room, notes } = data
+  const { patientId, dentistId, procedureId, dateTime, durationMin = 60, type, room, notes } = data
 
   const patient = await prisma.patient.findFirst({
     where: { id: patientId, tenantId, clinicId, deletedAt: null },
@@ -89,6 +90,13 @@ export async function createAppointment(
   })
   if (!dentist) throw new AppError('Dentista não encontrado ou inativo.', 404)
 
+  if (procedureId) {
+    const procedureExists = await prisma.procedure.findFirst({
+      where: { id: procedureId, tenantId },
+    })
+    if (!procedureExists) throw new AppError('Procedimento não encontrado.', 404)
+  }
+
   const startTime = new Date(dateTime)
   const endTime = calcEndTime(startTime, durationMin)
 
@@ -97,10 +105,11 @@ export async function createAppointment(
   await checkConflicts(clinicId, room, dentistId, startTime, endTime)
 
   const appointment = await prisma.appointment.create({
-    data: { tenantId, clinicId, patientId, dentistId, dateTime: startTime, durationMin, type, room, notes },
+    data: { tenantId, clinicId, patientId, dentistId, procedureId, dateTime: startTime, durationMin, type, room, notes },
     include: {
       patient: { select: { id: true, name: true, phone: true } },
       dentist: { select: { id: true, name: true } },
+      procedure: { select: { id: true, name: true, basePrice: true } },
     },
   })
 
@@ -124,7 +133,7 @@ export async function listAppointments(
   clinicId: string,
   filters: AppointmentFiltersDTO
 ) {
-  const { date, dentistId, patientId, status, room, page = 1, limit = 20 } = filters
+  const { date, dentistId, patientId, procedureId, status, room, page = 1, limit = 20 } = filters
   const skip = (page - 1) * limit
 
   let dateFilter: Prisma.AppointmentWhereInput = {}
@@ -140,6 +149,7 @@ export async function listAppointments(
     ...dateFilter,
     ...(dentistId && { dentistId }),
     ...(patientId && { patientId }),
+    ...(procedureId && { procedureId }),
     ...(status && { status: status as $Enums.AppointmentStatus }),
     ...(room && { room: room as $Enums.Room }),
   }
@@ -153,6 +163,7 @@ export async function listAppointments(
       include: {
         patient: { select: { id: true, name: true, phone: true } },
         dentist: { select: { id: true, name: true } },
+        procedure: { select: { id: true, name: true, basePrice: true } },
       },
     }),
     prisma.appointment.count({ where }),
@@ -174,6 +185,16 @@ export async function getAppointmentById(
     include: {
       patient: { select: { id: true, name: true, phone: true, email: true } },
       dentist: { select: { id: true, name: true, cro: true } },
+      procedure: {
+        select: {
+          id: true,
+          name: true,
+          basePrice: true,
+          procedureProducts: {
+            include: { product: { select: { id: true, name: true, quantity: true } } },
+          },
+        },
+      },
       transaction: true,
     },
   })
@@ -215,6 +236,7 @@ export async function updateAppointment(
     include: {
       patient: { select: { id: true, name: true, phone: true } },
       dentist: { select: { id: true, name: true } },
+      procedure: { select: { id: true, name: true } },
     },
   })
 
@@ -242,7 +264,10 @@ export async function updateAppointmentStatus(
 ) {
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, tenantId, clinicId },
-    include: { patient: { select: { name: true } } },
+    include: {
+      patient: { select: { name: true } },
+      procedure: { select: { id: true, name: true } },
+    },
   })
 
   if (!appointment) throw new AppError('Agendamento não encontrado.', 404)
@@ -252,16 +277,39 @@ export async function updateAppointmentStatus(
     throw new AppError('Informe o motivo do cancelamento.', 400)
   }
 
+  const activeProcedureId = data.procedureId || appointment.procedureId
+
   const updatedAppointment = await prisma.appointment.update({
     where: { id: appointmentId },
     data: {
       status: data.status,
+      procedureId: activeProcedureId,
       ...(data.status === 'CANCELADO' && {
         cancelledAt: new Date(),
         cancellationReason: data.cancellationReason,
       }),
     },
+    include: {
+      patient: { select: { id: true, name: true } },
+      dentist: { select: { id: true, name: true } },
+      procedure: { select: { id: true, name: true } },
+    },
   })
+
+  // 🚀 EXIT INTELIGENTE: Executa a Baixa Automática de Estoque se a consulta for FINALIZADA
+  if (data.status === 'FINALIZADO' && activeProcedureId) {
+    try {
+      await processAutoStockDeduction(
+        tenantId,
+        clinicId,
+        activeProcedureId,
+        actor.userId,
+        `Baixa Automática: Paciente ${appointment.patient.name} (Agendamento #${appointmentId})`
+      )
+    } catch (error) {
+      console.error('[Exit Inteligente Error]: Falha ao disparar baixa no estoque', error)
+    }
+  }
 
   await auditLogService.createLog({
     tenantId,

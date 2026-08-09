@@ -5,6 +5,8 @@ import {
   getProcedureByIdController,
   updateProcedureController,
   deleteProcedureController,
+  setProcedureProductsController,
+  getProcedureProductsController,
 } from '../controllers/procedureController'
 import { authenticate, authorize } from '../middlewares/authMiddlewares'
 
@@ -18,11 +20,13 @@ router.use(authenticate)
 
 router.get('/', listProceduresController)
 router.get('/:id', getProcedureByIdController)
+router.get('/:id/products', getProcedureProductsController)
 
-// ─── Rotas Privadas — Escrita (apenas ADMIN) ──────────────────────────────────
+// ─── Rotas Privadas — Escrita / Configuração (Apenas ADMIN) ───────────────────
 
 router.post('/', authorize('ADMIN'), createProcedureController)
 router.put('/:id', authorize('ADMIN'), updateProcedureController)
+router.post('/:id/products', authorize('ADMIN'), setProcedureProductsController)
 router.delete('/:id', authorize('ADMIN'), deleteProcedureController)
 
 export default router

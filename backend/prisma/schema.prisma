@@ -1,5 +1,5 @@
 // =============================================================================
-// OdontoFlow - Schema Prisma (Sprint 3 + Compliance, Audit & Lote Rastreável)
+// OdontoFlow - Schema Prisma Refatorado (Sprint 3 + Exit Inteligente)
 // Multi-tenant SaaS de Gerenciamento Clínico Odontológico
 // =============================================================================
 
@@ -15,14 +15,10 @@ datasource db {
 // ENUMS
 // =============================================================================
 
-
-// =============================================================================
-// NOVO ENUM: TIPO DE MOVIMENTAÇÃO DE ESTOQUE
-// =============================================================================
 enum StockMovementType {
   ENTRY        // Entrada de compra/reposição
   EXIT_MANUAL  // Saída por descarte/perda/ajuste
-  EXIT_AUTO    // Baixa Automática por Procedimento Realizado
+  EXIT_AUTO    // Baixa Automática por Procedimento Realizado (Exit Inteligente)
 }
 
 enum TenantPlan {
@@ -109,21 +105,22 @@ model Tenant {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  clinics         Clinic[]
-  users           User[]
-  patients        Patient[]
-  appointments    Appointment[]
-  products        Product[]
-  suppliers       Supplier[]
-  transactions    Transaction[]
-  medicalRecords  MedicalRecord[]
-  evolutions      Evolution[]
-  toothConditions ToothCondition[]
-  treatmentPlans  TreatmentPlan[]
-  procedures      Procedure[]
-  planProcedures  PlanProcedure[]
-  medicalFiles    MedicalFile[]
-  auditLogs       AuditLog[]
+  clinics           Clinic[]
+  users             User[]
+  patients          Patient[]
+  appointments      Appointment[]
+  products          Product[]
+  suppliers         Supplier[]
+  transactions      Transaction[]
+  medicalRecords    MedicalRecord[]
+  evolutions        Evolution[]
+  toothConditions   ToothCondition[]
+  treatmentPlans    TreatmentPlan[]
+  procedures        Procedure[]
+  planProcedures    PlanProcedure[]
+  procedureProducts ProcedureProduct[] // 👈 Adicionado para manter integridade com a pivot
+  medicalFiles      MedicalFile[]
+  auditLogs         AuditLog[]
 
   @@map("tenants")
 }
@@ -180,7 +177,7 @@ model User {
   evolutions     Evolution[]
   treatmentPlans TreatmentPlan[]
   auditLogs      AuditLog[]
-  stockMovements StockMovement[] // 👈 ADICIONE ESTA LINHA AQUI!
+  stockMovements StockMovement[]
 
   @@index([tenantId])
   @@index([clinicId])
@@ -271,7 +268,7 @@ model Evolution {
 
   // 📸 Snapshot do odontograma e anexos
   odontogramSnapshot Json?
-  attachments        String[]  @default([])
+  attachments        String[] @default([])
 
   // 🔒 Trava de Imutabilidade (Compliance LGPD/CFO - Trava de 12h)
   isLocked  Boolean   @default(false)
@@ -336,17 +333,18 @@ model TreatmentPlan {
 }
 
 model Procedure {
-  id         String   @id @default(uuid())
-  tenantId   String
-  name       String
-  code       String?
-  basePrice  Decimal  @db.Decimal(10, 2)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  code      String?
+  basePrice Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  planProcedures PlanProcedure[]
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  planProcedures    PlanProcedure[]
   procedureProducts ProcedureProduct[] // 🔗 Vínculo com Insumos do Estoque
+  appointments      Appointment[]      // 👈 Vínculo com Agendamentos
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -376,6 +374,7 @@ model Appointment {
   clinicId           String
   patientId          String
   dentistId          String
+  procedureId        String?           // 👈 Vínculo opcional para acionar o Exit Inteligente
   dateTime           DateTime
   durationMin        Int               @default(60)
   status             AppointmentStatus @default(AGENDADO)
@@ -391,6 +390,7 @@ model Appointment {
   clinic      Clinic       @relation(fields: [clinicId], references: [id])
   patient     Patient      @relation(fields: [patientId], references: [id])
   dentist     User         @relation("DentistAppointments", fields: [dentistId], references: [id])
+  procedure   Procedure?   @relation(fields: [procedureId], references: [id], onDelete: SetNull) // 👈 Relacionamento adicionado
   transaction Transaction?
 
   @@index([tenantId])
@@ -399,6 +399,7 @@ model Appointment {
   @@index([clinicId, dentistId, dateTime])
   @@index([clinicId, status])
   @@index([clinicId, patientId])
+  @@index([procedureId])
   @@map("appointments")
 }
 
@@ -433,35 +434,35 @@ model Product {
 
 // 🧪 Tabela Pivot: Ficha Técnica do Procedimento (Mapeamento de Insumos)
 model ProcedureProduct {
-  id           String   @id @default(uuid())
-  tenantId     String
-  procedureId  String
-  productId    String
-  quantity     Int      @default(1) // Quantidade gasta deste produto por procedimento
+  id          String @id @default(uuid())
+  tenantId    String
+  procedureId String
+  productId   String
+  quantity    Int    @default(1) // Quantidade gasta deste produto por procedimento
 
-  procedure    Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
-  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict) // 👈 Adicionado
+  procedure Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([procedureId, productId])
   @@index([tenantId])
   @@map("procedure_products")
 }
 
-
 // 📦 Histórico de Movimentação de Estoque
 model StockMovement {
-  id          String            @id @default(uuid())
-  tenantId    String
-  clinicId    String
-  productId   String
-  userId      String?
-  type        StockMovementType
-  quantity    Int               // Quantidade movimentada (positiva ou negativa)
-  reason      String?           // Ex: "Baixa Automática: Limpeza Tártaro (Proc: XYZ)"
-  createdAt   DateTime          @default(now())
+  id        String            @id @default(uuid())
+  tenantId  String
+  clinicId  String
+  productId String
+  userId    String?
+  type      StockMovementType
+  quantity  Int               // Quantidade movimentada (positiva para entradas, negativa para saídas)
+  reason    String?           // Ex: "Baixa Automática: Restauração Resina (Agendamento #XYZ)"
+  createdAt DateTime          @default(now())
 
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, clinicId])
   @@index([productId, createdAt])
@@ -540,7 +541,7 @@ model MedicalFile {
 }
 
 // =============================================================================
-// AUDIT LOGS (NOVO - SPRINT 3/5)
+// AUDIT LOGS
 // =============================================================================
 
 model AuditLog {
@@ -558,9 +559,9 @@ model AuditLog {
   userAgent String?
   createdAt DateTime    @default(now())
 
-  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  clinic Clinic  @relation(fields: [clinicId], references: [id])
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic Clinic @relation(fields: [clinicId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([tenantId, clinicId])
