@@ -264,6 +264,7 @@ model Evolution {
   tenantId        String
   medicalRecordId String
   dentistId       String
+  procedureId     String?  // 👈 Adicionado: Procedimento realizado nesta evolução
   description     String   @db.Text
 
   // 📸 Snapshot do odontograma e anexos
@@ -279,6 +280,7 @@ model Evolution {
   tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   medicalRecord MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
   dentist       User          @relation(fields: [dentistId], references: [id])
+  procedure     Procedure?    @relation(fields: [procedureId], references: [id], onDelete: SetNull) // 👈 Relacionamento
 
   @@index([tenantId])
   @@index([medicalRecordId])
@@ -345,6 +347,7 @@ model Procedure {
   planProcedures    PlanProcedure[]
   procedureProducts ProcedureProduct[] // 🔗 Vínculo com Insumos do Estoque
   appointments      Appointment[]      // 👈 Vínculo com Agendamentos
+  evolutions Evolution[] // 👈 vinculo com evolucoes 
 
   @@unique([tenantId, name])
   @@index([tenantId])

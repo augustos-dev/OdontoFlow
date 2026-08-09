@@ -1,4 +1,4 @@
-import { Router } from "express"
+import { Router } from 'express'
 import {
   getMedicalRecordByPatientController,
   updateMedicalRecordController,
@@ -8,10 +8,10 @@ import {
   getEvolutionsController,
   createEvolutionController,
   updateEvolutionController,
-  lockEvolutionController
+  lockEvolutionController,
 } from '../../controllers/medicalRecordController'
-import { authenticate, authorize } from "../../middlewares/authMiddlewares"
-import { upload } from "../../middlewares/uploadMiddleware"
+import { authenticate, authorize } from '../../middlewares/authMiddlewares'
+import { upload } from '../../middlewares/uploadMiddleware'
 
 const medicalRecordRouter = Router()
 
@@ -42,7 +42,7 @@ medicalRecordRouter.use(authenticate)
  *         schema:
  *           type: string
  *           format: uuid
- *         description: ID do paciente
+ *         description: ID do paciente ou do prontuário
  *     responses:
  *       200:
  *         description: Lista de evoluções retornada com sucesso
@@ -60,7 +60,7 @@ medicalRecordRouter.get(
  * @swagger
  * /medical-records/{patientId}/evolutions:
  *   post:
- *     summary: Cria uma nova evolução clínica para o paciente
+ *     summary: Cria uma nova evolução clínica para o paciente (Dispara Exit Inteligente no Estoque)
  *     tags: [MedicalRecords]
  *     security:
  *       - bearerAuth: []
@@ -71,7 +71,7 @@ medicalRecordRouter.get(
  *         schema:
  *           type: string
  *           format: uuid
- *         description: ID do paciente
+ *         description: ID do paciente ou do prontuário
  *     requestBody:
  *       required: true
  *       content:
@@ -84,6 +84,11 @@ medicalRecordRouter.get(
  *               description:
  *                 type: string
  *                 example: "Realizado procedimento de restauração no dente 16 com resina."
+ *               procedureId:
+ *                 type: string
+ *                 format: uuid
+ *                 example: "a1b2c3d4-e5f6-7890-1234-56789abcdef0"
+ *                 description: ID do procedimento realizado (Aciona a baixa automática de estoque)
  *               odontogramSnapshot:
  *                 type: string
  *                 description: JSON em string representando o snapshot do odontograma
@@ -95,7 +100,7 @@ medicalRecordRouter.get(
  *                 description: Até 20 arquivos em imagem/anexos
  *     responses:
  *       201:
- *         description: Evolução cadastrada com sucesso
+ *         description: Evolução cadastrada com sucesso e estoque abatido
  *       400:
  *         description: Dados inválidos
  *       401:
@@ -142,7 +147,7 @@ medicalRecordRouter.post(
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  *       403:
- *         description: Registro bloqueado por imutabilidade (>12h) ou permissão negada
+ *         description: Registro bloqueado por imutabilidade ou permissão negada
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
@@ -199,7 +204,7 @@ medicalRecordRouter.patch(
  *         schema:
  *           type: string
  *           format: uuid
- *         description: ID do prontuário médico
+ *         description: ID do prontuário médico ou paciente
  *     responses:
  *       200:
  *         description: Odontograma retornado com sucesso
@@ -228,7 +233,7 @@ medicalRecordRouter.get(
  *         schema:
  *           type: string
  *           format: uuid
- *         description: ID do paciente
+ *         description: ID do paciente ou prontuário
  *     requestBody:
  *       required: true
  *       content:
@@ -282,7 +287,7 @@ medicalRecordRouter.put(
  *         schema:
  *           type: string
  *           format: uuid
- *         description: ID do paciente
+ *         description: ID do paciente ou prontuário
  *       - in: path
  *         name: toothNumber
  *         required: true
@@ -338,7 +343,7 @@ medicalRecordRouter.get(
  * @swagger
  * /medical-records/{patientId}:
  *   put:
- *     summary: Atualiza as informações anamnese e históricas do prontuário
+ *     summary: Atualiza as informações de anamnese e históricas do prontuário
  *     tags: [MedicalRecords]
  *     security:
  *       - bearerAuth: []

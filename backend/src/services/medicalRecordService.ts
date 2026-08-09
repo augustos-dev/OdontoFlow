@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
 import { auditLogService } from './auditLog.service'
+import { processAutoStockDeduction } from './stockService'
 import type { UserRole } from '@prisma/client'
 import type {
   UpdateMedicalRecordsDTO,
@@ -54,6 +55,7 @@ export async function getMedicalRecordByPatient(
         orderBy: { createdAt: 'desc' },
         include: {
           dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
+          procedure: { select: { id: true, name: true, basePrice: true } },
         },
       },
       toothConditions: {
@@ -84,6 +86,7 @@ export async function getEvolutionsByPatient(
     orderBy: { createdAt: 'desc' },
     include: {
       dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
+      procedure: { select: { id: true, name: true, basePrice: true } },
     },
   })
 }
@@ -142,6 +145,15 @@ export async function CreateEvolution(
     throw new AppError('Dentista/Profissional não encontrado ou inativo.', 404)
   }
 
+  if (data.procedureId) {
+    const procedureExists = await prisma.procedure.findFirst({
+      where: { id: data.procedureId, tenantId },
+    })
+    if (!procedureExists) {
+      throw new AppError('Procedimento selecionado não encontrado no catálogo.', 404)
+    }
+  }
+
   let parsedSnapshot: Record<string, any> | null = null
   if (data.odontogramSnapshot) {
     if (typeof data.odontogramSnapshot === 'string') {
@@ -161,12 +173,14 @@ export async function CreateEvolution(
         tenantId,
         medicalRecordId: medicalRecord.id,
         dentistId: dentist.id,
+        procedureId: data.procedureId || null,
         description: data.description,
         odontogramSnapshot: parsedSnapshot ?? undefined,
         attachments: data.attachments || [],
       },
       include: {
         dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
+        procedure: { select: { id: true, name: true, basePrice: true } },
       },
     })
 
@@ -215,6 +229,21 @@ export async function CreateEvolution(
     return evolution
   })
 
+  // 🚀 EXIT INTELIGENTE: Se o dentista selecionou um procedimento, dispara baixa automática no estoque
+  if (data.procedureId) {
+    try {
+      await processAutoStockDeduction(
+        tenantId,
+        clinicId,
+        data.procedureId,
+        actor?.userId || dentist.id,
+        `Baixa Automática via Evolução Clínica ID: ${result.id}`
+      )
+    } catch (error) {
+      console.error('[Exit Inteligente Error]: Falha ao disparar baixa no estoque via Evolução', error)
+    }
+  }
+
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -224,7 +253,9 @@ export async function CreateEvolution(
     action: 'CREATE',
     entity: 'EVOLUTION',
     entityId: result.id,
-    details: `Registrou evolução clínica. Profissional: Dr(a). ${dentist.name}`,
+    details: `Registrou evolução clínica${
+      data.procedureId ? ` (Procedimento ID: ${data.procedureId})` : ''
+    }. Profissional: Dr(a). ${dentist.name}`,
   })
 
   return result
