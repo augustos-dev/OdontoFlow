@@ -12,6 +12,7 @@ import clinicRoutes from './clinic.routes'
 import dashboardRoutes from './dashboard.routes'
 import auditLogRoutes from './auditLog.routes' // 🛡️ Importação da rota de auditoria
 import supplierRoutes from './supplier.routes'
+import stockMovementRoutes from './stockMovement.routes'
 
 const router = Router()
 
@@ -28,5 +29,6 @@ router.use('/clinics', clinicRoutes)
 router.use('/dashboard', dashboardRoutes)
 router.use('/audit-logs', auditLogRoutes) 
 router.use('/suppliers', supplierRoutes) // 👈 CORRIGIDO! (Apenas /suppliers)
+router.use('/stock-movements', stockMovementRoutes)
 
 export default router

@@ -5,6 +5,7 @@ export interface CustomJwtPayload extends JwtPayload {
   tenantId: string
   clinicId?: string
   role?: string
+  name?: string
 }
 
 declare global {
