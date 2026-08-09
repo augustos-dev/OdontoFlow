@@ -7,7 +7,7 @@ import {
   productByIdController,
   deleteProductController,
   lowStockController,
-  updateProductController
+  updateProductController,
 } from '../../controllers/productController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
 
@@ -121,7 +121,7 @@ router.get('/expiring', expringProductController)
  * @openapi
  * /products/{id}:
  *   get:
- *     summary: Busca um produto por ID
+ *     summary: Busca um produto por ID (Com histórico de saídas do Exit Inteligente)
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -132,7 +132,7 @@ router.get('/expiring', expringProductController)
  *         schema: { type: string, format: uuid }
  *     responses:
  *       200:
- *         description: Dados completos do produto (incluindo lote e fabricante)
+ *         description: Dados completos do produto (incluindo lote, fornecedor e movimentações)
  *         content:
  *           application/json:
  *             schema:
@@ -213,7 +213,7 @@ router.put('/:id', authorize('ADMIN', 'SECRETARY'), updateProductController)
  * @openapi
  * /products/{id}/stock:
  *   patch:
- *     summary: Ajusta o estoque de um produto (Entrada ou Saída)
+ *     summary: Ajusta o estoque de um produto e registra histórico em StockMovement
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -259,7 +259,7 @@ router.patch('/:id/stock', authorize('ADMIN', 'SECRETARY', 'DENTIST'), adjustSto
  *       204:
  *         description: Produto removido com sucesso
  *       400:
- *         description: Produto com estoque não pode ser removido
+ *         description: Produto com estoque acima de zero não pode ser removido
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  *       403:
