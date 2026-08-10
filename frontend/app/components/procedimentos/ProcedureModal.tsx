@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Clock, Tag, DollarSign, Lightbulb } from 'lucide-react'
+import { X, Lightbulb } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './modal.module.css'
 
@@ -42,7 +42,7 @@ export default function ProcedureModal({
     if (procedure) {
       setName(procedure.name || '')
       setCode(procedure.code || '')
-      setBasePrice(procedure.basePrice ? String(procedure.basePrice) : '')
+      setBasePrice(procedure.basePrice !== undefined && procedure.basePrice !== null ? String(procedure.basePrice) : '')
       setDurationMin(procedure.durationMin ? String(procedure.durationMin) : '30')
       setCategory(procedure.category || 'Dentística / Estética')
     } else {
@@ -67,8 +67,8 @@ export default function ProcedureModal({
 
     try {
       const payload = {
-        name,
-        code: code || undefined,
+        name: name.trim(),
+        code: code.trim() || undefined,
         basePrice: parsedPrice,
         durationMin: Number(durationMin),
         category,

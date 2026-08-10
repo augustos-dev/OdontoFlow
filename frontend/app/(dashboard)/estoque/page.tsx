@@ -15,16 +15,17 @@ import {
   Phone,
   Mail,
   History,
-  Calendar,
-  X,
-  ExternalLink,
+  Edit2,
   RefreshCw,
   UserCheck,
   DollarSign,
-  Boxes
+  Trash2,
+  Save,
+  Info,
+  X
 } from 'lucide-react'
 import api from '@/lib/api'
-import { StockManagementModal, StockProductInput } from '../../components/estoque/StockManagementModal'
+import { StockManagementModal } from '../../components/estoque/StockManagementModal'
 import styles from './estoque.module.css'
 
 interface Supplier {
@@ -46,20 +47,6 @@ interface StockMovement {
   user?: { name: string }
 }
 
-interface ProductDetails {
-  id: string
-  name: string
-  lotNumber?: string
-  batchNumber?: string
-  quantity: number
-  minQuantity: number
-  unit?: string
-  costPrice?: number
-  expirationDate?: string
-  supplier?: Supplier
-  stockMovements?: StockMovement[]
-}
-
 interface Product {
   id: string
   name: string
@@ -69,11 +56,24 @@ interface Product {
   minQuantity: number
   unit?: string
   costPrice?: number
+  itemsPerPackage?: number
   expiryDate?: string
+  notes?: string
   stockStatus?: 'OK' | 'BAIXO' | 'CRITICO'
   supplier?: Supplier
+  supplierId?: string
   usageCount?: number
+  stockMovements?: StockMovement[]
 }
+
+const UNIT_OPTIONS = [
+  { value: 'UN', label: 'un (Unidade / Seringa)' },
+  { value: 'ML', label: 'ml (Mililitro)' },
+  { value: 'MG', label: 'mg (Miligrama)' },
+  { value: 'G', label: 'g (Grama)' },
+  { value: 'L', label: 'L (Litro)' },
+  { value: 'CX', label: 'cx (Caixa / Embalagem)' },
+]
 
 export default function EstoquePage() {
   const [mainTab, setMainTab] = useState<'products' | 'suppliers'>('products')
@@ -84,30 +84,22 @@ export default function EstoquePage() {
   const [loading, setLoading] = useState(true)
   const [loadingSuppliers, setLoadingSuppliers] = useState(false)
   
-  // 🟢 Feature Flag do Plano do Tenant ('BASIC' | 'PRO' | 'ENTERPRISE')
-  const [planType, setPlanType] = useState<'BASIC' | 'PRO' | 'ENTERPRISE'>('PRO')
-
+  const [planType] = useState<'BASIC' | 'PRO' | 'ENTERPRISE'>('PRO')
   const [productFilterTab, setProductFilterTab] = useState<'all' | 'critical' | 'expiring'>('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  
+  const [isManagementModalOpen, setIsManagementModalOpen] = useState(false)
 
-  // Visão Detalhada do Produto
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
-  const [productDetails, setProductDetails] = useState<ProductDetails | null>(null)
-  const [loadingDetails, setLoadingDetails] = useState(false)
+  // 🟢 Modal de Edição Única do Produto
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [isEditingModalOpen, setIsEditingModalOpen] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
 
-  // Cadastro Rápido de Fornecedor
+  // Modal Fornecedor
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
-  const [newSupplier, setNewSupplier] = useState({ 
-    name: '', 
-    cnpj: '', 
-    phone: '', 
-    email: '', 
-    contact: '' 
-  })
+  const [newSupplier, setNewSupplier] = useState({ name: '', cnpj: '', phone: '', email: '', contact: '' })
   const [savingSupplier, setSavingSupplier] = useState(false)
 
-  // ─── CARREGAR ESTOQUE ───
   const loadStockData = useCallback(async () => {
     setLoading(true)
     try {
@@ -145,7 +137,6 @@ export default function EstoquePage() {
     }
   }, [])
 
-  // ─── CARREGAR FORNECEDORES ───
   const loadSuppliers = useCallback(async () => {
     setLoadingSuppliers(true)
     try {
@@ -163,36 +154,64 @@ export default function EstoquePage() {
     loadSuppliers()
   }, [loadStockData, loadSuppliers])
 
-  // ─── BUSCAR DETALHES DO PRODUTO ───
-  const handleOpenProductDetails = async (productId: string) => {
-    setSelectedProductId(productId)
-    setLoadingDetails(true)
+  const handleOpenEditProduct = async (product: Product) => {
     try {
-      const res = await api.get(`/products/${productId}/details`)
-      setProductDetails(res.data)
+      const res = await api.get(`/products/${product.id}`)
+      setEditingProduct(res.data || product)
     } catch {
-      const fallbackProd = products.find((p) => p.id === productId)
-      if (fallbackProd) {
-        setProductDetails({
-          id: fallbackProd.id,
-          name: fallbackProd.name,
-          lotNumber: fallbackProd.lotNumber,
-          batchNumber: fallbackProd.batchNumber,
-          quantity: fallbackProd.quantity,
-          minQuantity: fallbackProd.minQuantity,
-          unit: fallbackProd.unit,
-          costPrice: fallbackProd.costPrice,
-          expirationDate: fallbackProd.expiryDate,
-          supplier: fallbackProd.supplier,
-          stockMovements: [],
-        })
+      setEditingProduct(product)
+    }
+    setIsEditingModalOpen(true)
+  }
+
+  const handleSaveProductEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingProduct) return
+
+    setSavingEdit(true)
+    try {
+      const parsedCost = editingProduct.costPrice ? parseFloat(String(editingProduct.costPrice).replace(',', '.')) : undefined
+
+      const payload = {
+        name: editingProduct.name,
+        lotNumber: editingProduct.lotNumber || editingProduct.batchNumber || undefined,
+        quantity: Number(editingProduct.quantity),
+        minQuantity: Number(editingProduct.minQuantity),
+        unit: editingProduct.unit || 'UN',
+        costPrice: isNaN(parsedCost as number) ? undefined : parsedCost,
+        itemsPerPackage: editingProduct.itemsPerPackage ? Number(editingProduct.itemsPerPackage) : 1,
+        supplierId: editingProduct.supplierId || undefined,
+        expiryDate: editingProduct.expiryDate ? new Date(editingProduct.expiryDate).toISOString() : undefined,
+        notes: editingProduct.notes || undefined,
       }
+
+      await api.put(`/products/${editingProduct.id}`, payload)
+      
+      setIsEditingModalOpen(false)
+      setEditingProduct(null)
+      loadStockData()
+    } catch (err: any) {
+      console.error('Erro ao atualizar produto:', err)
+      alert(err.response?.data?.message || 'Erro ao atualizar produto.')
     } finally {
-      setLoadingDetails(false)
+      setSavingEdit(false)
     }
   }
 
-  // ─── SALVAR NOVO FORNECEDOR ───
+  const handleDeleteProduct = async (id: string, name: string) => {
+    if (!confirm(`Tem certeza que deseja excluir o produto "${name}" permanentemente?`)) return
+
+    try {
+      await api.delete(`/products/${id}`)
+      setIsEditingModalOpen(false)
+      setEditingProduct(null)
+      loadStockData()
+    } catch (err: any) {
+      console.error('Erro ao excluir produto:', err)
+      alert(err.response?.data?.message || 'Erro ao excluir produto. Zere o estoque primeiro.')
+    }
+  }
+
   const handleCreateSupplier = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newSupplier.name.trim()) return
@@ -215,10 +234,6 @@ export default function EstoquePage() {
     } finally {
       setSavingSupplier(false)
     }
-  }
-
-  const handleSaveNewProducts = (newProducts: StockProductInput[]) => {
-    loadStockData()
   }
 
   const getComputedStatus = (p: Product) => {
@@ -245,7 +260,6 @@ export default function EstoquePage() {
     return status === 'CRITICO' || status === 'BAIXO'
   }).length
 
-  // 🧮 Métrica Financeira: Valor total acumulado do estoque em R$
   const totalStockValue = products.reduce((acc, p) => acc + (p.costPrice || 0) * p.quantity, 0)
 
   const topUsedProducts = products
@@ -277,6 +291,21 @@ export default function EstoquePage() {
     return { label: 'OK', cls: styles.alertOk, isAlert: false }
   }
 
+  // 🧮 Ajuda a calcular a estimativa de fracionamento para o aviso do modal de edição
+  function getConversionPreview(product: Product) {
+    const cost = Number(product.costPrice || 0)
+    const pkgCount = Number(product.itemsPerPackage || 1)
+    if (cost <= 0 || pkgCount <= 0) return null
+
+    if (product.unit === 'CX') {
+      return `R$ ${(cost / pkgCount).toFixed(2)} por unidade individual (${pkgCount} un/cx)`
+    }
+    if (product.unit === 'UN' && pkgCount > 1) {
+      return `R$ ${(cost / pkgCount).toFixed(2)} por grama/ml (${pkgCount} g/ml por seringa)`
+    }
+    return null
+  }
+
   return (
     <div className={styles.page}>
       
@@ -300,7 +329,7 @@ export default function EstoquePage() {
             <button 
               type="button"
               className={styles.btnPrimary} 
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => setIsManagementModalOpen(true)}
             >
               <Plus size={16} />
               <span>Gerenciar estoque</span>
@@ -350,7 +379,6 @@ export default function EstoquePage() {
           <p className={`${styles.metricValue} ${styles.metricOk}`}>{totalOk}</p>
         </div>
 
-        {/* 🟢 Métrica Financeira: Valor do Estoque */}
         <div className={styles.metricCard}>
           <div className={styles.metricHeader}>
             <div className={styles.metricIconBg} style={{ backgroundColor: '#f0fdf4' }}>
@@ -411,7 +439,6 @@ export default function EstoquePage() {
         <div className={styles.cardHeader}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             
-            {/* Abas Principais (Materiais / Fornecedores) */}
             <div className={styles.tabs}>
               <button 
                 type="button"
@@ -431,12 +458,11 @@ export default function EstoquePage() {
               </button>
             </div>
 
-            {/* Busca Rápida */}
             <div style={{ position: 'relative', display: 'inline-block' }}>
               <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
               <input 
                 type="text" 
-                placeholder={mainTab === 'products' ? 'Buscar produto, lote...' : 'Buscar fornecedor ou contato...'}
+                placeholder={mainTab === 'products' ? 'Buscar produto, lote...' : 'Buscar fornecedor...'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
@@ -455,7 +481,6 @@ export default function EstoquePage() {
             </div>
           </div>
 
-          {/* Filtros Secundários de Produtos */}
           {mainTab === 'products' && (
             <div className={styles.tabs}>
               <button 
@@ -520,17 +545,19 @@ export default function EstoquePage() {
                     <tr 
                       key={p.id} 
                       className={styles.row}
-                      onClick={() => handleOpenProductDetails(p.id)}
+                      onClick={() => handleOpenEditProduct(p)}
                       style={{ cursor: 'pointer' }}
+                      title="Clique para editar este produto"
                     >
                       <td className={styles.productName}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span style={{ fontWeight: 600 }}>{p.name}</span>
-                          <ExternalLink size={12} color="#0284c7" />
+                          <div style={{ background: '#f0f9ff', padding: '3px', borderRadius: '4px', display: 'flex' }}>
+                            <Edit2 size={12} color="#0284c7" />
+                          </div>
                         </div>
                       </td>
 
-                      {/* Lote / Código com Mapeamento Corrigido */}
                       <td className={styles.minQty}>
                         {lotDisplay ? (
                           <span style={{ fontFamily: 'monospace', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, color: '#334155' }}>
@@ -539,12 +566,10 @@ export default function EstoquePage() {
                         ) : '—'}
                       </td>
 
-                      {/* Custo Unitário */}
                       <td style={{ fontWeight: 600, color: '#0f172a', fontSize: '13px' }}>
                         {formatCurrency(p.costPrice)}
                       </td>
 
-                      {/* Quantidade com Unidade */}
                       <td>
                         <span className={`${styles.qtyBadge} ${getStockClass(computedStatus)}`}>
                           {p.quantity} {p.unit || 'un.'}
@@ -623,122 +648,209 @@ export default function EstoquePage() {
         )}
       </div>
 
-      {/* ─── MODAL VISÃO DETALHADA DO PRODUTO ─── */}
-      {selectedProductId && (
-        <div className={styles.modalOverlay} onClick={() => setSelectedProductId(null)}>
-          <div className={styles.detailsModalCard} onClick={(e) => e.stopPropagation()}>
+      {/* ─── 🟢 MODAL DE EDIÇÃO ÚNICA DO PRODUTO (SUPORTE A CONVERSÃO DE UNIDADES) ─── */}
+      {isEditingModalOpen && editingProduct && (
+        <div className={styles.modalOverlay} onClick={() => setIsEditingModalOpen(false)}>
+          <div className={styles.detailsModalCard} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
             <div className={styles.detailsHeader}>
               <div className={styles.titleIconBg}>
-                <Package size={20} color="var(--primary)" />
+                <Edit2 size={18} color="var(--primary)" />
               </div>
               <div>
-                <h3 className={styles.detailsTitle}>{productDetails?.name || 'Detalhes do Material'}</h3>
-                <p className={styles.chartSub}>
-                  Lote: {productDetails?.lotNumber || productDetails?.batchNumber || 'Não informado'}
-                </p>
+                <h3 className={styles.detailsTitle}>Editar Produto</h3>
+                <p className={styles.chartSub}>Ajuste os dados cadastrais, lote e rendimento de fracionamento</p>
               </div>
               <button 
                 type="button" 
                 className={styles.closeBtn} 
-                onClick={() => setSelectedProductId(null)}
+                onClick={() => setIsEditingModalOpen(false)}
               >
                 <X size={18} />
               </button>
             </div>
 
-            {loadingDetails ? (
-              <div className={styles.loading}>
-                <Loader2 size={24} className={styles.spinner} />
-                <span>Buscando histórico do produto...</span>
+            <form onSubmit={handleSaveProductEdit} className={styles.supplierForm}>
+              <div className={styles.formGroup}>
+                <label>Nome do Produto *</label>
+                <input
+                  type="text"
+                  required
+                  value={editingProduct.name}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                />
               </div>
-            ) : (
-              <div className={styles.detailsBody}>
-                
-                {/* Cards Rápidos */}
-                <div className={styles.detailsInfoGrid}>
-                  <div className={styles.infoBox}>
-                    <span className={styles.infoBoxLabel}>Estoque Atual</span>
-                    <span className={styles.infoBoxValue}>
-                      {productDetails?.quantity || 0} {productDetails?.unit || 'un.'}
+
+              <div className={styles.formTwoCols}>
+                <div className={styles.formGroup}>
+                  <label>Lote / Código</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: LT-8842"
+                    value={editingProduct.lotNumber || editingProduct.batchNumber || ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, lotNumber: e.target.value, batchNumber: e.target.value })}
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>
+                    {editingProduct.unit === 'CX' ? 'Custo da Caixa (R$)' : 'Custo Compra (R$)'}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 22.00"
+                    value={editingProduct.costPrice ?? ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, costPrice: e.target.value as any })}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.formTwoCols}>
+                <div className={styles.formGroup}>
+                  <label>Quantidade Atual *</label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    value={editingProduct.quantity}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, quantity: Number(e.target.value) })}
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>Unidade de Medida</label>
+                  <select
+                    value={editingProduct.unit || 'UN'}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, unit: e.target.value })}
+                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                  >
+                    {UNIT_OPTIONS.map((u) => (
+                      <option key={u.value} value={u.value}>
+                        {u.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* 🟢 CAMPO DINÂMICO DE FRACIONAMENTO / CONVERSÃO */}
+              {(editingProduct.unit === 'CX' || editingProduct.unit === 'UN') && (
+                <div className={styles.formGroup} style={{ backgroundColor: '#f0f9ff', padding: '10px 12px', borderRadius: '8px', border: '1px solid #bae6fd' }}>
+                  <label style={{ color: '#0284c7', fontWeight: 600 }}>
+                    {editingProduct.unit === 'CX' ? 'Qtd. de Unidades por Caixa *' : 'Rendimento / Conteúdo Total (g ou ml por seringa/pote)'}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder={editingProduct.unit === 'CX' ? 'Ex: 100 luvas' : 'Ex: 4 (para seringa de 4g de resina)'}
+                    value={editingProduct.itemsPerPackage || (editingProduct.unit === 'CX' ? 100 : 1)}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, itemsPerPackage: Number(e.target.value) })}
+                    style={{ borderColor: '#0284c7', marginTop: '4px' }}
+                  />
+                  {getConversionPreview(editingProduct) && (
+                    <span style={{ fontSize: '11px', color: '#0369a1', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Info size={12} /> Custo fracionado na Ficha Técnica: <strong>{getConversionPreview(editingProduct)}</strong>
                     </span>
+                  )}
+                </div>
+              )}
+
+              <div className={styles.formTwoCols}>
+                <div className={styles.formGroup}>
+                  <label>Estoque Mínimo</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingProduct.minQuantity}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, minQuantity: Number(e.target.value) })}
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>Data de Validade</label>
+                  <input
+                    type="date"
+                    value={editingProduct.expiryDate ? new Date(editingProduct.expiryDate).toISOString().split('T')[0] : ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, expiryDate: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Fornecedor</label>
+                <select
+                  value={editingProduct.supplierId || ''}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, supplierId: e.target.value })}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%' }}
+                >
+                  <option value="">Nenhum / Não especificado</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Histórico Recente */}
+              {editingProduct.stockMovements && editingProduct.stockMovements.length > 0 && (
+                <div className={styles.movementsSection} style={{ marginTop: '12px' }}>
+                  <div className={styles.movementsHeader}>
+                    <History size={14} color="var(--primary)" />
+                    <h4 style={{ fontSize: '12px' }}>Últimas Movimentações</h4>
                   </div>
-                  <div className={styles.infoBox}>
-                    <span className={styles.infoBoxLabel}>Custo Unitário</span>
-                    <span className={styles.infoBoxValue} style={{ color: '#0f172a' }}>
-                      {formatCurrency(productDetails?.costPrice)}
-                    </span>
-                  </div>
-                  <div className={styles.infoBox}>
-                    <span className={styles.infoBoxLabel}>Estoque Mínimo</span>
-                    <span className={styles.infoBoxValue}>Min. {productDetails?.minQuantity || 0}</span>
-                  </div>
-                  <div className={styles.infoBox}>
-                    <span className={styles.infoBoxLabel}>Validade</span>
-                    <span className={styles.infoBoxValue}>{formatDate(productDetails?.expirationDate)}</span>
+                  <div className={styles.movementsList} style={{ maxHeight: '120px', overflowY: 'auto' }}>
+                    {editingProduct.stockMovements.slice(0, 3).map((mov) => (
+                      <div key={mov.id} className={styles.movementItem} style={{ padding: '6px 8px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 600 }}>
+                          {mov.type === 'ENTRY' || mov.type === 'IN' ? '+ Entrada' : '- Saída'}: {Math.abs(mov.quantity)} {editingProduct.unit}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                          {new Date(mov.createdAt).toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
+              )}
 
-                {/* Card do Fornecedor */}
-                {productDetails?.supplier && (
-                  <div className={styles.supplierCardBox}>
-                    <div className={styles.supplierCardHeader}>
-                      <Building2 size={16} color="var(--primary)" />
-                      <span className={styles.supplierCardTitle}>Fornecedor Responsável</span>
-                    </div>
-                    <p className={styles.supplierName}>{productDetails.supplier.name}</p>
-                    <div className={styles.supplierContactsRow}>
-                      {productDetails.supplier.contact && (
-                        <span><UserCheck size={12} /> {productDetails.supplier.contact}</span>
-                      )}
-                      {productDetails.supplier.phone && (
-                        <span><Phone size={12} /> {productDetails.supplier.phone}</span>
-                      )}
-                      {productDetails.supplier.email && (
-                        <span><Mail size={12} /> {productDetails.supplier.email}</span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Histórico de Entradas e Saídas */}
-                <div className={styles.movementsSection}>
-                  <div className={styles.movementsHeader}>
-                    <History size={16} color="var(--primary)" />
-                    <h4>Últimas Movimentações (Exit Inteligente)</h4>
-                  </div>
-
-                  {!productDetails?.stockMovements || productDetails.stockMovements.length === 0 ? (
-                    <p className={styles.emptyMovements}>Nenhuma movimentação registrada recentemente.</p>
-                  ) : (
-                    <div className={styles.movementsList}>
-                      {productDetails.stockMovements.map((mov) => {
-                        const isEntry = mov.type === 'IN' || mov.type === 'ENTRY'
-                        return (
-                          <div key={mov.id} className={styles.movementItem}>
-                            <div className={styles.movLeft}>
-                              <span className={`${styles.movBadge} ${isEntry ? styles.movIn : styles.movOut}`}>
-                                {isEntry ? '+ Entrada' : '- Saída'}
-                              </span>
-                              <span className={styles.movQty}>
-                                {Math.abs(mov.quantity)} {productDetails.unit || 'un.'}
-                              </span>
-                            </div>
-                            <div className={styles.movRight}>
-                              <span className={styles.movUser}>{mov.user?.name || 'Sistema'}</span>
-                              <span className={styles.movDate}>
-                                <Calendar size={11} />
-                                {new Date(mov.createdAt).toLocaleString('pt-BR')}
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
+              {/* Botões de Ação */}
+              <div className={styles.formActions} style={{ justifyContent: 'space-between', marginTop: '20px' }}>
+                <div>
+                  {editingProduct.quantity === 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteProduct(editingProduct.id, editingProduct.name)}
+                      className={styles.btnSecondary}
+                      style={{ color: '#ef4444', backgroundColor: '#fef2f2', borderColor: '#fecaca' }}
+                    >
+                      <Trash2 size={14} style={{ marginRight: '4px', display: 'inline' }} />
+                      Excluir Produto
+                    </button>
                   )}
                 </div>
 
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    onClick={() => setIsEditingModalOpen(false)}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className={styles.btnPrimary}
+                    disabled={savingEdit}
+                  >
+                    {savingEdit ? (
+                      <Loader2 size={16} className={styles.spinner} />
+                    ) : (
+                      <>
+                        <Save size={14} style={{ marginRight: '4px', display: 'inline' }} />
+                        <span>Salvar Alterações</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-            )}
+            </form>
           </div>
         </div>
       )}
@@ -834,11 +946,11 @@ export default function EstoquePage() {
         </div>
       )}
 
-      {/* 🟢 Modal de Gerenciamento em Abas passando a Feature Flag do Plano */}
+      {/* ─── MODAL GERENCIAR ESTOQUE (LOTE/AJUSTE/IMPORTAÇÃO CSV) ─── */}
       <StockManagementModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSaveProducts={handleSaveNewProducts}
+        isOpen={isManagementModalOpen}
+        onClose={() => setIsManagementModalOpen(false)}
+        onSaveProducts={loadStockData}
         onSuccess={loadStockData}
         planType={planType === 'BASIC' ? 'BASIC' : 'PREMIUM'}
       />
