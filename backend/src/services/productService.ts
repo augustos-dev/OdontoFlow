@@ -22,7 +22,19 @@ export async function createProductService(
   clinicId: string,
   data: CreateProductDTO
 ) {
-  const { name, quantity, minQuantity, unit, costPrice, supplierId, lotNumber, manufacturingDate, expiryDate, notes } = data
+  const { 
+    name, 
+    quantity, 
+    minQuantity, 
+    unit, 
+    costPrice, 
+    itemsPerPackage, 
+    supplierId, 
+    lotNumber, 
+    manufacturingDate, 
+    expiryDate, 
+    notes 
+  } = data
 
   if (supplierId) {
     const supplier = await prisma.supplier.findFirst({
@@ -37,6 +49,10 @@ export async function createProductService(
     ? parseFloat(String(costPrice).replace(',', '.')) 
     : null
 
+  const parsedItemsPerPackage = itemsPerPackage !== undefined && itemsPerPackage !== null
+    ? Number(itemsPerPackage)
+    : (unit === 'CX' ? 100 : 1)
+
   const product = await prisma.product.create({
     data: {
       tenantId,
@@ -46,6 +62,7 @@ export async function createProductService(
       minQuantity: Number(minQuantity),
       unit: (unit as UnitType) || 'UN',
       costPrice: parsedCost && !isNaN(parsedCost) ? parsedCost : null,
+      itemsPerPackage: parsedItemsPerPackage > 0 ? parsedItemsPerPackage : 1, // 🟢 Suporte a rendimento/embalagem
       supplierId: supplierId ?? null,
       lotNumber: lotNumber ?? null,
       manufacturingDate: manufacturingDate ? new Date(manufacturingDate) : null,
@@ -199,10 +216,14 @@ export async function updateProductService(
     }
   }
 
-  const { manufacturingDate, expiryDate, costPrice, ...rest } = data
+  const { manufacturingDate, expiryDate, costPrice, itemsPerPackage, ...rest } = data
 
   const parsedCost = costPrice !== undefined && costPrice !== null 
     ? parseFloat(String(costPrice).replace(',', '.')) 
+    : undefined
+
+  const parsedItemsPerPackage = itemsPerPackage !== undefined && itemsPerPackage !== null
+    ? Number(itemsPerPackage)
     : undefined
 
   const updated = await prisma.product.update({
@@ -210,6 +231,7 @@ export async function updateProductService(
     data: {
       ...rest,
       ...(parsedCost !== undefined && { costPrice: isNaN(parsedCost) ? null : parsedCost }),
+      ...(parsedItemsPerPackage !== undefined && { itemsPerPackage: parsedItemsPerPackage > 0 ? parsedItemsPerPackage : 1 }),
       ...(manufacturingDate !== undefined && {
         manufacturingDate: manufacturingDate ? new Date(manufacturingDate) : null,
       }),

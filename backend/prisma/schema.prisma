@@ -1,5 +1,5 @@
 // =============================================================================
-// OdontoFlow - Schema Prisma Refatorado (Sprint 13 + Exit Inteligente + SaaS)
+// OdontoFlow - Schema Prisma Refatorado (Sprint 13 + Exit Inteligente + Fracionamento + Saas)
 // Multi-tenant SaaS de Gerenciamento Clínico Odontológico
 // =============================================================================
 
@@ -9,7 +9,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  
+
 }
 
 // =============================================================================
@@ -30,18 +30,18 @@ enum TenantPlan {
 
 enum SubscriptionStatus {
   ACTIVE       // Em dia
-  PAST_DUE     // Atrasado (Inicia aviso de cobrança)
-  PAUSED       // Suspenso / Somente leitura
+  PAST_DUE     // Atrasado
+  PAUSED       // Suspenso
   CANCELED     // Cancelado
 }
 
 enum UnitType {
-  UN // Unidade
-  ML // Mililitros (ex: Anestésico, Ácido Gravador)
+  UN // Unidade / Seringa
+  ML // Mililitros
   MG // Miligramas
-  G  // Gramas (ex: Resina Fotopolimerizável, Alginato)
+  G  // Gramas
   L  // Litros
-  CX // Caixa
+  CX // Caixa / Embalagem
 }
 
 enum UserRole {
@@ -143,7 +143,6 @@ model Tenant {
   @@map("tenants")
 }
 
-// 💳 Assinatura do SaaS / Feature Flags Multi-tenant
 model Subscription {
   id                 String             @id @default(uuid())
   tenantId           String             @unique
@@ -371,8 +370,8 @@ model Procedure {
   name        String
   code        String?
   basePrice   Decimal  @db.Decimal(10, 2)
-  durationMin Int      @default(30)               // 🟢 Duração estimada na agenda (min)
-  category    String?  @default("Dentística / Estética") // 🟢 Categoria / Especialidade
+  durationMin Int      @default(30)
+  category    String?  @default("Dentística / Estética")
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -446,11 +445,12 @@ model Product {
   clinicId          String
   supplierId        String?
   name              String
-  quantity          Float     @default(0)  // 🟢 Alterado de Int para Float (aceita decimais ex: 0.5 ml)
-  minQuantity       Float     @default(1)  // 🟢 Alterado para Float
-  unit              UnitType  @default(UN) // 🟢 Unidade de Medida padrão
-  costPrice         Decimal?  @db.Decimal(10, 2) // 🟢 Preço de Custo Unitário
-  lotNumber         String?   // 📦 Número do Lote / Código
+  quantity          Float     @default(0)
+  minQuantity       Float     @default(1)
+  unit              UnitType  @default(UN)
+  costPrice         Decimal?  @db.Decimal(10, 2)
+  itemsPerPackage   Int?      @default(1) // 🟢 NOVO: Unidades por caixa ou rendimento total em g/ml por embalagem
+  lotNumber         String?
   manufacturingDate DateTime?
   expiryDate        DateTime?
   notes             String?   @db.Text
@@ -471,14 +471,13 @@ model Product {
   @@map("products")
 }
 
-// 🧪 Tabela Pivot: Ficha Técnica do Procedimento (Mapeamento de Insumos)
 model ProcedureProduct {
   id          String   @id @default(uuid())
   tenantId    String
   procedureId String
   productId   String
-  quantity    Float    @default(1.0) // 🟢 Alterado para Float (ex: 0.5 ML, 1.8 G)
-  unit        UnitType @default(UN)  // 🟢 Unidade de medida usada no procedimento
+  quantity    Float    @default(1.0)
+  unit        UnitType @default(UN)
 
   tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   procedure Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
@@ -489,7 +488,6 @@ model ProcedureProduct {
   @@map("procedure_products")
 }
 
-// 📦 Histórico de Movimentação de Estoque
 model StockMovement {
   id        String            @id @default(uuid())
   tenantId  String
@@ -497,7 +495,7 @@ model StockMovement {
   productId String
   userId    String?
   type      StockMovementType
-  quantity  Float             // 🟢 Quantidade movimentada em Float (positiva para entradas, negativa para saídas)
+  quantity  Float
   reason    String?
   createdAt DateTime          @default(now())
 
@@ -579,10 +577,6 @@ model MedicalFile {
   @@index([clinicId, deletedAt])
   @@map("medical_files")
 }
-
-// =============================================================================
-// AUDIT LOGS
-// =============================================================================
 
 model AuditLog {
   id        String      @id @default(uuid())
