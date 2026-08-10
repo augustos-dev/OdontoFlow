@@ -15,14 +15,14 @@ import {
   Phone,
   Mail,
   History,
+  X,
   Edit2,
   RefreshCw,
   UserCheck,
   DollarSign,
   Trash2,
   Save,
-  Info,
-  X
+  Info
 } from 'lucide-react'
 import api from '@/lib/api'
 import { StockManagementModal } from '../../components/estoque/StockManagementModal'
@@ -84,13 +84,12 @@ export default function EstoquePage() {
   const [loading, setLoading] = useState(true)
   const [loadingSuppliers, setLoadingSuppliers] = useState(false)
   
-  const [planType] = useState<'BASIC' | 'PRO' | 'ENTERPRISE'>('PRO')
   const [productFilterTab, setProductFilterTab] = useState<'all' | 'critical' | 'expiring'>('all')
   const [searchTerm, setSearchTerm] = useState('')
   
   const [isManagementModalOpen, setIsManagementModalOpen] = useState(false)
 
-  // 🟢 Modal de Edição Única do Produto
+  // Modal Edição Única
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isEditingModalOpen, setIsEditingModalOpen] = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
@@ -165,38 +164,45 @@ export default function EstoquePage() {
   }
 
   const handleSaveProductEdit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editingProduct) return
+  e.preventDefault()
+  if (!editingProduct) return
 
-    setSavingEdit(true)
-    try {
-      const parsedCost = editingProduct.costPrice ? parseFloat(String(editingProduct.costPrice).replace(',', '.')) : undefined
+  setSavingEdit(true)
+  try {
+    // 🟢 Trata o Preço de Custo (evita NaN)
+    const rawCost = String(editingProduct.costPrice || '').replace(',', '.')
+    const parsedCost = rawCost !== '' && !isNaN(parseFloat(rawCost)) ? parseFloat(rawCost) : undefined
 
-      const payload = {
-        name: editingProduct.name,
-        lotNumber: editingProduct.lotNumber || editingProduct.batchNumber || undefined,
-        quantity: Number(editingProduct.quantity),
-        minQuantity: Number(editingProduct.minQuantity),
-        unit: editingProduct.unit || 'UN',
-        costPrice: isNaN(parsedCost as number) ? undefined : parsedCost,
-        itemsPerPackage: editingProduct.itemsPerPackage ? Number(editingProduct.itemsPerPackage) : 1,
-        supplierId: editingProduct.supplierId || undefined,
-        expiryDate: editingProduct.expiryDate ? new Date(editingProduct.expiryDate).toISOString() : undefined,
-        notes: editingProduct.notes || undefined,
-      }
+    // 🟢 Trata o itemsPerPackage (evita NaN)
+    const rawPkg = Number(editingProduct.itemsPerPackage)
+    const parsedItemsPerPkg = !isNaN(rawPkg) && rawPkg > 0 ? rawPkg : 1
 
-      await api.put(`/products/${editingProduct.id}`, payload)
-      
-      setIsEditingModalOpen(false)
-      setEditingProduct(null)
-      loadStockData()
-    } catch (err: any) {
-      console.error('Erro ao atualizar produto:', err)
-      alert(err.response?.data?.message || 'Erro ao atualizar produto.')
-    } finally {
-      setSavingEdit(false)
+    // 🟢 Payload 100% limpo com campos exatos do banco
+    const payload = {
+      name: editingProduct.name.trim(),
+      lotNumber: editingProduct.lotNumber || undefined,
+      quantity: Number(editingProduct.quantity) || 0,
+      minQuantity: Number(editingProduct.minQuantity) || 0,
+      unit: editingProduct.unit || 'UN',
+      costPrice: parsedCost,
+      itemsPerPackage: parsedItemsPerPkg,
+      supplierId: editingProduct.supplierId || undefined,
+      expiryDate: editingProduct.expiryDate ? new Date(editingProduct.expiryDate).toISOString() : undefined,
+      notes: editingProduct.notes || undefined,
     }
+
+    await api.put(`/products/${editingProduct.id}`, payload)
+    
+    setIsEditingModalOpen(false)
+    setEditingProduct(null)
+    loadStockData()
+  } catch (err: any) {
+    console.error('Erro ao atualizar produto:', err)
+    alert(err.response?.data?.message || 'Erro ao atualizar produto no servidor.')
+  } finally {
+    setSavingEdit(false)
   }
+}
 
   const handleDeleteProduct = async (id: string, name: string) => {
     if (!confirm(`Tem certeza que deseja excluir o produto "${name}" permanentemente?`)) return
@@ -291,7 +297,6 @@ export default function EstoquePage() {
     return { label: 'OK', cls: styles.alertOk, isAlert: false }
   }
 
-  // 🧮 Ajuda a calcular a estimativa de fracionamento para o aviso do modal de edição
   function getConversionPreview(product: Product) {
     const cost = Number(product.costPrice || 0)
     const pkgCount = Number(product.itemsPerPackage || 1)
@@ -648,7 +653,7 @@ export default function EstoquePage() {
         )}
       </div>
 
-      {/* ─── 🟢 MODAL DE EDIÇÃO ÚNICA DO PRODUTO (SUPORTE A CONVERSÃO DE UNIDADES) ─── */}
+      {/* ─── MODAL DE EDIÇÃO ÚNICA ─── */}
       {isEditingModalOpen && editingProduct && (
         <div className={styles.modalOverlay} onClick={() => setIsEditingModalOpen(false)}>
           <div className={styles.detailsModalCard} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
@@ -730,7 +735,6 @@ export default function EstoquePage() {
                 </div>
               </div>
 
-              {/* 🟢 CAMPO DINÂMICO DE FRACIONAMENTO / CONVERSÃO */}
               {(editingProduct.unit === 'CX' || editingProduct.unit === 'UN') && (
                 <div className={styles.formGroup} style={{ backgroundColor: '#f0f9ff', padding: '10px 12px', borderRadius: '8px', border: '1px solid #bae6fd' }}>
                   <label style={{ color: '#0284c7', fontWeight: 600 }}>
@@ -788,7 +792,6 @@ export default function EstoquePage() {
                 </select>
               </div>
 
-              {/* Histórico Recente */}
               {editingProduct.stockMovements && editingProduct.stockMovements.length > 0 && (
                 <div className={styles.movementsSection} style={{ marginTop: '12px' }}>
                   <div className={styles.movementsHeader}>
@@ -810,7 +813,6 @@ export default function EstoquePage() {
                 </div>
               )}
 
-              {/* Botões de Ação */}
               <div className={styles.formActions} style={{ justifyContent: 'space-between', marginTop: '20px' }}>
                 <div>
                   {editingProduct.quantity === 0 && (
@@ -855,7 +857,7 @@ export default function EstoquePage() {
         </div>
       )}
 
-      {/* ─── MODAL NOVO FORNECEDOR ─── */}
+      {/* ─── MODAL FORNECEDOR ─── */}
       {isSupplierModalOpen && (
         <div className={styles.modalOverlay} onClick={() => setIsSupplierModalOpen(false)}>
           <div className={styles.supplierModalCard} onClick={(e) => e.stopPropagation()}>
@@ -946,13 +948,13 @@ export default function EstoquePage() {
         </div>
       )}
 
-      {/* ─── MODAL GERENCIAR ESTOQUE (LOTE/AJUSTE/IMPORTAÇÃO CSV) ─── */}
+      {/* ─── MODAL GERENCIAR ESTOQUE ─── */}
       <StockManagementModal 
         isOpen={isManagementModalOpen}
         onClose={() => setIsManagementModalOpen(false)}
         onSaveProducts={loadStockData}
         onSuccess={loadStockData}
-        planType={planType === 'BASIC' ? 'BASIC' : 'PREMIUM'}
+        planType={'PREMIUM'}
       />
     </div>
   )
