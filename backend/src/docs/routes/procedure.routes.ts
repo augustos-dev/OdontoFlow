@@ -30,6 +30,10 @@ router.use(authenticate)
  *         schema: { type: string }
  *         description: Filtrar procedimentos pelo nome
  *       - in: query
+ *         name: category
+ *         schema: { type: string }
+ *         description: Filtrar por especialidade/categoria (ex. Dentística / Estética)
+ *       - in: query
  *         name: page
  *         schema: { type: integer, default: 1 }
  *       - in: query
@@ -37,7 +41,7 @@ router.use(authenticate)
  *         schema: { type: integer, default: 20 }
  *     responses:
  *       200:
- *         description: Lista de procedimentos com seus insumos vinculados
+ *         description: Lista de procedimentos com duração, precificação e insumos vinculados
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
@@ -103,9 +107,11 @@ router.get('/:id/products', getProcedureProductsController)
  *             type: object
  *             required: [name, basePrice]
  *             properties:
- *               name: { type: string, example: "Limpeza / Profilaxia" }
- *               code: { type: string, example: "PROC-01" }
- *               basePrice: { type: number, example: 180.00 }
+ *               name: { type: string, example: "Restauração Resina Composta" }
+ *               code: { type: string, example: "PROC-001" }
+ *               basePrice: { type: number, example: 150.00 }
+ *               durationMin: { type: integer, example: 30, description: "Duração na agenda em minutos" }
+ *               category: { type: string, example: "Dentística / Estética" }
  *     responses:
  *       201:
  *         description: Procedimento cadastrado com sucesso
@@ -137,9 +143,11 @@ router.post('/', authorize('ADMIN'), createProcedureController)
  *               name: { type: string }
  *               code: { type: string }
  *               basePrice: { type: number }
+ *               durationMin: { type: integer }
+ *               category: { type: string }
  *     responses:
  *       200:
- *         description: Procedimento atualizado
+ *         description: Procedimento atualizado com sucesso
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
@@ -150,7 +158,7 @@ router.put('/:id', authorize('ADMIN'), updateProcedureController)
  * /procedures/{id}/products:
  *   post:
  *     summary: Configura a Ficha Técnica do procedimento (associa insumos do estoque)
- *     description: Define quais produtos e quantidades serão consumidos do estoque ao realizar este procedimento.
+ *     description: Define quais produtos, quantidades e unidades serão consumidos do estoque ao realizar este procedimento.
  *     tags: [Procedures]
  *     security:
  *       - bearerAuth: []
@@ -174,7 +182,8 @@ router.put('/:id', authorize('ADMIN'), updateProcedureController)
  *                   required: [productId, quantity]
  *                   properties:
  *                     productId: { type: string, format: uuid }
- *                     quantity: { type: integer, example: 2 }
+ *                     quantity: { type: number, example: 0.5, description: "Quantidade gasta (aceita decimais)" }
+ *                     unit: { type: string, enum: [UN, ML, MG, G, L, CX], example: "ML" }
  *     responses:
  *       200:
  *         description: Ficha técnica vinculada com sucesso

@@ -1,18 +1,25 @@
+// Unidades de medida suportadas no estoque
+export type UnitType = 'UN' | 'ML' | 'MG' | 'G' | 'L' | 'CX'
+
 export interface CreateProductDTO {
   name: string
-  quantity: number
-  minQuantity: number
+  quantity: number           // Suporta decimais (ex: 0.5 ML)
+  minQuantity: number        // Suporta decimais
+  unit?: UnitType            // Unidade de medida padrão (default: 'UN')
+  costPrice?: number         // Preço de Custo / Compra Unitário
   supplierId?: string
-  lotNumber?: string          // 📦 Lote do produto
-  manufacturingDate?: string  // 🏭 Data de Fabricação
-  expiryDate?: string         // ⏳ Data de Validade
-  notes?: string              // 📝 Observações / Instruções
+  lotNumber?: string         // 📦 Lote do produto
+  manufacturingDate?: string // 🏭 Data de Fabricação
+  expiryDate?: string        // ⏳ Data de Validade
+  notes?: string             // 📝 Observações / Instruções
 }
 
 export interface UpdateProductDTO {
   name?: string
   quantity?: number
   minQuantity?: number
+  unit?: UnitType
+  costPrice?: number
   supplierId?: string
   lotNumber?: string
   manufacturingDate?: string
@@ -21,14 +28,15 @@ export interface UpdateProductDTO {
 }
 
 export interface AdjustStockDTO {
-  quantity: number
+  quantity: number           // Quantidade do ajuste (positiva ou negativa)
   reason: string
 }
 
 export interface FilterProductDTO {
   name?: string
   supplierId?: string
-  lotNumber?: string          // 🔍 Busca por número de lote
+  lotNumber?: string         // 🔍 Busca por número de lote
+  unit?: UnitType
   lowStock?: boolean
   expiring?: boolean
   page?: number

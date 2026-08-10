@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma'
-import { Prisma, StockMovementType } from '@prisma/client'
+import { Prisma, StockMovementType, UnitType } from '@prisma/client'
 import { AppError } from '../shared/AppError'
 import type {
   CreateProductDTO,
@@ -22,7 +22,7 @@ export async function createProductService(
   clinicId: string,
   data: CreateProductDTO
 ) {
-  const { name, quantity, minQuantity, supplierId, lotNumber, manufacturingDate, expiryDate, notes } = data
+  const { name, quantity, minQuantity, unit, costPrice, supplierId, lotNumber, manufacturingDate, expiryDate, notes } = data
 
   if (supplierId) {
     const supplier = await prisma.supplier.findFirst({
@@ -33,13 +33,19 @@ export async function createProductService(
     }
   }
 
+  const parsedCost = costPrice !== undefined && costPrice !== null 
+    ? parseFloat(String(costPrice).replace(',', '.')) 
+    : null
+
   const product = await prisma.product.create({
     data: {
       tenantId,
       clinicId,
       name,
-      quantity,
-      minQuantity,
+      quantity: Number(quantity),
+      minQuantity: Number(minQuantity),
+      unit: (unit as UnitType) || 'UN',
+      costPrice: parsedCost && !isNaN(parsedCost) ? parsedCost : null,
       supplierId: supplierId ?? null,
       lotNumber: lotNumber ?? null,
       manufacturingDate: manufacturingDate ? new Date(manufacturingDate) : null,
@@ -52,14 +58,14 @@ export async function createProductService(
   })
 
   // Se o produto já foi cadastrado com saldo inicial > 0, gera histórico de movimentação
-  if (quantity > 0) {
+  if (product.quantity > 0) {
     await prisma.stockMovement.create({
       data: {
         tenantId,
         clinicId,
         productId: product.id,
         type: 'ENTRY',
-        quantity,
+        quantity: product.quantity,
         reason: 'Cadastro Inicial de Estoque',
       },
     })
@@ -79,7 +85,7 @@ export async function listProductService(
   clinicId: string,
   filters: FilterProductDTO
 ) {
-  const { name, supplierId, lotNumber, lowStock, expiring, page = 1, limit = 20 } = filters
+  const { name, supplierId, lotNumber, unit, lowStock, expiring, page = 1, limit = 20 } = filters
   const skip = (page - 1) * limit
 
   const vencendoEmTrintaDias = new Date()
@@ -90,6 +96,7 @@ export async function listProductService(
     clinicId,
     ...(name && { name: { contains: name, mode: 'insensitive' } }),
     ...(supplierId && { supplierId }),
+    ...(unit && { unit: unit as UnitType }),
     ...(lotNumber && { lotNumber: { contains: lotNumber, mode: 'insensitive' } }),
     ...(lowStock && {
       quantity: { lte: prisma.product.fields.minQuantity },
@@ -145,7 +152,7 @@ export async function getProductByIdService(
   const product = await prisma.product.findFirst({
     where: { id: productId, tenantId, clinicId },
     include: {
-      supplier: { select: { id: true, name: true, phone: true, email: true } },
+      supplier: { select: { id: true, name: true, phone: true, email: true, contact: true } },
       stockMovements: {
         take: 10,
         orderBy: { createdAt: 'desc' },
@@ -192,12 +199,17 @@ export async function updateProductService(
     }
   }
 
-  const { manufacturingDate, expiryDate, ...rest } = data
+  const { manufacturingDate, expiryDate, costPrice, ...rest } = data
+
+  const parsedCost = costPrice !== undefined && costPrice !== null 
+    ? parseFloat(String(costPrice).replace(',', '.')) 
+    : undefined
 
   const updated = await prisma.product.update({
     where: { id: productId },
     data: {
       ...rest,
+      ...(parsedCost !== undefined && { costPrice: isNaN(parsedCost) ? null : parsedCost }),
       ...(manufacturingDate !== undefined && {
         manufacturingDate: manufacturingDate ? new Date(manufacturingDate) : null,
       }),
@@ -245,12 +257,11 @@ export async function adjustStockService(
 
   if (newQuantity < 0) {
     throw new AppError(
-      `Estoque insuficiente. Disponível: ${currentQuantity} unidade(s). Tentativa de alteração: ${change}`,
+      `Estoque insuficiente. Disponível: ${currentQuantity} ${product.unit}. Tentativa de alteração: ${change}`,
       400
     )
   }
 
-  // Executa atualização do saldo + criação do histórico de movimentação em transação ACID
   const result = await prisma.$transaction(async (tx) => {
     const updatedProduct = await tx.product.update({
       where: { id: productId },

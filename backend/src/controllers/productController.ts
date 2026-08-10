@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
-import { UserRole } from '@prisma/client'
+import { UserRole, UnitType } from '@prisma/client'
 import * as productService from '../services/productService'
 import { auditLogService } from '../services/auditLog.service'
 import type { CustomJwtPayload } from '../types/express'
@@ -41,7 +41,7 @@ export async function createProductController(req: Request, res: Response, next:
       action: 'CREATE',
       entity: 'PRODUCT',
       entityId: product.id,
-      details: `Cadastrou o produto: ${product.name} | Lote: ${product.lotNumber || 'N/A'} | Qtd: ${product.quantity}`,
+      details: `Cadastrou o produto: ${product.name} | Lote: ${product.lotNumber || 'N/A'} | Qtd: ${product.quantity} ${product.unit}`,
     })
 
     res.status(201).json(product)
@@ -59,6 +59,7 @@ export async function listProductController(req: Request, res: Response, next: N
       name: req.query.name as string,
       supplierId: req.query.supplierId as string,
       lotNumber: req.query.lotNumber as string,
+      unit: req.query.unit as UnitType,
       lowStock: req.query.lowStock === 'true',
       expiring: req.query.expiring === 'true',
       page: req.query.page ? Number(req.query.page) : undefined,

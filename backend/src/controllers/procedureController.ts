@@ -53,6 +53,7 @@ export async function listProceduresController(
 
     const filters: ProcedureFiltersDTO = {
       name: req.query.name as string,
+      category: req.query.category as string,
       page: req.query.page ? Number(req.query.page) : undefined,
       limit: req.query.limit ? Number(req.query.limit) : undefined,
     }
@@ -137,10 +138,15 @@ export async function setProcedureProductsController(
     const { id } = req.params
     const actor = extractActor(req)
 
+    // Aceita tanto a chave 'items' quanto 'products' vinda do payload do front
+    const payload: SetProcedureProductsDTO = {
+      items: req.body.items || req.body.products || [],
+    }
+
     const result = await procedureService.setProcedureProducts(
       user.tenantId,
       id as string,
-      req.body as SetProcedureProductsDTO,
+      payload,
       actor
     )
 
