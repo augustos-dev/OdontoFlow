@@ -1,38 +1,37 @@
-import { Request, Response, NextFunction } from "express";
-import { UserRole } from "@prisma/client";
-import * as productService from '../services/productService';
-import { auditLogService } from '../services/auditLog.service';
-import {
+import { Request, Response, NextFunction } from 'express'
+import { UserRole, UnitType } from '@prisma/client'
+import * as productService from '../services/productService'
+import { auditLogService } from '../services/auditLog.service'
+import type { CustomJwtPayload } from '../types/express'
+import type {
   CreateProductDTO,
   UpdateProductDTO,
   FilterProductDTO,
   AdjustStockDTO,
-} from '../types/products.types';
+} from '../types/products.types'
 
-// Helper local para extrair os dados do usuário autenticado com tipagem segura
 function getAuthUser(req: Request) {
-  const user = req.user as any;
+  const user = req.user as CustomJwtPayload
   return {
-    tenantId: user.tenantId as string,
-    clinicId: user.clinicId as string,
-    userId: (user.id || user.sub || user.userId) as string,
-    userName: user.name as string | undefined,
-    userRole: user.role as UserRole,
-  };
+    tenantId: user.tenantId,
+    clinicId: user.clinicId!,
+    userId: user.userId || (user as any).sub || (user as any).id,
+    userName: (user as any).name || 'Usuário',
+    userRole: (user.role as UserRole) || 'ADMIN',
+  }
 }
 
 // ─── Create ──────────────────────────────────────────────────────────────────
 
 export async function createProductController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId, userId, userName, userRole } = getAuthUser(req);
+    const { tenantId, clinicId, userId, userName, userRole } = getAuthUser(req)
     const product = await productService.createProductService(
       tenantId,
       clinicId,
       req.body as CreateProductDTO
-    );
+    )
 
-    // 🛡️ Log de Auditoria
     auditLogService.createLog({
       tenantId,
       clinicId,
@@ -42,12 +41,12 @@ export async function createProductController(req: Request, res: Response, next:
       action: 'CREATE',
       entity: 'PRODUCT',
       entityId: product.id,
-      details: `Cadastrou o produto: ${product.name} | Lote: ${product.lotNumber || 'N/A'} | Qtd: ${product.quantity}`,
-    });
+      details: `Cadastrou o produto: ${product.name} | Lote: ${product.lotNumber || 'N/A'} | Qtd: ${product.quantity} ${product.unit}`,
+    })
 
-    res.status(201).json(product);
+    res.status(201).json(product)
   } catch (error) {
-    next(error);
+    next(error)
   }
 }
 
@@ -55,21 +54,22 @@ export async function createProductController(req: Request, res: Response, next:
 
 export async function listProductController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = getAuthUser(req);
+    const { tenantId, clinicId } = getAuthUser(req)
     const filters: FilterProductDTO = {
       name: req.query.name as string,
       supplierId: req.query.supplierId as string,
-      lotNumber: req.query.lotNumber as string, // 📦 Suporte a busca por lote
+      lotNumber: req.query.lotNumber as string,
+      unit: req.query.unit as UnitType,
       lowStock: req.query.lowStock === 'true',
       expiring: req.query.expiring === 'true',
       page: req.query.page ? Number(req.query.page) : undefined,
       limit: req.query.limit ? Number(req.query.limit) : undefined,
-    };
+    }
 
-    const result = await productService.listProductService(tenantId, clinicId, filters);
-    res.status(200).json(result);
+    const result = await productService.listProductService(tenantId, clinicId, filters)
+    res.status(200).json(result)
   } catch (error) {
-    next(error);
+    next(error)
   }
 }
 
@@ -77,13 +77,13 @@ export async function listProductController(req: Request, res: Response, next: N
 
 export async function productByIdController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = getAuthUser(req);
-    const { id } = req.params;
-    const product = await productService.getProductByIdService(tenantId, clinicId, id as string);
+    const { tenantId, clinicId } = getAuthUser(req)
+    const { id } = req.params
+    const product = await productService.getProductByIdService(tenantId, clinicId, id as string)
     
-    res.status(200).json(product); // 🟢 Status 200 para Leitura
+    res.status(200).json(product)
   } catch (error) {
-    next(error);
+    next(error)
   }
 }
 
@@ -91,16 +91,15 @@ export async function productByIdController(req: Request, res: Response, next: N
 
 export async function updateProductController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId, userId, userName, userRole } = getAuthUser(req);
-    const { id } = req.params;
+    const { tenantId, clinicId, userId, userName, userRole } = getAuthUser(req)
+    const { id } = req.params
     const product = await productService.updateProductService(
       tenantId,
       clinicId,
       id as string,
       req.body as UpdateProductDTO
-    );
+    )
 
-    // 🛡️ Log de Auditoria
     auditLogService.createLog({
       tenantId,
       clinicId,
@@ -111,11 +110,11 @@ export async function updateProductController(req: Request, res: Response, next:
       entity: 'PRODUCT',
       entityId: id as string,
       details: `Atualizou os dados do produto: ${product.name}`,
-    });
+    })
 
-    res.status(200).json(product);
+    res.status(200).json(product)
   } catch (error) {
-    next(error);
+    next(error)
   }
 }
 
@@ -123,13 +122,12 @@ export async function updateProductController(req: Request, res: Response, next:
 
 export async function adjustStockController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId, userId, userName, userRole } = getAuthUser(req);
-    const { id } = req.params;
-    const body = req.body as AdjustStockDTO;
+    const { tenantId, clinicId, userId, userName, userRole } = getAuthUser(req)
+    const { id } = req.params
+    const body = req.body as AdjustStockDTO
     
-    const result = await productService.adjustStockService(tenantId, clinicId, id as string, body);
+    const result = await productService.adjustStockService(tenantId, clinicId, id as string, body, userId)
 
-    // 🛡️ Log de Auditoria
     auditLogService.createLog({
       tenantId,
       clinicId,
@@ -140,11 +138,11 @@ export async function adjustStockController(req: Request, res: Response, next: N
       entity: 'PRODUCT',
       entityId: id as string,
       details: `Ajuste de estoque (${body.quantity > 0 ? '+' : ''}${body.quantity}): ${body.reason}`,
-    });
+    })
 
-    res.status(200).json(result);
+    res.status(200).json(result)
   } catch (error) {
-    next(error);
+    next(error)
   }
 }
 
@@ -152,11 +150,11 @@ export async function adjustStockController(req: Request, res: Response, next: N
 
 export async function lowStockController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = getAuthUser(req);
-    const products = await productService.getLowStockAlertService(tenantId, clinicId);
-    res.status(200).json(products);
+    const { tenantId, clinicId } = getAuthUser(req)
+    const products = await productService.getLowStockAlertService(tenantId, clinicId)
+    res.status(200).json(products)
   } catch (error) {
-    next(error);
+    next(error)
   }
 }
 
@@ -164,11 +162,11 @@ export async function lowStockController(req: Request, res: Response, next: Next
 
 export async function expringProductController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId } = getAuthUser(req);
-    const products = await productService.getExpringProductsService(tenantId, clinicId);
-    res.status(200).json(products);
+    const { tenantId, clinicId } = getAuthUser(req)
+    const products = await productService.getExpringProductsService(tenantId, clinicId)
+    res.status(200).json(products)
   } catch (error) {
-    next(error);
+    next(error)
   }
 }
 
@@ -176,12 +174,11 @@ export async function expringProductController(req: Request, res: Response, next
 
 export async function deleteProductController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId, clinicId, userId, userName, userRole } = getAuthUser(req);
-    const { id } = req.params;
+    const { tenantId, clinicId, userId, userName, userRole } = getAuthUser(req)
+    const { id } = req.params
     
-    await productService.deleteProductService(tenantId, clinicId, id as string);
+    await productService.deleteProductService(tenantId, clinicId, id as string)
 
-    // 🛡️ Log de Auditoria
     auditLogService.createLog({
       tenantId,
       clinicId,
@@ -192,10 +189,10 @@ export async function deleteProductController(req: Request, res: Response, next:
       entity: 'PRODUCT',
       entityId: id as string,
       details: `Deletou o produto ID: ${id}`,
-    });
+    })
 
-    res.status(204).send();
+    res.status(204).send()
   } catch (error) {
-    next(error);
+    next(error)
   }
 }

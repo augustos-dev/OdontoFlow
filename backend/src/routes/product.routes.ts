@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router } from 'express'
 import {
   createProductController,
   listProductController,
@@ -7,29 +7,29 @@ import {
   productByIdController,
   deleteProductController,
   lowStockController,
-  updateProductController
-} from '../controllers/productController';
-import { authenticate, authorize } from "../middlewares/authMiddlewares";
+  updateProductController,
+} from '../controllers/productController'
+import { authenticate, authorize } from '../middlewares/authMiddlewares'
 
-const productRouter = Router();
+const productRouter = Router()
 
-// ─── Todas as rotas de produtos são privadas ──────────────────────────────────
-productRouter.use(authenticate);
+// ─── Autenticação Global do Módulo ───────────────────────────────────────────
+productRouter.use(authenticate)
 
-// ─── Rotas de Leitura Fixas (Sempre acima de /:id) ────────────────────────────
-productRouter.get('/', listProductController);
-productRouter.get('/low-stock', lowStockController); // 🟢 Corrigido typos de 'loe-stock'
-productRouter.get('/expiring', expringProductController);
-productRouter.get('/:id', productByIdController);
+// ─── Rotas de Leitura / Filtros Especiais (Rotas estáticas acima de /:id) ───
+productRouter.get('/', listProductController)
+productRouter.get('/low-stock', lowStockController)
+productRouter.get('/expiring', expringProductController)
+productRouter.get('/:id', productByIdController)
 
-// ─── Rotas de Escrita (ADMIN e SECRETARY) ──────────────────────────────────────
-productRouter.post('/', authorize('ADMIN', 'SECRETARY'), createProductController);
-productRouter.put('/:id', authorize('ADMIN', 'SECRETARY'), updateProductController); // 🟢 Adicionado /:id no PUT
+// ─── Rotas de Cadastro e Edição de Insumos (ADMIN e SECRETARY) ────────────────
+productRouter.post('/', authorize('ADMIN', 'SECRETARY'), createProductController)
+productRouter.put('/:id', authorize('ADMIN', 'SECRETARY'), updateProductController)
 
-// ─── Rotas de Ajuste de Estoque ───────────────────────────────────────────────
-productRouter.patch('/:id/stock', authorize('ADMIN', 'SECRETARY', 'DENTIST'), adjustStockController);
+// ─── Rotas de Ajuste de Saldo / Exit Inteligente (ADMIN, SECRETARY e DENTIST) 
+productRouter.patch('/:id/stock', authorize('ADMIN', 'SECRETARY', 'DENTIST'), adjustStockController)
 
-// ─── Rotas de Exclusão ─────────────────────────────────────────────────────────
-productRouter.delete('/:id', authorize('ADMIN'), deleteProductController);
+// ─── Rotas de Exclusão Física (Apenas ADMIN) ──────────────────────────────────
+productRouter.delete('/:id', authorize('ADMIN'), deleteProductController)
 
-export default productRouter;
+export default productRouter

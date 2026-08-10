@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma'
-import { Prisma } from '@prisma/client'
+import { Prisma, StockMovementType, UnitType } from '@prisma/client'
 import { AppError } from '../shared/AppError'
 import type {
   CreateProductDTO,
@@ -8,7 +8,7 @@ import type {
   FilterProductDTO,
 } from '../types/products.types'
 
-// Helpers
+// Helper de semáforo de estoque
 function getStockStatus(quantity: number, minQuantity: number): 'CRITICO' | 'BAIXO' | 'OK' {
   if (quantity === 0) return 'CRITICO'
   if (quantity <= minQuantity) return 'BAIXO'
@@ -22,9 +22,8 @@ export async function createProductService(
   clinicId: string,
   data: CreateProductDTO
 ) {
-  const { name, quantity, minQuantity, supplierId, lotNumber, manufacturingDate, expiryDate, notes } = data
+  const { name, quantity, minQuantity, unit, costPrice, supplierId, lotNumber, manufacturingDate, expiryDate, notes } = data
 
-  // Valida fornecedor caso informado
   if (supplierId) {
     const supplier = await prisma.supplier.findFirst({
       where: { id: supplierId, tenantId, clinicId },
@@ -34,13 +33,19 @@ export async function createProductService(
     }
   }
 
-  return prisma.product.create({
+  const parsedCost = costPrice !== undefined && costPrice !== null 
+    ? parseFloat(String(costPrice).replace(',', '.')) 
+    : null
+
+  const product = await prisma.product.create({
     data: {
       tenantId,
       clinicId,
       name,
-      quantity,
-      minQuantity,
+      quantity: Number(quantity),
+      minQuantity: Number(minQuantity),
+      unit: (unit as UnitType) || 'UN',
+      costPrice: parsedCost && !isNaN(parsedCost) ? parsedCost : null,
       supplierId: supplierId ?? null,
       lotNumber: lotNumber ?? null,
       manufacturingDate: manufacturingDate ? new Date(manufacturingDate) : null,
@@ -51,6 +56,26 @@ export async function createProductService(
       supplier: { select: { id: true, name: true } },
     },
   })
+
+  // Se o produto já foi cadastrado com saldo inicial > 0, gera histórico de movimentação
+  if (product.quantity > 0) {
+    await prisma.stockMovement.create({
+      data: {
+        tenantId,
+        clinicId,
+        productId: product.id,
+        type: 'ENTRY',
+        quantity: product.quantity,
+        reason: 'Cadastro Inicial de Estoque',
+      },
+    })
+  }
+
+  return {
+    ...product,
+    batchNumber: product.lotNumber, // 📦 Alias para compatibilidade no Front
+    stockStatus: getStockStatus(product.quantity, product.minQuantity),
+  }
 }
 
 // ─── List ────────────────────────────────────────────────────────────────────
@@ -60,11 +85,9 @@ export async function listProductService(
   clinicId: string,
   filters: FilterProductDTO
 ) {
-  const { name, supplierId, lotNumber, lowStock, expiring, page = 1, limit = 20 } = filters
-
+  const { name, supplierId, lotNumber, unit, lowStock, expiring, page = 1, limit = 20 } = filters
   const skip = (page - 1) * limit
 
-  // Alerta de vencimento de produtos vencendo em 30 dias
   const vencendoEmTrintaDias = new Date()
   vencendoEmTrintaDias.setDate(vencendoEmTrintaDias.getDate() + 30)
 
@@ -73,12 +96,11 @@ export async function listProductService(
     clinicId,
     ...(name && { name: { contains: name, mode: 'insensitive' } }),
     ...(supplierId && { supplierId }),
+    ...(unit && { unit: unit as UnitType }),
     ...(lotNumber && { lotNumber: { contains: lotNumber, mode: 'insensitive' } }),
-    // Filtro de semáforo para estoque baixo/crítico (quantity <= minQuantity)
     ...(lowStock && {
       quantity: { lte: prisma.product.fields.minQuantity },
     }),
-    // Filtro vencendo em 30 dias
     ...(expiring && {
       expiryDate: {
         not: null,
@@ -101,9 +123,9 @@ export async function listProductService(
     prisma.product.count({ where }),
   ])
 
-  // Enriquece cada produto com o status do semáforo do estoque e alerta de expiração
   const data = products.map((product) => ({
     ...product,
+    batchNumber: product.lotNumber, // 📦 Alias Front-end
     stockStatus: getStockStatus(product.quantity, product.minQuantity),
     isExpiringSoon:
       product.expiryDate !== null && product.expiryDate <= vencendoEmTrintaDias,
@@ -120,7 +142,7 @@ export async function listProductService(
   }
 }
 
-// ─── Get By Id ───────────────────────────────────────────────────────────────
+// ─── Get By Id (Com Histórico de Movimentações do Exit Inteligente) ─────────
 
 export async function getProductByIdService(
   tenantId: string,
@@ -130,7 +152,14 @@ export async function getProductByIdService(
   const product = await prisma.product.findFirst({
     where: { id: productId, tenantId, clinicId },
     include: {
-      supplier: { select: { id: true, name: true, phone: true, email: true } },
+      supplier: { select: { id: true, name: true, phone: true, email: true, contact: true } },
+      stockMovements: {
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { id: true, name: true } },
+        },
+      },
     },
   })
 
@@ -140,11 +169,12 @@ export async function getProductByIdService(
 
   return {
     ...product,
+    batchNumber: product.lotNumber,
     stockStatus: getStockStatus(product.quantity, product.minQuantity),
   }
 }
 
-// ─── Update (Corrigido) ──────────────────────────────────────────────────────
+// ─── Update ──────────────────────────────────────────────────────────────────
 
 export async function updateProductService(
   tenantId: string,
@@ -160,7 +190,6 @@ export async function updateProductService(
     throw new AppError('Produto não encontrado.', 404)
   }
 
-  // Se informou um fornecedor, garante que ele existe na mesma clínica
   if (data.supplierId) {
     const supplier = await prisma.supplier.findFirst({
       where: { id: data.supplierId, tenantId, clinicId },
@@ -170,13 +199,17 @@ export async function updateProductService(
     }
   }
 
-  // Trata a conversão de datas enviadas como string no DTO
-  const { manufacturingDate, expiryDate, ...rest } = data
+  const { manufacturingDate, expiryDate, costPrice, ...rest } = data
 
-  return prisma.product.update({
+  const parsedCost = costPrice !== undefined && costPrice !== null 
+    ? parseFloat(String(costPrice).replace(',', '.')) 
+    : undefined
+
+  const updated = await prisma.product.update({
     where: { id: productId },
     data: {
       ...rest,
+      ...(parsedCost !== undefined && { costPrice: isNaN(parsedCost) ? null : parsedCost }),
       ...(manufacturingDate !== undefined && {
         manufacturingDate: manufacturingDate ? new Date(manufacturingDate) : null,
       }),
@@ -188,15 +221,22 @@ export async function updateProductService(
       supplier: { select: { id: true, name: true } },
     },
   })
+
+  return {
+    ...updated,
+    batchNumber: updated.lotNumber,
+    stockStatus: getStockStatus(updated.quantity, updated.minQuantity),
+  }
 }
 
-// ─── Adjust Stock ────────────────────────────────────────────────────────────
+// ─── Adjust Stock (Integração com StockMovement) ────────────────────────────
 
 export async function adjustStockService(
   tenantId: string,
   clinicId: string,
   productId: string,
-  data: AdjustStockDTO
+  data: AdjustStockDTO,
+  userId?: string
 ) {
   const product = await prisma.product.findFirst({
     where: { id: productId, tenantId, clinicId },
@@ -206,7 +246,6 @@ export async function adjustStockService(
     throw new AppError('Produto não encontrado.', 404)
   }
 
-  // 🔴 CORREÇÃO AQUI: Força a conversão para Number para evitar concatenação de String
   const change = Number(data.quantity)
   const currentQuantity = Number(product.quantity)
 
@@ -214,30 +253,43 @@ export async function adjustStockService(
     throw new AppError('A quantidade enviada deve ser um número válido.', 400)
   }
 
-  // Calcula o novo valor exato (ex: 250 + (-1) = 249)
   const newQuantity = currentQuantity + change
 
-  // Não permite estoque negativo
   if (newQuantity < 0) {
     throw new AppError(
-      `Estoque insuficiente. Disponível: ${currentQuantity} unidade(s). Tentativa de alteração: ${change}`,
+      `Estoque insuficiente. Disponível: ${currentQuantity} ${product.unit}. Tentativa de alteração: ${change}`,
       400
     )
   }
 
-  const updated = await prisma.product.update({
-    where: { id: productId },
-    data: {
-      quantity: newQuantity,
-    },
-    include: {
-      supplier: { select: { id: true, name: true } },
-    },
+  const result = await prisma.$transaction(async (tx) => {
+    const updatedProduct = await tx.product.update({
+      where: { id: productId },
+      data: { quantity: newQuantity },
+      include: { supplier: { select: { id: true, name: true } } },
+    })
+
+    const movementType: StockMovementType = change > 0 ? 'ENTRY' : 'EXIT_MANUAL'
+
+    await tx.stockMovement.create({
+      data: {
+        tenantId,
+        clinicId,
+        productId,
+        userId: userId ?? null,
+        type: movementType,
+        quantity: Math.abs(change),
+        reason: data.reason || 'Ajuste manual de estoque',
+      },
+    })
+
+    return updatedProduct
   })
 
   return {
-    ...updated,
-    stockStatus: getStockStatus(updated.quantity, updated.minQuantity),
+    ...result,
+    batchNumber: result.lotNumber,
+    stockStatus: getStockStatus(result.quantity, result.minQuantity),
     adjustment: {
       previous: currentQuantity,
       change,
@@ -247,7 +299,7 @@ export async function adjustStockService(
   }
 }
 
-// ─── Low Stock Alert (Corrigido) ─────────────────────────────────────────────
+// ─── Low Stock Alert ─────────────────────────────────────────────────────────
 
 export async function getLowStockAlertService(tenantId: string, clinicId: string) {
   const products = await prisma.product.findMany({
@@ -255,16 +307,14 @@ export async function getLowStockAlertService(tenantId: string, clinicId: string
     include: {
       supplier: { select: { id: true, name: true, phone: true } },
     },
-    orderBy: {
-      quantity: 'asc',
-    },
+    orderBy: { quantity: 'asc' },
   })
 
-  // Filtra comparando a quantidade contra a quantidade mínima estipulada
   const lowStock = products.filter((p) => p.quantity <= p.minQuantity)
 
   return lowStock.map((p) => ({
     ...p,
+    batchNumber: p.lotNumber,
     stockStatus: getStockStatus(p.quantity, p.minQuantity),
   }))
 }
@@ -288,13 +338,12 @@ export async function getExpringProductsService(tenantId: string, clinicId: stri
     include: {
       supplier: { select: { id: true, name: true, phone: true } },
     },
-    orderBy: {
-      expiryDate: 'asc',
-    },
+    orderBy: { expiryDate: 'asc' },
   })
 
   return products.map((p) => ({
     ...p,
+    batchNumber: p.lotNumber,
     daysUntilExpiry: Math.ceil(
       (p.expiryDate!.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
     ),
@@ -323,7 +372,5 @@ export async function deleteProductService(
     )
   }
 
-  await prisma.product.delete({
-    where: { id: productId },
-  })
+  await prisma.product.delete({ where: { id: productId } })
 }

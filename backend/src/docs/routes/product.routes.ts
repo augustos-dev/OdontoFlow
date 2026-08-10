@@ -7,7 +7,7 @@ import {
   productByIdController,
   deleteProductController,
   lowStockController,
-  updateProductController
+  updateProductController,
 } from '../../controllers/productController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
 
@@ -42,6 +42,10 @@ router.use(authenticate)
  *         schema: { type: string }
  *         description: Filtra por número do lote
  *       - in: query
+ *         name: unit
+ *         schema: { type: string, enum: [UN, ML, MG, G, L, CX] }
+ *         description: Filtra por unidade de medida
+ *       - in: query
  *         name: supplierId
  *         schema: { type: string, format: uuid }
  *       - in: query
@@ -60,7 +64,7 @@ router.use(authenticate)
  *         schema: { type: integer, default: 20 }
  *     responses:
  *       200:
- *         description: Lista paginada de produtos com status de estoque e lote
+ *         description: Lista paginada de produtos com status de estoque, lote, preço de custo e unidade
  *         content:
  *           application/json:
  *             schema:
@@ -121,7 +125,7 @@ router.get('/expiring', expringProductController)
  * @openapi
  * /products/{id}:
  *   get:
- *     summary: Busca um produto por ID
+ *     summary: Busca um produto por ID (Com histórico de saídas do Exit Inteligente)
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -132,7 +136,7 @@ router.get('/expiring', expringProductController)
  *         schema: { type: string, format: uuid }
  *     responses:
  *       200:
- *         description: Dados completos do produto (incluindo lote e fabricante)
+ *         description: Dados completos do produto (incluindo lote, preço de custo, fornecedor e movimentações)
  *         content:
  *           application/json:
  *             schema:
@@ -157,7 +161,19 @@ router.get('/:id', productByIdController)
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/CreateProductDTO'
+ *             type: object
+ *             required: [name, quantity, minQuantity]
+ *             properties:
+ *               name: { type: string, example: "Anestésico Tubete 1:100.000" }
+ *               quantity: { type: number, example: 50 }
+ *               minQuantity: { type: number, example: 10 }
+ *               unit: { type: string, enum: [UN, ML, MG, G, L, CX], example: "UN" }
+ *               costPrice: { type: number, example: 3.50, description: "Preço de custo/compra unitário" }
+ *               supplierId: { type: string, format: uuid }
+ *               lotNumber: { type: string, example: "LT-8842" }
+ *               manufacturingDate: { type: string, format: date-time }
+ *               expiryDate: { type: string, format: date-time }
+ *               notes: { type: string }
  *     responses:
  *       201:
  *         description: Produto criado com sucesso e registrado no AuditLog
@@ -178,7 +194,7 @@ router.post('/', authorize('ADMIN', 'SECRETARY'), createProductController)
  * @openapi
  * /products/{id}:
  *   put:
- *     summary: Atualiza os dados de um produto (Lote, Validade, Qtds, Observações)
+ *     summary: Atualiza os dados de um produto (Lote, Validade, Custo, Qtds, Observações)
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -192,7 +208,18 @@ router.post('/', authorize('ADMIN', 'SECRETARY'), createProductController)
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/CreateProductDTO'
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               quantity: { type: number }
+ *               minQuantity: { type: number }
+ *               unit: { type: string, enum: [UN, ML, MG, G, L, CX] }
+ *               costPrice: { type: number }
+ *               supplierId: { type: string, format: uuid }
+ *               lotNumber: { type: string }
+ *               manufacturingDate: { type: string, format: date-time }
+ *               expiryDate: { type: string, format: date-time }
+ *               notes: { type: string }
  *     responses:
  *       200:
  *         description: Produto atualizado com sucesso
@@ -213,7 +240,7 @@ router.put('/:id', authorize('ADMIN', 'SECRETARY'), updateProductController)
  * @openapi
  * /products/{id}/stock:
  *   patch:
- *     summary: Ajusta o estoque de um produto (Entrada ou Saída)
+ *     summary: Ajusta o estoque de um produto e registra histórico em StockMovement
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -227,7 +254,11 @@ router.put('/:id', authorize('ADMIN', 'SECRETARY'), updateProductController)
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/AdjustStockDTO'
+ *             type: object
+ *             required: [quantity, reason]
+ *             properties:
+ *               quantity: { type: number, example: -2, description: "Delta de alteração (positivo para entrada, negativo para saída)" }
+ *               reason: { type: string, example: "Uso clínico no atendimento" }
  *     responses:
  *       200:
  *         description: Estoque ajustado com sucesso
@@ -259,7 +290,7 @@ router.patch('/:id/stock', authorize('ADMIN', 'SECRETARY', 'DENTIST'), adjustSto
  *       204:
  *         description: Produto removido com sucesso
  *       400:
- *         description: Produto com estoque não pode ser removido
+ *         description: Produto com estoque acima de zero não pode ser removido
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  *       403:

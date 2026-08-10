@@ -1,5 +1,5 @@
 // =============================================================================
-// OdontoFlow - Schema Prisma Refatorado (Sprint 3 + Exit Inteligente)
+// OdontoFlow - Schema Prisma Refatorado (Sprint 13 + Exit Inteligente + SaaS)
 // Multi-tenant SaaS de Gerenciamento Clínico Odontológico
 // =============================================================================
 
@@ -9,6 +9,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  
 }
 
 // =============================================================================
@@ -25,6 +26,22 @@ enum TenantPlan {
   STANDARD
   PREMIUM
   ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE       // Em dia
+  PAST_DUE     // Atrasado (Inicia aviso de cobrança)
+  PAUSED       // Suspenso / Somente leitura
+  CANCELED     // Cancelado
+}
+
+enum UnitType {
+  UN // Unidade
+  ML // Mililitros (ex: Anestésico, Ácido Gravador)
+  MG // Miligramas
+  G  // Gramas (ex: Resina Fotopolimerizável, Alginato)
+  L  // Litros
+  CX // Caixa
 }
 
 enum UserRole {
@@ -118,11 +135,30 @@ model Tenant {
   treatmentPlans    TreatmentPlan[]
   procedures        Procedure[]
   planProcedures    PlanProcedure[]
-  procedureProducts ProcedureProduct[] // 👈 Adicionado para manter integridade com a pivot
+  procedureProducts ProcedureProduct[]
   medicalFiles      MedicalFile[]
   auditLogs         AuditLog[]
+  subscription      Subscription?
 
   @@map("tenants")
+}
+
+// 💳 Assinatura do SaaS / Feature Flags Multi-tenant
+model Subscription {
+  id                 String             @id @default(uuid())
+  tenantId           String             @unique
+  plan               TenantPlan         @default(STANDARD)
+  status             SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime
+  gracePeriodEndsAt  DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("subscriptions")
 }
 
 model Clinic {
@@ -134,7 +170,7 @@ model Clinic {
   email                    String?
   address                  String?
   logoUrl                  String?
-  paymentIntegrationActive Boolean  @default(false) // 🚩 Feature Flag para Checkout/Gateways
+  paymentIntegrationActive Boolean  @default(false)
   isActive                 Boolean  @default(true)
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
@@ -201,17 +237,14 @@ model Patient {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  // 📍 Endereço detalhado
   zipCode String?
   city    String?
   state   String?
 
-  // 👨‍👩‍👦 Responsável Legal (Pacientes Menores)
   guardianName      String?
   guardianCpf       String?
   guardianBirthDate DateTime?
 
-  // 💳 Dados do Convênio
   insuranceName       String? @default("Particular")
   insuranceCardNumber String?
   insuranceHolderName String?
@@ -264,14 +297,12 @@ model Evolution {
   tenantId        String
   medicalRecordId String
   dentistId       String
-  procedureId     String?  // 👈 Adicionado: Procedimento realizado nesta evolução
+  procedureId     String?
   description     String   @db.Text
 
-  // 📸 Snapshot do odontograma e anexos
   odontogramSnapshot Json?
   attachments        String[] @default([])
 
-  // 🔒 Trava de Imutabilidade (Compliance LGPD/CFO - Trava de 12h)
   isLocked  Boolean   @default(false)
   lockedAt  DateTime?
   createdAt DateTime  @default(now())
@@ -280,7 +311,7 @@ model Evolution {
   tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   medicalRecord MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
   dentist       User          @relation(fields: [dentistId], references: [id])
-  procedure     Procedure?    @relation(fields: [procedureId], references: [id], onDelete: SetNull) // 👈 Relacionamento
+  procedure     Procedure?    @relation(fields: [procedureId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([medicalRecordId])
@@ -335,19 +366,22 @@ model TreatmentPlan {
 }
 
 model Procedure {
-  id        String   @id @default(uuid())
-  tenantId  String
-  name      String
-  code      String?
-  basePrice Decimal  @db.Decimal(10, 2)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  code        String?
+  basePrice   Decimal  @db.Decimal(10, 2)
+  durationMin Int      @default(30)               // 🟢 Duração estimada na agenda (min)
+  category    String?  @default("Dentística / Estética") // 🟢 Categoria / Especialidade
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   planProcedures    PlanProcedure[]
-  procedureProducts ProcedureProduct[] // 🔗 Vínculo com Insumos do Estoque
-  appointments      Appointment[]      // 👈 Vínculo com Agendamentos
-  evolutions Evolution[] // 👈 vinculo com evolucoes 
+  procedureProducts ProcedureProduct[]
+  appointments      Appointment[]
+  evolutions        Evolution[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -377,7 +411,7 @@ model Appointment {
   clinicId           String
   patientId          String
   dentistId          String
-  procedureId        String?           // 👈 Vínculo opcional para acionar o Exit Inteligente
+  procedureId        String?
   dateTime           DateTime
   durationMin        Int               @default(60)
   status             AppointmentStatus @default(AGENDADO)
@@ -393,7 +427,7 @@ model Appointment {
   clinic      Clinic       @relation(fields: [clinicId], references: [id])
   patient     Patient      @relation(fields: [patientId], references: [id])
   dentist     User         @relation("DentistAppointments", fields: [dentistId], references: [id])
-  procedure   Procedure?   @relation(fields: [procedureId], references: [id], onDelete: SetNull) // 👈 Relacionamento adicionado
+  procedure   Procedure?   @relation(fields: [procedureId], references: [id], onDelete: SetNull)
   transaction Transaction?
 
   @@index([tenantId])
@@ -412,20 +446,22 @@ model Product {
   clinicId          String
   supplierId        String?
   name              String
-  quantity          Int
-  minQuantity       Int
-  lotNumber         String?   // 📦 Número do Lote
-  manufacturingDate DateTime? 
-  expiryDate        DateTime? 
-  notes             String?   @db.Text 
+  quantity          Float     @default(0)  // 🟢 Alterado de Int para Float (aceita decimais ex: 0.5 ml)
+  minQuantity       Float     @default(1)  // 🟢 Alterado para Float
+  unit              UnitType  @default(UN) // 🟢 Unidade de Medida padrão
+  costPrice         Decimal?  @db.Decimal(10, 2) // 🟢 Preço de Custo Unitário
+  lotNumber         String?   // 📦 Número do Lote / Código
+  manufacturingDate DateTime?
+  expiryDate        DateTime?
+  notes             String?   @db.Text
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
   tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   clinic            Clinic             @relation(fields: [clinicId], references: [id])
   supplier          Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  procedureProducts ProcedureProduct[] // 🔗 Relacionamento com procedimentos
-  stockMovements    StockMovement[]    // 📊 Histórico de movimentações (Entradas/Saídas)
+  procedureProducts ProcedureProduct[]
+  stockMovements    StockMovement[]
 
   @@index([tenantId])
   @@index([clinicId])
@@ -437,13 +473,14 @@ model Product {
 
 // 🧪 Tabela Pivot: Ficha Técnica do Procedimento (Mapeamento de Insumos)
 model ProcedureProduct {
-  id          String @id @default(uuid())
+  id          String   @id @default(uuid())
   tenantId    String
   procedureId String
   productId   String
-  quantity    Int    @default(1) // Quantidade gasta deste produto por procedimento
+  quantity    Float    @default(1.0) // 🟢 Alterado para Float (ex: 0.5 ML, 1.8 G)
+  unit        UnitType @default(UN)  // 🟢 Unidade de medida usada no procedimento
 
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict) // 👈 Adicionado
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   procedure Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
   product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -460,8 +497,8 @@ model StockMovement {
   productId String
   userId    String?
   type      StockMovementType
-  quantity  Int               // Quantidade movimentada (positiva para entradas, negativa para saídas)
-  reason    String?           // Ex: "Baixa Automática: Restauração Resina (Agendamento #XYZ)"
+  quantity  Float             // 🟢 Quantidade movimentada em Float (positiva para entradas, negativa para saídas)
+  reason    String?
   createdAt DateTime          @default(now())
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -499,7 +536,7 @@ model Transaction {
   tenantId        String
   clinicId        String
   appointmentId   String?         @unique
-  treatmentPlanId String?         // 🔗 Vínculo opcional com orçamento
+  treatmentPlanId String?
   amount          Decimal         @db.Decimal(10, 2)
   type            TransactionType @default(RECEITA)
   paymentMethod   PaymentMethod
@@ -529,7 +566,7 @@ model MedicalFile {
   url       String
   name      String
   size      Int
-  deletedAt DateTime? // 🖼️ Soft Delete (>24h retenção CFO/LGPD)
+  deletedAt DateTime?
   createdAt DateTime  @default(now())
 
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
@@ -555,7 +592,7 @@ model AuditLog {
   userName  String?
   userRole  UserRole?
   action    AuditAction
-  entity    String      // Ex: "APPOINTMENT", "TRANSACTION", "EVOLUTION", "PRODUCT", "MEDICAL_FILE"
+  entity    String
   entityId  String?
   details   String?     @db.Text
   ipAddress String?
