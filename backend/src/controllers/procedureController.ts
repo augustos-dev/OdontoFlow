@@ -138,7 +138,6 @@ export async function setProcedureProductsController(
     const { id } = req.params
     const actor = extractActor(req)
 
-    // Aceita tanto a chave 'items' quanto 'products' vinda do payload do front
     const payload: SetProcedureProductsDTO = {
       items: req.body.items || req.body.products || [],
     }

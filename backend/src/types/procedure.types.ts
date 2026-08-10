@@ -38,7 +38,7 @@ export interface SetProcedureProductsDTO {
   products?: AttachProcedureProductItemDTO[] // Chave alternativa por compatibilidade
 }
 
-// Resposta de retorno com o produto enriquecido
+// Resposta de retorno com o produto enriquecido (incluindo o itemsPerPackage)
 export interface ProcedureProductResponseDTO {
   id: string
   tenantId: string
@@ -53,6 +53,7 @@ export interface ProcedureProductResponseDTO {
     minQuantity: number
     unit?: UnitType          // Unidade padrão do produto
     costPrice?: number | null// Custo unitário para cálculo da Margem Bruta
+    itemsPerPackage?: number | null // 🟢 Unidades por caixa para cálculo de fracionamento
     lotNumber?: string | null
   }
 }

@@ -11,11 +11,10 @@ import {
 } from '../../controllers/productController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
 
-const router = Router()
+const productRouter = Router()
 
-// ─── Todas as rotas de produtos são privadas ──────────────────────────────────
-
-router.use(authenticate)
+// ─── Autenticação Global do Módulo ───────────────────────────────────────────
+productRouter.use(authenticate)
 
 /**
  * @openapi
@@ -64,7 +63,7 @@ router.use(authenticate)
  *         schema: { type: integer, default: 20 }
  *     responses:
  *       200:
- *         description: Lista paginada de produtos com status de estoque, lote, preço de custo e unidade
+ *         description: Lista paginada de produtos com status de estoque, lote, preço de custo, fracionamento e unidade
  *         content:
  *           application/json:
  *             schema:
@@ -77,7 +76,7 @@ router.use(authenticate)
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-router.get('/', listProductController)
+productRouter.get('/', listProductController)
 
 /**
  * @openapi
@@ -98,7 +97,7 @@ router.get('/', listProductController)
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-router.get('/low-stock', lowStockController)
+productRouter.get('/low-stock', lowStockController)
 
 /**
  * @openapi
@@ -119,7 +118,7 @@ router.get('/low-stock', lowStockController)
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-router.get('/expiring', expringProductController)
+productRouter.get('/expiring', expringProductController)
 
 /**
  * @openapi
@@ -136,7 +135,7 @@ router.get('/expiring', expringProductController)
  *         schema: { type: string, format: uuid }
  *     responses:
  *       200:
- *         description: Dados completos do produto (incluindo lote, preço de custo, fornecedor e movimentações)
+ *         description: Dados completos do produto (incluindo lote, preço de custo, unidades por embalagem, fornecedor e movimentações)
  *         content:
  *           application/json:
  *             schema:
@@ -146,13 +145,13 @@ router.get('/expiring', expringProductController)
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.get('/:id', productByIdController)
+productRouter.get('/:id', productByIdController)
 
 /**
  * @openapi
  * /products:
  *   post:
- *     summary: Cria um novo produto no estoque com rastreabilidade de lote e auditoria
+ *     summary: Cria um novo produto no estoque com rastreabilidade de lote e conversão de embalagem
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -164,11 +163,12 @@ router.get('/:id', productByIdController)
  *             type: object
  *             required: [name, quantity, minQuantity]
  *             properties:
- *               name: { type: string, example: "Anestésico Tubete 1:100.000" }
- *               quantity: { type: number, example: 50 }
- *               minQuantity: { type: number, example: 10 }
- *               unit: { type: string, enum: [UN, ML, MG, G, L, CX], example: "UN" }
- *               costPrice: { type: number, example: 3.50, description: "Preço de custo/compra unitário" }
+ *               name: { type: string, example: "Caixa de Luvas Azul" }
+ *               quantity: { type: number, example: 10 }
+ *               minQuantity: { type: number, example: 2 }
+ *               unit: { type: string, enum: [UN, ML, MG, G, L, CX], example: "CX" }
+ *               costPrice: { type: number, example: 22.00, description: "Preço de custo/compra da embalagem ou unidade" }
+ *               itemsPerPackage: { type: integer, example: 100, description: "Quantidade de unidades/conteúdo dentro da embalagem para cálculo de fracionamento" }
  *               supplierId: { type: string, format: uuid }
  *               lotNumber: { type: string, example: "LT-8842" }
  *               manufacturingDate: { type: string, format: date-time }
@@ -188,13 +188,13 @@ router.get('/:id', productByIdController)
  *       404:
  *         description: Fornecedor informado não encontrado
  */
-router.post('/', authorize('ADMIN', 'SECRETARY'), createProductController)
+productRouter.post('/', authorize('ADMIN', 'SECRETARY'), createProductController)
 
 /**
  * @openapi
  * /products/{id}:
  *   put:
- *     summary: Atualiza os dados de um produto (Lote, Validade, Custo, Qtds, Observações)
+ *     summary: Atualiza os dados de um produto (Lote, Validade, Custo, Rendimento, Qtds, Observações)
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -215,6 +215,7 @@ router.post('/', authorize('ADMIN', 'SECRETARY'), createProductController)
  *               minQuantity: { type: number }
  *               unit: { type: string, enum: [UN, ML, MG, G, L, CX] }
  *               costPrice: { type: number }
+ *               itemsPerPackage: { type: integer, description: "Unidades por caixa ou conteúdo total da embalagem" }
  *               supplierId: { type: string, format: uuid }
  *               lotNumber: { type: string }
  *               manufacturingDate: { type: string, format: date-time }
@@ -234,7 +235,7 @@ router.post('/', authorize('ADMIN', 'SECRETARY'), createProductController)
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.put('/:id', authorize('ADMIN', 'SECRETARY'), updateProductController)
+productRouter.put('/:id', authorize('ADMIN', 'SECRETARY'), updateProductController)
 
 /**
  * @openapi
@@ -271,7 +272,7 @@ router.put('/:id', authorize('ADMIN', 'SECRETARY'), updateProductController)
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.patch('/:id/stock', authorize('ADMIN', 'SECRETARY', 'DENTIST'), adjustStockController)
+productRouter.patch('/:id/stock', authorize('ADMIN', 'SECRETARY', 'DENTIST'), adjustStockController)
 
 /**
  * @openapi
@@ -298,6 +299,6 @@ router.patch('/:id/stock', authorize('ADMIN', 'SECRETARY', 'DENTIST'), adjustSto
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.delete('/:id', authorize('ADMIN'), deleteProductController)
+productRouter.delete('/:id', authorize('ADMIN'), deleteProductController)
 
-export default router
+export default productRouter

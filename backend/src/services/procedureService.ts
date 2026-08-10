@@ -37,7 +37,6 @@ export async function createProcedure(tenantId: string, data: CreateProcedureDTO
     },
   })
 
-  // Log de Auditoria
   if (actor.clinicId) {
     await auditLogService.createLog({
       tenantId,
@@ -84,6 +83,7 @@ export async function listProcedures(tenantId: string, filters: ProcedureFilters
                 minQuantity: true, 
                 unit: true, 
                 costPrice: true, 
+                itemsPerPackage: true, // 🟢 Retorna itemsPerPackage para o cálculo do front
                 lotNumber: true 
               } 
             },
@@ -116,6 +116,7 @@ export async function getProcedureById(tenantId: string, procedureId: string) {
               minQuantity: true, 
               unit: true, 
               costPrice: true, 
+              itemsPerPackage: true, // 🟢
               lotNumber: true 
             } 
           },
@@ -219,10 +220,8 @@ export async function setProcedureProducts(
 
   if (!procedure) throw new AppError('Procedimento não encontrado.', 404)
 
-  // Aceita tanto a propriedade 'items' quanto 'products'
   const rawItems = data.items || data.products || []
 
-  // Atualização atômica da Ficha Técnica
   const result = await prisma.$transaction(async (tx) => {
     await tx.procedureProduct.deleteMany({
       where: { procedureId, tenantId },
@@ -251,6 +250,7 @@ export async function setProcedureProducts(
             minQuantity: true, 
             unit: true, 
             costPrice: true, 
+            itemsPerPackage: true, // 🟢
             lotNumber: true 
           } 
         },
@@ -295,6 +295,7 @@ export async function getProcedureProducts(tenantId: string, procedureId: string
           minQuantity: true, 
           unit: true, 
           costPrice: true, 
+          itemsPerPackage: true, // 🟢
           lotNumber: true 
         } 
       },

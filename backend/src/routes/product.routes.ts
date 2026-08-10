@@ -26,7 +26,7 @@ productRouter.get('/:id', productByIdController)
 productRouter.post('/', authorize('ADMIN', 'SECRETARY'), createProductController)
 productRouter.put('/:id', authorize('ADMIN', 'SECRETARY'), updateProductController)
 
-// ─── Rotas de Ajuste de Saldo / Exit Inteligente (ADMIN, SECRETARY e DENTIST) 
+// ─── Rotas de Ajuste de Saldo / Exit Inteligente (ADMIN, SECRETARY e DENTIST) ──
 productRouter.patch('/:id/stock', authorize('ADMIN', 'SECRETARY', 'DENTIST'), adjustStockController)
 
 // ─── Rotas de Exclusão Física (Apenas ADMIN) ──────────────────────────────────

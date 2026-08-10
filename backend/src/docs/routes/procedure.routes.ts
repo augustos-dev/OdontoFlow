@@ -10,11 +10,10 @@ import {
 } from '../../controllers/procedureController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
 
-const router = Router()
+const procedureRouter = Router()
 
-// ─── Todas as rotas do catálogo são privadas ──────────────────────────────────
-
-router.use(authenticate)
+// ─── Autenticação Global do Módulo ───────────────────────────────────────────
+procedureRouter.use(authenticate)
 
 /**
  * @openapi
@@ -45,7 +44,7 @@ router.use(authenticate)
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-router.get('/', listProceduresController)
+procedureRouter.get('/', listProceduresController)
 
 /**
  * @openapi
@@ -66,7 +65,7 @@ router.get('/', listProceduresController)
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.get('/:id', getProcedureByIdController)
+procedureRouter.get('/:id', getProcedureByIdController)
 
 /**
  * @openapi
@@ -87,7 +86,7 @@ router.get('/:id', getProcedureByIdController)
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.get('/:id/products', getProcedureProductsController)
+procedureRouter.get('/:id/products', getProcedureProductsController)
 
 // ─── Rotas de Escrita (Apenas ADMIN) ──────────────────────────────────────────
 
@@ -118,7 +117,7 @@ router.get('/:id/products', getProcedureProductsController)
  *       409:
  *         description: Já existe um procedimento com este nome
  */
-router.post('/', authorize('ADMIN'), createProcedureController)
+procedureRouter.post('/', authorize('ADMIN'), createProcedureController)
 
 /**
  * @openapi
@@ -151,7 +150,7 @@ router.post('/', authorize('ADMIN'), createProcedureController)
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.put('/:id', authorize('ADMIN'), updateProcedureController)
+procedureRouter.put('/:id', authorize('ADMIN'), updateProcedureController)
 
 /**
  * @openapi
@@ -190,7 +189,7 @@ router.put('/:id', authorize('ADMIN'), updateProcedureController)
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.post('/:id/products', authorize('ADMIN'), setProcedureProductsController)
+procedureRouter.post('/:id/products', authorize('ADMIN'), setProcedureProductsController)
 
 /**
  * @openapi
@@ -213,6 +212,6 @@ router.post('/:id/products', authorize('ADMIN'), setProcedureProductsController)
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.delete('/:id', authorize('ADMIN'), deleteProcedureController)
+procedureRouter.delete('/:id', authorize('ADMIN'), deleteProcedureController)
 
-export default router
+export default procedureRouter

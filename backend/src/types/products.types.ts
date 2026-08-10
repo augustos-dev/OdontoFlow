@@ -6,7 +6,8 @@ export interface CreateProductDTO {
   quantity: number           // Suporta decimais (ex: 0.5 ML)
   minQuantity: number        // Suporta decimais
   unit?: UnitType            // Unidade de medida padrão (default: 'UN')
-  costPrice?: number         // Preço de Custo / Compra Unitário
+  costPrice?: number         // Preço de Custo / Compra do pacote ou unidade
+  itemsPerPackage?: number   // 🟢 NOVO: Quantidade de unidades por caixa (ex: 100 luvas) ou g/ml totais
   supplierId?: string
   lotNumber?: string         // 📦 Lote do produto
   manufacturingDate?: string // 🏭 Data de Fabricação
@@ -20,6 +21,7 @@ export interface UpdateProductDTO {
   minQuantity?: number
   unit?: UnitType
   costPrice?: number
+  itemsPerPackage?: number   // 🟢 Rendimento/Conversão de embalagem
   supplierId?: string
   lotNumber?: string
   manufacturingDate?: string
