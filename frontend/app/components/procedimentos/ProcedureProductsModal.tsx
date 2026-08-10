@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, Boxes, Info } from 'lucide-react'
+import { X, Plus, Trash2, Boxes, AlertCircle } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './modal.module.css'
 
@@ -18,12 +18,11 @@ interface ProcedureProductsModalProps {
 }
 
 const UNIT_OPTIONS = [
-  { value: 'UN', label: 'un' },
-  { value: 'ML', label: 'ml' },
-  { value: 'MG', label: 'mg' },
-  { value: 'G', label: 'g' },
-  { value: 'L', label: 'L' },
-  { value: 'CX', label: 'cx' },
+  { value: 'UN', label: 'un (Unidade/Par)' },
+  { value: 'ML', label: 'ml (Mililitro)' },
+  { value: 'MG', label: 'mg (Miligrama)' },
+  { value: 'G', label: 'g (Grama)' },
+  { value: 'CX', label: 'cx (Caixa Inteira)' },
 ]
 
 export default function ProcedureProductsModal({
@@ -40,7 +39,6 @@ export default function ProcedureProductsModal({
   const [saving, setSaving] = useState(false)
   const [loadingProducts, setLoadingProducts] = useState(true)
 
-  // 🟢 Carrega produtos reais do Estoque + Ficha Técnica existente
   useEffect(() => {
     async function loadInitialData() {
       try {
@@ -74,22 +72,26 @@ export default function ProcedureProductsModal({
     }
   }, [procedure])
 
-  // 🧠 Modal Inteligente: Seta a unidade padrão do produto automaticamente ao selecionar
+  // Seta por padrão 'UN' quando seleciona uma caixa para facilitar o lançamento de luvas/tubetes
   const handleSelectProduct = (productId: string) => {
     setSelectedProductId(productId)
     const prod = availableProducts.find((p) => p.id === productId)
     if (prod) {
-      if (prod.unit) setSelectedUnit(prod.unit)
+      // Se o estoque é caixa, por padrão sugere lançar em UN (unidade individual)
+      if (prod.unit === 'CX') {
+        setSelectedUnit('UN')
+      } else if (prod.unit) {
+        setSelectedUnit(prod.unit)
+      }
     }
   }
 
-  // 🧠 Parsing para suportar '0,5' ou '0.5' e converter para Float
   const handleAddItem = () => {
     const sanitizedVal = quantityInput.replace(',', '.')
     const parsedQty = parseFloat(sanitizedVal)
 
     if (!selectedProductId || isNaN(parsedQty) || parsedQty <= 0) {
-      alert('Informe uma quantidade válida. Ex: 0,5 ou 1.8')
+      alert('Informe uma quantidade válida.')
       return
     }
 
@@ -120,12 +122,33 @@ export default function ProcedureProductsModal({
     setItems((prev) => prev.filter((_, i) => i !== index))
   }
 
-  // 🧮 Cálculo de Custo Estimado e Margem
-  const totalCost = items.reduce((acc, item) => {
-    const cost = item.product?.costPrice || item.product?.unitPrice || 0
-    return acc + cost * Number(item.quantity)
-  }, 0)
+  // 🧮 Função que calcula o custo real considerando conversão de Caixa (CX) para Unidade (UN)
+  function calculateItemCost(item: any) {
+    const rawCost = item.product?.costPrice !== undefined && item.product?.costPrice !== null
+      ? parseFloat(String(item.product.costPrice))
+      : (item.product?.unitPrice ? parseFloat(String(item.product.unitPrice)) : 0)
 
+    if (isNaN(rawCost) || rawCost <= 0) return 0
+
+    const productStockUnit = item.product?.unit || 'UN'
+    const recipeUnit = item.unit || 'UN'
+    const qty = Number(item.quantity) || 0
+
+    // 🟢 LÓGICA DE CONVERSÃO CAIXA -> UNIDADE
+    // Se o produto foi comprado como Caixa (CX) e usado como Unidade (UN)
+    // Ex: Caixa de Luvas com 100 luvas custando R$ 22,00 => R$ 0.22/unidade
+    // Se minQuantity ou rendimento estimado existir, usamos como divisor. Se não, assume estimativa padrão de 100 un/cx ou 50 tubetes/cx.
+    if (productStockUnit === 'CX' && recipeUnit === 'UN') {
+      const itemsPerBox = item.product?.itemsPerBox || item.product?.minQuantity || 50 // Padrão 50 un/caixa
+      const unitCost = rawCost / itemsPerBox
+      return unitCost * qty
+    }
+
+    return rawCost * qty
+  }
+
+  // 🧮 Custo Total e Margem
+  const totalCost = items.reduce((acc, item) => acc + calculateItemCost(item), 0)
   const salePrice = Number(procedure.basePrice || 0)
   const profitMargin = salePrice > 0 ? salePrice - totalCost : 0
 
@@ -134,24 +157,19 @@ export default function ProcedureProductsModal({
     try {
       const formattedItems = items.map((item) => ({
         productId: item.productId || item.product?.id,
-        quantity: Number(item.quantity), // 🟢 Garante Float para o Prisma
-        unit: item.unit || 'UN',
+        quantity: Number(item.quantity),
+        unit: item.unit || item.product?.unit || 'UN',
       }))
 
       await api.post(`/procedures/${procedure.id}/products`, {
         items: formattedItems,
-        products: formattedItems,
       })
 
       onSuccess()
       onClose()
     } catch (err: any) {
       console.error('Erro ao salvar Ficha Técnica:', err)
-      const errorMsg =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        'Erro ao salvar a Ficha Técnica. Verifique os logs do Backend.'
-      alert(errorMsg)
+      alert(err.response?.data?.message || 'Erro ao salvar a Ficha Técnica.')
     } finally {
       setSaving(false)
     }
@@ -190,7 +208,7 @@ export default function ProcedureProductsModal({
           </div>
 
           {/* Form com Auto-Select & Input Fracionado */}
-          <div className={styles.formRowCustom} style={{ gridTemplateColumns: '1fr 80px 70px auto' }}>
+          <div className={styles.formRowCustom} style={{ gridTemplateColumns: '1fr 80px 100px auto' }}>
             <div>
               <label className={styles.label}>Insumo do Estoque</label>
               <select
@@ -204,7 +222,7 @@ export default function ProcedureProductsModal({
                 </option>
                 {availableProducts.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} ({p.quantity} {p.unit || 'UN'})
+                    {p.name} ({p.quantity} {p.unit || 'UN'}) - R$ {Number(p.costPrice || 0).toFixed(2)}/{p.unit || 'UN'}
                   </option>
                 ))}
               </select>
@@ -214,7 +232,7 @@ export default function ProcedureProductsModal({
               <label className={styles.label}>Qtd</label>
               <input
                 type="text"
-                placeholder="0.5"
+                placeholder="2"
                 value={quantityInput}
                 onChange={(e) => setQuantityInput(e.target.value)}
                 className={styles.input}
@@ -241,27 +259,43 @@ export default function ProcedureProductsModal({
             </div>
           </div>
 
-          {/* Lista de Insumos com Renderização de Quantidade Fracionada */}
+          {/* Lista de Insumos com Exibição de Custo Fracionado */}
           <div className={styles.itemList}>
             {items.length === 0 ? (
               <p className={styles.emptyText}>Nenhum insumo vinculado a este procedimento.</p>
             ) : (
-              items.map((item, idx) => (
-                <div key={idx} className={styles.itemCard}>
-                  <span className={styles.itemName}>
-                    <Boxes size={15} color="#64748b" />
-                    {item.product?.name || 'Insumo'}
-                  </span>
-                  <div className={styles.itemActions}>
-                    <span className={styles.qtyBadge}>
-                      {item.quantity} {item.unit || item.product?.unit || 'un'}
-                    </span>
-                    <button type="button" onClick={() => handleRemoveItem(idx)} className={styles.deleteBtn} title="Remover">
-                      <Trash2 size={15} />
-                    </button>
+              items.map((item, idx) => {
+                const itemCost = calculateItemCost(item)
+                const isConverted = item.product?.unit === 'CX' && item.unit === 'UN'
+
+                return (
+                  <div key={idx} className={styles.itemCard}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span className={styles.itemName}>
+                        <Boxes size={15} color="#64748b" />
+                        {item.product?.name || 'Insumo'}
+                      </span>
+                      {isConverted && (
+                        <span style={{ fontSize: '10px', color: '#0284c7', display: 'flex', alignItems: 'center', gap: '3px', marginLeft: '20px' }}>
+                          <AlertCircle size={10} /> Custo fracionado por unidade individual
+                        </span>
+                      )}
+                    </div>
+
+                    <div className={styles.itemActions}>
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#dc2626' }}>
+                        + R$ {itemCost.toFixed(2)}
+                      </span>
+                      <span className={styles.qtyBadge}>
+                        {item.quantity} {item.unit || 'UN'}
+                      </span>
+                      <button type="button" onClick={() => handleRemoveItem(idx)} className={styles.deleteBtn} title="Remover">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         </div>
