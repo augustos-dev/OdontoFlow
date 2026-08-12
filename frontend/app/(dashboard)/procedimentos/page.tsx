@@ -11,7 +11,6 @@ import {
   Loader2, 
   RefreshCw,
   Clock,
-  TrendingUp,
   Tag
 } from 'lucide-react'
 import api from '@/lib/api'
@@ -26,8 +25,10 @@ interface ProcedureProduct {
   product: {
     id: string
     name: string
+    unit?: string
     costPrice?: number
     unitPrice?: number
+    itemsPerPackage?: number
   }
 }
 
@@ -89,12 +90,47 @@ export default function ProcedimentosPage() {
     return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
 
-  // Função para calcular custo total dos insumos de cada procedimento
+  // 🧮 CUSTO FRACIONADO IGUAL AO MODAL DA FICHA TÉCNICA
+  function calculateItemCost(item: ProcedureProduct) {
+    const rawCost = item.product?.costPrice !== undefined && item.product?.costPrice !== null
+      ? parseFloat(String(item.product.costPrice))
+      : (item.product?.unitPrice ? parseFloat(String(item.product.unitPrice)) : 0)
+
+    if (isNaN(rawCost) || rawCost <= 0) return 0
+
+    const productStockUnit = item.product?.unit || 'UN'
+    const recipeUnit = item.unit || 'UN'
+    const qty = Number(item.quantity) || 0
+    const itemsPerPackage = Number(item.product?.itemsPerPackage) || 1
+
+    // 1. Caixa para Unidade
+    if (productStockUnit === 'CX' && recipeUnit === 'UN') {
+      const divisor = itemsPerPackage > 0 ? itemsPerPackage : 100
+      return (rawCost / divisor) * qty
+    }
+
+    // 2. Unidade/Seringa para Gramas ou ML
+    if (productStockUnit === 'UN' && (recipeUnit === 'G' || recipeUnit === 'ML') && itemsPerPackage > 1) {
+      return (rawCost / itemsPerPackage) * qty
+    }
+
+    // 3. Litros para ML
+    if (productStockUnit === 'L' && recipeUnit === 'ML') {
+      return (rawCost / 1000) * qty
+    }
+
+    // 4. Grama para MG
+    if (productStockUnit === 'G' && recipeUnit === 'MG') {
+      return (rawCost / 1000) * qty
+    }
+
+    return rawCost * qty
+  }
+
   function calculateProcedureCost(proc: Procedure) {
     if (!proc.procedureProducts || proc.procedureProducts.length === 0) return 0
     return proc.procedureProducts.reduce((acc, item) => {
-      const unitCost = item.product?.costPrice || item.product?.unitPrice || 0
-      return acc + unitCost * Number(item.quantity)
+      return acc + calculateItemCost(item)
     }, 0)
   }
 

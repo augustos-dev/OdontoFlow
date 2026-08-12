@@ -72,12 +72,10 @@ export default function ProcedureProductsModal({
     }
   }, [procedure])
 
-  // Seta por padrão 'UN' quando seleciona uma caixa para facilitar o lançamento de luvas/tubetes
   const handleSelectProduct = (productId: string) => {
     setSelectedProductId(productId)
     const prod = availableProducts.find((p) => p.id === productId)
     if (prod) {
-      // Se o estoque é caixa, por padrão sugere lançar em UN (unidade individual)
       if (prod.unit === 'CX') {
         setSelectedUnit('UN')
       } else if (prod.unit) {
@@ -122,7 +120,7 @@ export default function ProcedureProductsModal({
     setItems((prev) => prev.filter((_, i) => i !== index))
   }
 
-  // 🧮 Função que calcula o custo real considerando conversão de Caixa (CX) para Unidade (UN)
+  // 🧮 Custo com suporte universal a Caixas (CX), Líquidos (ML/L) e Massas (G/MG)
   function calculateItemCost(item: any) {
     const rawCost = item.product?.costPrice !== undefined && item.product?.costPrice !== null
       ? parseFloat(String(item.product.costPrice))
@@ -133,21 +131,32 @@ export default function ProcedureProductsModal({
     const productStockUnit = item.product?.unit || 'UN'
     const recipeUnit = item.unit || 'UN'
     const qty = Number(item.quantity) || 0
+    const itemsPerPackage = Number(item.product?.itemsPerPackage) || 1
 
-    // 🟢 LÓGICA DE CONVERSÃO CAIXA -> UNIDADE
-    // Se o produto foi comprado como Caixa (CX) e usado como Unidade (UN)
-    // Ex: Caixa de Luvas com 100 luvas custando R$ 22,00 => R$ 0.22/unidade
-    // Se minQuantity ou rendimento estimado existir, usamos como divisor. Se não, assume estimativa padrão de 100 un/cx ou 50 tubetes/cx.
+    // 1. Caixa para Unidade
     if (productStockUnit === 'CX' && recipeUnit === 'UN') {
-      const itemsPerBox = item.product?.itemsPerBox || item.product?.minQuantity || 50 // Padrão 50 un/caixa
-      const unitCost = rawCost / itemsPerBox
-      return unitCost * qty
+      const divisor = itemsPerPackage > 0 ? itemsPerPackage : 100
+      return (rawCost / divisor) * qty
+    }
+
+    // 2. Unidade/Seringa para Gramas ou ML (Ex: resina 4g)
+    if (productStockUnit === 'UN' && (recipeUnit === 'G' || recipeUnit === 'ML') && itemsPerPackage > 1) {
+      return (rawCost / itemsPerPackage) * qty
+    }
+
+    // 3. Litros para ML
+    if (productStockUnit === 'L' && recipeUnit === 'ML') {
+      return (rawCost / 1000) * qty
+    }
+
+    // 4. Grama para MG
+    if (productStockUnit === 'G' && recipeUnit === 'MG') {
+      return (rawCost / 1000) * qty
     }
 
     return rawCost * qty
   }
 
-  // 🧮 Custo Total e Margem
   const totalCost = items.reduce((acc, item) => acc + calculateItemCost(item), 0)
   const salePrice = Number(procedure.basePrice || 0)
   const profitMargin = salePrice > 0 ? salePrice - totalCost : 0
@@ -191,7 +200,6 @@ export default function ProcedureProductsModal({
         </div>
 
         <div className={styles.body}>
-          {/* Painel de Precificação Inteligente */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
             <div>
               <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>CUSTO DOS INSUMOS</span>
@@ -207,7 +215,6 @@ export default function ProcedureProductsModal({
             </div>
           </div>
 
-          {/* Form com Auto-Select & Input Fracionado */}
           <div className={styles.formRowCustom} style={{ gridTemplateColumns: '1fr 80px 100px auto' }}>
             <div>
               <label className={styles.label}>Insumo do Estoque</label>
@@ -259,14 +266,14 @@ export default function ProcedureProductsModal({
             </div>
           </div>
 
-          {/* Lista de Insumos com Exibição de Custo Fracionado */}
           <div className={styles.itemList}>
             {items.length === 0 ? (
               <p className={styles.emptyText}>Nenhum insumo vinculado a este procedimento.</p>
             ) : (
               items.map((item, idx) => {
                 const itemCost = calculateItemCost(item)
-                const isConverted = item.product?.unit === 'CX' && item.unit === 'UN'
+                const isConverted = (item.product?.unit === 'CX' && item.unit === 'UN') ||
+                  (item.product?.unit === 'UN' && (item.unit === 'G' || item.unit === 'ML'))
 
                 return (
                   <div key={idx} className={styles.itemCard}>
@@ -277,7 +284,7 @@ export default function ProcedureProductsModal({
                       </span>
                       {isConverted && (
                         <span style={{ fontSize: '10px', color: '#0284c7', display: 'flex', alignItems: 'center', gap: '3px', marginLeft: '20px' }}>
-                          <AlertCircle size={10} /> Custo fracionado por unidade individual
+                          <AlertCircle size={10} /> Custo fracionado proporcional
                         </span>
                       )}
                     </div>

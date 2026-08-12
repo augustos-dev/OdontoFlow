@@ -299,7 +299,7 @@ export function StockManagementModal({
             minQuantity: Number(p.minQuantity),
             unit: p.unit || 'UN',
             costPrice: isNaN(parsedCost as number) ? undefined : parsedCost,
-            itemsPerPackage: Number(p.itemsPerPackage || 1), // 🟢 Suporte universal
+            itemsPerPackage: Number(p.itemsPerPackage || 1),
             supplierId: p.supplierId ? p.supplierId : undefined,
             lotNumber: p.lotNumber.trim() ? p.lotNumber.trim() : undefined,
             expiryDate: p.expirationDate ? new Date(p.expirationDate).toISOString() : undefined,
@@ -732,7 +732,6 @@ export function StockManagementModal({
                         />
                       </div>
 
-                      {/* 🟢 CAMPO DE FRACIONAMENTO UNIVERSAL */}
                       {needsConversionField ? (
                         <div className={styles.colSpan3}>
                           <label className={styles.label} style={{ color: '#0284c7', fontWeight: 600 }}>
