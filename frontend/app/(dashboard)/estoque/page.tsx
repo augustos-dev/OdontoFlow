@@ -164,45 +164,42 @@ export default function EstoquePage() {
   }
 
   const handleSaveProductEdit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  if (!editingProduct) return
+    e.preventDefault()
+    if (!editingProduct) return
 
-  setSavingEdit(true)
-  try {
-    // 🟢 Trata o Preço de Custo (evita NaN)
-    const rawCost = String(editingProduct.costPrice || '').replace(',', '.')
-    const parsedCost = rawCost !== '' && !isNaN(parseFloat(rawCost)) ? parseFloat(rawCost) : undefined
+    setSavingEdit(true)
+    try {
+      const rawCost = String(editingProduct.costPrice || '').replace(',', '.')
+      const parsedCost = rawCost !== '' && !isNaN(parseFloat(rawCost)) ? parseFloat(rawCost) : undefined
 
-    // 🟢 Trata o itemsPerPackage (evita NaN)
-    const rawPkg = Number(editingProduct.itemsPerPackage)
-    const parsedItemsPerPkg = !isNaN(rawPkg) && rawPkg > 0 ? rawPkg : 1
+      const rawPkg = Number(editingProduct.itemsPerPackage)
+      const parsedItemsPerPkg = !isNaN(rawPkg) && rawPkg > 0 ? rawPkg : 1
 
-    // 🟢 Payload 100% limpo com campos exatos do banco
-    const payload = {
-      name: editingProduct.name.trim(),
-      lotNumber: editingProduct.lotNumber || undefined,
-      quantity: Number(editingProduct.quantity) || 0,
-      minQuantity: Number(editingProduct.minQuantity) || 0,
-      unit: editingProduct.unit || 'UN',
-      costPrice: parsedCost,
-      itemsPerPackage: parsedItemsPerPkg,
-      supplierId: editingProduct.supplierId || undefined,
-      expiryDate: editingProduct.expiryDate ? new Date(editingProduct.expiryDate).toISOString() : undefined,
-      notes: editingProduct.notes || undefined,
+      const payload = {
+        name: editingProduct.name.trim(),
+        lotNumber: editingProduct.lotNumber || undefined,
+        quantity: Number(editingProduct.quantity) || 0,
+        minQuantity: Number(editingProduct.minQuantity) || 0,
+        unit: editingProduct.unit || 'UN',
+        costPrice: parsedCost,
+        itemsPerPackage: parsedItemsPerPkg,
+        supplierId: editingProduct.supplierId || undefined,
+        expiryDate: editingProduct.expiryDate ? new Date(editingProduct.expiryDate).toISOString() : undefined,
+        notes: editingProduct.notes || undefined,
+      }
+
+      await api.put(`/products/${editingProduct.id}`, payload)
+      
+      setIsEditingModalOpen(false)
+      setEditingProduct(null)
+      loadStockData()
+    } catch (err: any) {
+      console.error('Erro ao atualizar produto:', err)
+      alert(err.response?.data?.message || 'Erro ao atualizar produto no servidor.')
+    } finally {
+      setSavingEdit(false)
     }
-
-    await api.put(`/products/${editingProduct.id}`, payload)
-    
-    setIsEditingModalOpen(false)
-    setEditingProduct(null)
-    loadStockData()
-  } catch (err: any) {
-    console.error('Erro ao atualizar produto:', err)
-    alert(err.response?.data?.message || 'Erro ao atualizar produto no servidor.')
-  } finally {
-    setSavingEdit(false)
   }
-}
 
   const handleDeleteProduct = async (id: string, name: string) => {
     if (!confirm(`Tem certeza que deseja excluir o produto "${name}" permanentemente?`)) return
@@ -283,10 +280,10 @@ export default function EstoquePage() {
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
 
-  function getStockClass(status: string) {
-    if (status === 'CRITICO') return styles.critico
-    if (status === 'BAIXO') return styles.baixo
-    return styles.ok
+  function getStockTextClass(status: string) {
+    if (status === 'CRITICO') return styles.qtyTextCritico
+    if (status === 'BAIXO') return styles.qtyTextBaixo
+    return styles.qtyTextOk
   }
 
   function getAlertLabel(p: Product) {
@@ -314,57 +311,20 @@ export default function EstoquePage() {
   return (
     <div className={styles.page}>
       
-      {/* ─── Ações de Topo ─── */}
-      <div className={styles.topActionBar}>
-        <p className={styles.pageSubtitle}>
-          Gerencie o consumo, reposição, lote e o custo total de insumos da clínica em tempo real
-        </p>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button 
-            type="button" 
-            className={styles.btnSecondary} 
-            onClick={() => { loadStockData(); loadSuppliers(); }}
-            title="Recarregar Dados"
-            style={{ padding: '8px 12px' }}
-          >
-            <RefreshCw size={14} />
-          </button>
-
-          {mainTab === 'products' ? (
-            <button 
-              type="button"
-              className={styles.btnPrimary} 
-              onClick={() => setIsManagementModalOpen(true)}
-            >
-              <Plus size={16} />
-              <span>Gerenciar estoque</span>
-            </button>
-          ) : (
-            <button 
-              type="button"
-              className={styles.btnPrimary} 
-              onClick={() => setIsSupplierModalOpen(true)}
-            >
-              <Plus size={16} />
-              <span>Novo Fornecedor</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ─── Cards de Métricas ─── */}
-      <div className={styles.metricsGrid} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+      {/* ─── KPIS / CARDS DE MÉTRICAS ─── */}
+      <div className={styles.metricsGrid}>
         <div className={styles.metricCard}>
           <div className={styles.metricHeader}>
             <div className={styles.metricIconBg}>
-              <Box size={20} color="var(--primary)" />
+              <Box size={20} color="#06b6d4" />
             </div>
           </div>
           <p className={styles.metricLabel}>TOTAL DE ITENS</p>
           <p className={styles.metricValue}>{products.length}</p>
+          <p className={styles.metricSub}>Insumos cadastrados na clínica</p>
         </div>
 
-        <div className={styles.metricCard}>
+        <div className={`${styles.metricCard} ${totalCritico > 0 ? styles.metricCardAlert : ''}`}>
           <div className={styles.metricHeader}>
             <div className={styles.metricIconBgAlert}>
               <AlertTriangle size={20} color="#dc2626" />
@@ -372,6 +332,7 @@ export default function EstoquePage() {
           </div>
           <p className={styles.metricLabel}>ITENS CRÍTICOS</p>
           <p className={`${styles.metricValue} ${styles.metricCritico}`}>{totalCritico}</p>
+          <p className={styles.metricSub}>Abaixo do estoque mínimo</p>
         </div>
 
         <div className={styles.metricCard}>
@@ -382,28 +343,30 @@ export default function EstoquePage() {
           </div>
           <p className={styles.metricLabel}>EM ESTOQUE</p>
           <p className={`${styles.metricValue} ${styles.metricOk}`}>{totalOk}</p>
+          <p className={styles.metricSub}>Saldos regulares e normais</p>
         </div>
 
         <div className={styles.metricCard}>
           <div className={styles.metricHeader}>
-            <div className={styles.metricIconBg} style={{ backgroundColor: '#f0fdf4' }}>
+            <div className={styles.metricIconBgSuccess} style={{ backgroundColor: '#f0fdf4' }}>
               <DollarSign size={20} color="#16a34a" />
             </div>
           </div>
           <p className={styles.metricLabel}>VALOR EM ESTOQUE</p>
-          <p className={styles.metricValue} style={{ fontSize: '20px', color: '#16a34a' }}>
+          <p className={styles.metricValue} style={{ fontSize: '24px', color: '#16a34a' }}>
             {formatCurrency(totalStockValue)}
           </p>
+          <p className={styles.metricSub}>Custo total imobilizado</p>
         </div>
       </div>
 
-      {/* ─── Gráfico de Saídas ─── */}
+      {/* ─── GRÁFICO DE SAÍDAS (OPCIONAL) ─── */}
       {topUsedProducts.length > 0 && mainTab === 'products' && (
         <div className={styles.chartCard}>
           <div className={styles.chartHeader}>
             <div className={styles.chartTitleRow}>
               <div className={styles.titleIconBg}>
-                <BarChart3 size={20} color="var(--primary)" />
+                <BarChart3 size={20} color="var(--primary, #0284c7)" />
               </div>
               <div>
                 <h3 className={styles.chartTitle}>Materiais Mais Utilizados (Mês Atual)</h3>
@@ -439,78 +402,103 @@ export default function EstoquePage() {
         </div>
       )}
 
-      {/* ─── Card Principal / Tabela ─── */}
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            
-            <div className={styles.tabs}>
-              <button 
-                type="button"
-                className={`${styles.tab} ${mainTab === 'products' ? styles.tabActive : ''}`} 
-                onClick={() => { setMainTab('products'); setSearchTerm(''); }}
-              >
-                <Package size={13} style={{ marginRight: '4px', display: 'inline' }} />
-                Materiais & Produtos
-              </button>
-              <button 
-                type="button"
-                className={`${styles.tab} ${mainTab === 'suppliers' ? styles.tabActive : ''}`} 
-                onClick={() => { setMainTab('suppliers'); setSearchTerm(''); }}
-              >
-                <Building2 size={13} style={{ marginRight: '4px', display: 'inline' }} />
-                Fornecedores
-              </button>
-            </div>
+      {/* ─── CARD PRINCIPAL DE ESTOQUE ─── */}
+      <div className={styles.agendaCard}>
+        <div className={styles.agendaHeader}>
+          <div>
+            <h2 className={styles.agendaTitle}>Gestão de Estoque & Insumos</h2>
+            <p className={styles.agendaSub}>Gerencie o consumo, reposição, lote e o custo total de insumos em tempo real</p>
+          </div>
 
-            <div style={{ position: 'relative', display: 'inline-block' }}>
-              <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input 
-                type="text" 
-                placeholder={mainTab === 'products' ? 'Buscar produto, lote...' : 'Buscar fornecedor...'}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{
-                  paddingLeft: '30px',
-                  paddingRight: '12px',
-                  paddingTop: '6px',
-                  paddingBottom: '6px',
-                  fontSize: '12px',
-                  border: '1px solid var(--border, #e2e8f0)',
-                  borderRadius: 'var(--radius-sm, 8px)',
-                  outline: 'none',
-                  background: '#f8fafc',
-                  width: '240px'
-                }}
-              />
-            </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              type="button" 
+              className={styles.iconBtn} 
+              onClick={() => { loadStockData(); loadSuppliers(); }}
+              title="Recarregar Dados"
+            >
+              <RefreshCw size={16} />
+            </button>
+
+            {mainTab === 'products' ? (
+              <button 
+                type="button"
+                className={styles.newBtn} 
+                onClick={() => setIsManagementModalOpen(true)}
+              >
+                <Plus size={16} />
+                <span>Gerenciar Estoque</span>
+              </button>
+            ) : (
+              <button 
+                type="button"
+                className={styles.newBtn} 
+                onClick={() => setIsSupplierModalOpen(true)}
+              >
+                <Plus size={16} />
+                <span>Novo Fornecedor</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ─── CONTROLES & FILTROS SUPERIORES ─── */}
+        <div className={styles.controlsBar}>
+          <div className={styles.navTabsGroup}>
+            <button 
+              type="button"
+              className={`${styles.navTab} ${mainTab === 'products' ? styles.navTabActive : ''}`} 
+              onClick={() => { setMainTab('products'); setSearchTerm(''); }}
+            >
+              <Package size={14} style={{ marginRight: '6px' }} />
+              Materiais & Produtos
+            </button>
+            <button 
+              type="button"
+              className={`${styles.navTab} ${mainTab === 'suppliers' ? styles.navTabActive : ''}`} 
+              onClick={() => { setMainTab('suppliers'); setSearchTerm(''); }}
+            >
+              <Building2 size={14} style={{ marginRight: '6px' }} />
+              Fornecedores
+            </button>
           </div>
 
           {mainTab === 'products' && (
-            <div className={styles.tabs}>
+            <div className={styles.filterGroup}>
               <button 
                 type="button"
-                className={`${styles.tab} ${productFilterTab === 'all' ? styles.tabActive : ''}`} 
+                className={`${styles.filterBtn} ${productFilterTab === 'all' ? styles.filterBtnActive : ''}`} 
                 onClick={() => setProductFilterTab('all')}
               >
-                Todos
+                Todos ({products.length})
               </button>
               <button 
                 type="button"
-                className={`${styles.tab} ${productFilterTab === 'critical' ? styles.tabActive : ''}`} 
+                className={`${styles.filterBtn} ${productFilterTab === 'critical' ? styles.filterBtnActive : ''}`} 
                 onClick={() => setProductFilterTab('critical')}
               >
                 Críticos ({lowStock.length})
               </button>
               <button 
                 type="button"
-                className={`${styles.tab} ${productFilterTab === 'expiring' ? styles.tabActive : ''}`} 
+                className={`${styles.filterBtn} ${productFilterTab === 'expiring' ? styles.filterBtnActive : ''}`} 
                 onClick={() => setProductFilterTab('expiring')}
               >
                 Vencendo ({expiring.length})
               </button>
             </div>
           )}
+
+          <div className={styles.searchBox}>
+            <Search size={16} color="#94a3b8" />
+            <input 
+              type="text" 
+              placeholder={mainTab === 'products' ? 'Buscar por produto, lote...' : 'Buscar por fornecedor, CNPJ...'}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className={styles.searchInput}
+            />
+          </div>
         </div>
 
         {/* ─── TABELA DE PRODUTOS ─── */}
@@ -521,79 +509,97 @@ export default function EstoquePage() {
               <span>Carregando estoque...</span>
             </div>
           ) : (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>NOME DO MATERIAL</th>
-                  <th>LOTE / CÓDIGO</th>
-                  <th>PREÇO DE CUSTO</th>
-                  <th>QUANTIDADE ATUAL</th>
-                  <th>ESTOQUE MÍNIMO</th>
-                  <th>VALIDADE</th>
-                  <th>ALERTA</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayed.length === 0 && (
+            <div className={styles.tableContainer}>
+              <table className={styles.table}>
+                <thead>
                   <tr>
-                    <td colSpan={7} className={styles.empty}>
-                      Nenhum produto encontrado
-                    </td>
+                    <th>NOME DO MATERIAL</th>
+                    <th>LOTE / CÓDIGO</th>
+                    <th>PREÇO DE CUSTO</th>
+                    <th>QUANTIDADE ATUAL</th>
+                    <th>ESTOQUE MÍNIMO</th>
+                    <th>VALIDADE</th>
+                    <th>ALERTA</th>
+                    <th style={{ textAlign: 'right' }}>AÇÕES</th>
                   </tr>
-                )}
-                {displayed.map((p) => {
-                  const alert = getAlertLabel(p)
-                  const computedStatus = getComputedStatus(p)
-                  const lotDisplay = p.lotNumber || p.batchNumber
-
-                  return (
-                    <tr 
-                      key={p.id} 
-                      className={styles.row}
-                      onClick={() => handleOpenEditProduct(p)}
-                      style={{ cursor: 'pointer' }}
-                      title="Clique para editar este produto"
-                    >
-                      <td className={styles.productName}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontWeight: 600 }}>{p.name}</span>
-                          <div style={{ background: '#f0f9ff', padding: '3px', borderRadius: '4px', display: 'flex' }}>
-                            <Edit2 size={12} color="#0284c7" />
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className={styles.minQty}>
-                        {lotDisplay ? (
-                          <span style={{ fontFamily: 'monospace', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, color: '#334155' }}>
-                            {lotDisplay}
-                          </span>
-                        ) : '—'}
-                      </td>
-
-                      <td style={{ fontWeight: 600, color: '#0f172a', fontSize: '13px' }}>
-                        {formatCurrency(p.costPrice)}
-                      </td>
-
-                      <td>
-                        <span className={`${styles.qtyBadge} ${getStockClass(computedStatus)}`}>
-                          {p.quantity} {p.unit || 'un.'}
-                        </span>
-                      </td>
-
-                      <td className={styles.minQty}>Min. {p.minQuantity} {p.unit || 'un.'}</td>
-                      <td className={styles.expiry}>{formatDate(p.expiryDate)}</td>
-                      <td>
-                        <span className={`${styles.alertBadge} ${alert.cls}`}>
-                          {alert.isAlert && <AlertTriangle size={12} />}
-                          <span>{alert.label}</span>
-                        </span>
+                </thead>
+                <tbody>
+                  {displayed.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className={styles.empty}>
+                        Nenhum produto encontrado.
                       </td>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  ) : (
+                    displayed.map((p) => {
+                      const alert = getAlertLabel(p)
+                      const computedStatus = getComputedStatus(p)
+                      const lotDisplay = p.lotNumber || p.batchNumber
+
+                      return (
+                        <tr key={p.id}>
+                          <td>
+                            <div style={{ fontWeight: 600, color: '#0f172a' }}>{p.name}</div>
+                            {p.itemsPerPackage && p.itemsPerPackage > 1 && (
+                              <div style={{ fontSize: '11px', color: '#0284c7', marginTop: '2px', fontWeight: 500 }}>
+                                📦 Rendimento: {p.itemsPerPackage} {p.unit === 'CX' ? 'un/cx' : 'g/ml por embalagem'}
+                              </div>
+                            )}
+                          </td>
+
+                          <td>
+                            {lotDisplay ? (
+                              <span style={{ fontFamily: 'monospace', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, color: '#334155', fontSize: '12px' }}>
+                                {lotDisplay}
+                              </span>
+                            ) : '—'}
+                          </td>
+
+                          {/* 🟢 FORMATADO COMO DINHEIRO REAL */}
+                          <td style={{ fontWeight: 700, color: '#0f172a', fontSize: '13px' }}>
+                            {formatCurrency(p.costPrice)}
+                          </td>
+
+                          {/* 🟢 QUANTIDADE SEM FUNDO (APENAS COR NO TEXTO) */}
+                          <td>
+                            <span className={`${styles.qtyTextOnly} ${getStockTextClass(computedStatus)}`}>
+                              {p.quantity} {p.unit || 'UN'}
+                            </span>
+                          </td>
+
+                          <td style={{ color: '#64748b', fontSize: '13px' }}>
+                            Min. {p.minQuantity} {p.unit || 'UN'}
+                          </td>
+
+                          <td style={{ color: '#64748b', fontSize: '13px' }}>
+                            {formatDate(p.expiryDate)}
+                          </td>
+
+                          <td>
+                            <span className={`${styles.alertBadge} ${alert.cls}`}>
+                              {alert.isAlert && <AlertTriangle size={12} />}
+                              <span>{alert.label}</span>
+                            </span>
+                          </td>
+
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditProduct(p)}
+                              className={styles.iconBtn}
+                              style={{ border: 'none', background: 'transparent' }}
+                              title="Editar Produto"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           )
         )}
 
@@ -605,50 +611,59 @@ export default function EstoquePage() {
               <span>Carregando fornecedores...</span>
             </div>
           ) : (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>RAZÃO SOCIAL / NOME</th>
-                  <th>CNPJ / CPF</th>
-                  <th>VENDEDOR / CONTATO</th>
-                  <th>CONTATO / WHATSAPP</th>
-                  <th>E-MAIL</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSuppliers.length === 0 && (
+            <div className={styles.tableContainer}>
+              <table className={styles.table}>
+                <thead>
                   <tr>
-                    <td colSpan={5} className={styles.empty}>
-                      Nenhum fornecedor cadastrado.
-                    </td>
+                    <th>RAZÃO SOCIAL / NOME</th>
+                    <th>CNPJ / CPF</th>
+                    <th>VENDEDOR / CONTATO</th>
+                    <th>CONTATO / WHATSAPP</th>
+                    <th>E-MAIL</th>
                   </tr>
-                )}
-                {filteredSuppliers.map((sup) => (
-                  <tr key={sup.id} className={styles.row}>
-                    <td className={styles.productName}>
-                      {sup.corporateName || sup.name}
-                    </td>
-                    <td className={styles.minQty}>{sup.cnpj || 'Não informado'}</td>
-                    <td style={{ fontSize: '12px', color: '#334155' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <UserCheck size={12} color="#0284c7" />
-                        {sup.contact || '—'}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: '12px' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Phone size={12} color="#0284c7" /> {sup.phone || '—'}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: '12px' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Mail size={12} color="#64748b" /> {sup.email || '—'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {filteredSuppliers.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className={styles.empty}>
+                        Nenhum fornecedor cadastrado.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredSuppliers.map((sup) => (
+                      <tr key={sup.id}>
+                        <td>
+                          <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                            {sup.corporateName || sup.name}
+                          </div>
+                        </td>
+                        <td style={{ color: '#64748b', fontSize: '13px' }}>
+                          {sup.cnpj || 'Não informado'}
+                        </td>
+                        <td style={{ fontSize: '13px', color: '#334155' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <UserCheck size={14} color="#0284c7" />
+                            {sup.contact || '—'}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: '13px', color: '#334155' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Phone size={14} color="#0284c7" /> 
+                            {sup.phone || '—'}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: '13px', color: '#334155' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Mail size={14} color="#64748b" /> 
+                            {sup.email || '—'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           )
         )}
       </div>
@@ -659,7 +674,7 @@ export default function EstoquePage() {
           <div className={styles.detailsModalCard} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
             <div className={styles.detailsHeader}>
               <div className={styles.titleIconBg}>
-                <Edit2 size={18} color="var(--primary)" />
+                <Edit2 size={18} color="var(--primary, #0284c7)" />
               </div>
               <div>
                 <h3 className={styles.detailsTitle}>Editar Produto</h3>
@@ -795,7 +810,7 @@ export default function EstoquePage() {
               {editingProduct.stockMovements && editingProduct.stockMovements.length > 0 && (
                 <div className={styles.movementsSection} style={{ marginTop: '12px' }}>
                   <div className={styles.movementsHeader}>
-                    <History size={14} color="var(--primary)" />
+                    <History size={14} color="var(--primary, #0284c7)" />
                     <h4 style={{ fontSize: '12px' }}>Últimas Movimentações</h4>
                   </div>
                   <div className={styles.movementsList} style={{ maxHeight: '120px', overflowY: 'auto' }}>
@@ -838,7 +853,7 @@ export default function EstoquePage() {
                   </button>
                   <button
                     type="submit"
-                    className={styles.btnPrimary}
+                    className={styles.newBtn}
                     disabled={savingEdit}
                   >
                     {savingEdit ? (
@@ -862,7 +877,7 @@ export default function EstoquePage() {
         <div className={styles.modalOverlay} onClick={() => setIsSupplierModalOpen(false)}>
           <div className={styles.supplierModalCard} onClick={(e) => e.stopPropagation()}>
             <div className={styles.detailsHeader}>
-              <Building2 size={20} color="var(--primary)" />
+              <Building2 size={20} color="var(--primary, #0284c7)" />
               <h3 className={styles.detailsTitle}>Novo Fornecedor</h3>
               <button 
                 type="button" 
@@ -937,7 +952,7 @@ export default function EstoquePage() {
                 </button>
                 <button
                   type="submit"
-                  className={styles.btnPrimary}
+                  className={styles.newBtn}
                   disabled={savingSupplier}
                 >
                   {savingSupplier ? <Loader2 size={16} className={styles.spinner} /> : 'Salvar Fornecedor'}
