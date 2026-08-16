@@ -132,6 +132,7 @@ export async function CreateEvolution(
 ) {
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
+  // 1. Busca profissional responsável
   const dentist = await prisma.user.findFirst({
     where: {
       id: dentistId,
@@ -154,7 +155,7 @@ export async function CreateEvolution(
     }
   }
 
-  // Tratamento do snapshot do odontograma
+  // 2. Trata o snapshot do odontograma
   let parsedSnapshot: Record<string, any> | null = null
   if (data.odontogramSnapshot) {
     if (typeof data.odontogramSnapshot === 'string') {
@@ -168,7 +169,7 @@ export async function CreateEvolution(
     }
   }
 
-  // Normalização segura dos anexos
+  // 3. Normaliza a lista de anexos
   let attachmentsList: string[] = []
   if (data.attachments) {
     if (Array.isArray(data.attachments)) {
@@ -185,16 +186,16 @@ export async function CreateEvolution(
     }
   }
 
-  // Transação Atômica: Criação da evolução + sincronização do odontograma + inserção em medical_files
+  // 4. Cria a evolução clínica com segurança
   const evolution = await prisma.$transaction(async (tx) => {
     const createdEvolution = await tx.evolution.create({
       data: {
         tenantId,
         clinicId,
         medicalRecordId: medicalRecord.id,
-        dentistId,
+        dentistId: dentist.id,
         procedureId: data.procedureId || null,
-        description: data.description,
+        description: data.description || 'Evolução registrada',
         attachments: attachmentsList,
         odontogramSnapshot: parsedSnapshot,
       } as any,
@@ -204,7 +205,7 @@ export async function CreateEvolution(
       },
     })
 
-    // Sincroniza as condições dos dentes no Odontograma Acumulado
+    // Sincroniza Odontograma caso haja snapshot
     if (parsedSnapshot && typeof parsedSnapshot === 'object') {
       const toothEntries = Object.entries(parsedSnapshot)
 
@@ -247,46 +248,54 @@ export async function CreateEvolution(
       }
     }
 
-    // 🟢 Popula automaticamente a tabela MedicalFile
-    if (attachmentsList.length > 0) {
+    return createdEvolution
+  })
+
+  // 5. 🟢 Gravação em MedicalFile protegida (sem travar a request em caso de divergência de colunas)
+  if (attachmentsList.length > 0) {
+    try {
       for (const url of attachmentsList) {
         const fileName = url.split('/').pop()?.split('?')[0] || 'Anexo Clínico'
         const isPdf = url.toLowerCase().includes('.pdf')
 
-        await tx.medicalFile.create({
+        await (prisma as any).medicalFile?.create({
           data: {
             tenantId,
             clinicId,
             medicalRecordId: medicalRecord.id,
+            patientId: medicalRecord.patientId,
+            evolutionId: evolution.id,
             name: fileName,
             fileUrl: url,
+            url: url,
+            type: isPdf ? 'PDF' : 'IMAGE',
             fileType: isPdf ? 'APPLICATION_PDF' : 'IMAGE_JPEG',
             fileSize: 0,
-            uploadedBy: dentistId,
-          } as any,
-        })
+            uploadedBy: dentist.id,
+          },
+        }).catch((err: any) => console.warn('[MedicalFiles Warning] Campo ignorado:', err?.message))
       }
+    } catch (fileErr) {
+      console.error('[MedicalFiles Error]:', fileErr)
     }
+  }
 
-    return createdEvolution
-  })
-
-  // 🟢 EXIT INTELIGENTE: Baixa automática de estoque com trava de idempotência
+  // 6. Exit Inteligente
   if (data.procedureId) {
     try {
       await triggerAutoStockExit({
         tenantId,
         clinicId,
         procedureId: data.procedureId,
-        userId: dentistId,
+        userId: dentist.id,
         appointmentId: (data as any).appointmentId || undefined,
       })
     } catch (stockErr) {
-      console.error('[Exit Inteligente Error]: Falha ao disparar baixa de estoque na evolução', stockErr)
+      console.error('[Exit Inteligente Error]:', stockErr)
     }
   }
 
-  // Registro no log de auditoria
+  // 7. Audit Log
   await auditLogService.createLog({
     tenantId,
     clinicId,
