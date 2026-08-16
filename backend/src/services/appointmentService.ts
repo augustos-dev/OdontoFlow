@@ -2,7 +2,7 @@ import { Prisma, $Enums, UserRole } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
 import { auditLogService } from './auditLog.service'
-import { processAutoStockDeduction } from './stockService'
+import { triggerAutoStockExit } from '../utils/stockAutoExit'
 import type {
   CreateAppointmentDTO,
   UpdateAppointmentDTO,
@@ -296,18 +296,18 @@ export async function updateAppointmentStatus(
     },
   })
 
-  // 🚀 EXIT INTELIGENTE: Executa a Baixa Automática de Estoque se a consulta for FINALIZADA
+  // 🟢 EXIT INTELIGENTE (SECRETARIA): Dispara a baixa atômica com trava de idempotência por appointmentId
   if (data.status === 'FINALIZADO' && activeProcedureId) {
     try {
-      await processAutoStockDeduction(
+      await triggerAutoStockExit({
         tenantId,
         clinicId,
-        activeProcedureId,
-        actor.userId,
-        `Baixa Automática: Paciente ${appointment.patient.name} (Agendamento #${appointmentId})`
-      )
+        procedureId: activeProcedureId,
+        userId: actor.userId,
+        appointmentId, // Passa o appointmentId para validar se o dentista já não baixou antes!
+      })
     } catch (error) {
-      console.error('[Exit Inteligente Error]: Falha ao disparar baixa no estoque', error)
+      console.error('[Exit Inteligente Error]: Falha ao disparar baixa no estoque na finalização do agendamento', error)
     }
   }
 

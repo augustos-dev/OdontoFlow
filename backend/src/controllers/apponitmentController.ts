@@ -55,7 +55,7 @@ export async function listAppointmentsController(
       date: req.query.date as string,
       dentistId: req.query.dentistId as string,
       patientId: req.query.patientId as string,
-      procedureId: req.query.procedureId as string, // 👈 Filtro por Procedimento
+      procedureId: req.query.procedureId as string,
       status: req.query.status as string,
       room: req.query.room as string,
       page: req.query.page ? Number(req.query.page) : undefined,
