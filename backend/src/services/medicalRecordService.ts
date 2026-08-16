@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
 import { auditLogService } from './auditLog.service'
-import { processAutoStockDeduction } from './stockService'
+import { triggerAutoStockExit } from '../utils/stockAutoExit'
 import type { UserRole } from '@prisma/client'
 import type {
   UpdateMedicalRecordsDTO,
@@ -154,6 +154,7 @@ export async function CreateEvolution(
     }
   }
 
+  // Tratamento do snapshot do odontograma
   let parsedSnapshot: Record<string, any> | null = null
   if (data.odontogramSnapshot) {
     if (typeof data.odontogramSnapshot === 'string') {
@@ -167,23 +168,43 @@ export async function CreateEvolution(
     }
   }
 
-  const result = await prisma.$transaction(async (tx) => {
-    const evolution = await tx.evolution.create({
+  // Normalização segura dos anexos
+  let attachmentsList: string[] = []
+  if (data.attachments) {
+    if (Array.isArray(data.attachments)) {
+      attachmentsList = data.attachments
+        .map((item: any) => (typeof item === 'string' ? item : item.url || item.path || ''))
+        .filter(Boolean)
+    } else if (typeof data.attachments === 'string') {
+      try {
+        const parsed = JSON.parse(data.attachments)
+        attachmentsList = Array.isArray(parsed) ? parsed : [data.attachments]
+      } catch {
+        attachmentsList = [data.attachments]
+      }
+    }
+  }
+
+  // Transação Atômica: Criação da evolução + sincronização do odontograma + inserção em medical_files
+  const evolution = await prisma.$transaction(async (tx) => {
+    const createdEvolution = await tx.evolution.create({
       data: {
         tenantId,
+        clinicId,
         medicalRecordId: medicalRecord.id,
-        dentistId: dentist.id,
+        dentistId,
         procedureId: data.procedureId || null,
         description: data.description,
-        odontogramSnapshot: parsedSnapshot ?? undefined,
-        attachments: data.attachments || [],
-      },
+        attachments: attachmentsList,
+        odontogramSnapshot: parsedSnapshot,
+      } as any,
       include: {
         dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
         procedure: { select: { id: true, name: true, basePrice: true } },
       },
     })
 
+    // Sincroniza as condições dos dentes no Odontograma Acumulado
     if (parsedSnapshot && typeof parsedSnapshot === 'object') {
       const toothEntries = Object.entries(parsedSnapshot)
 
@@ -226,24 +247,46 @@ export async function CreateEvolution(
       }
     }
 
-    return evolution
+    // 🟢 Popula automaticamente a tabela MedicalFile
+    if (attachmentsList.length > 0) {
+      for (const url of attachmentsList) {
+        const fileName = url.split('/').pop()?.split('?')[0] || 'Anexo Clínico'
+        const isPdf = url.toLowerCase().includes('.pdf')
+
+        await tx.medicalFile.create({
+          data: {
+            tenantId,
+            clinicId,
+            medicalRecordId: medicalRecord.id,
+            name: fileName,
+            fileUrl: url,
+            fileType: isPdf ? 'APPLICATION_PDF' : 'IMAGE_JPEG',
+            fileSize: 0,
+            uploadedBy: dentistId,
+          } as any,
+        })
+      }
+    }
+
+    return createdEvolution
   })
 
-  // 🚀 EXIT INTELIGENTE: Se o dentista selecionou um procedimento, dispara baixa automática no estoque
+  // 🟢 EXIT INTELIGENTE: Baixa automática de estoque com trava de idempotência
   if (data.procedureId) {
     try {
-      await processAutoStockDeduction(
+      await triggerAutoStockExit({
         tenantId,
         clinicId,
-        data.procedureId,
-        actor?.userId || dentist.id,
-        `Baixa Automática via Evolução Clínica ID: ${result.id}`
-      )
-    } catch (error) {
-      console.error('[Exit Inteligente Error]: Falha ao disparar baixa no estoque via Evolução', error)
+        procedureId: data.procedureId,
+        userId: dentistId,
+        appointmentId: (data as any).appointmentId || undefined,
+      })
+    } catch (stockErr) {
+      console.error('[Exit Inteligente Error]: Falha ao disparar baixa de estoque na evolução', stockErr)
     }
   }
 
+  // Registro no log de auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -252,13 +295,13 @@ export async function CreateEvolution(
     userRole: actor?.userRole || (dentist.role as UserRole),
     action: 'CREATE',
     entity: 'EVOLUTION',
-    entityId: result.id,
+    entityId: evolution.id,
     details: `Registrou evolução clínica${
       data.procedureId ? ` (Procedimento ID: ${data.procedureId})` : ''
     }. Profissional: Dr(a). ${dentist.name}`,
   })
 
-  return result
+  return evolution
 }
 
 export async function lockEvolution(

@@ -60,7 +60,11 @@ medicalRecordRouter.get(
  * @swagger
  * /medical-records/{patientId}/evolutions:
  *   post:
- *     summary: Cria uma nova evolução clínica para o paciente (Dispara Exit Inteligente no Estoque)
+ *     summary: Cria uma nova evolução clínica para o paciente (Dispara Exit Inteligente & Popula MedicalFiles)
+ *     description: >
+ *       Registra a evolução do paciente, atualiza o snapshot do odontograma,
+ *       popula automaticamente a tabela `MedicalFile` caso haja anexos e dispara o Exit Inteligente
+ *       com trava de idempotência se houver um `procedureId` vinculado.
  *     tags: [MedicalRecords]
  *     security:
  *       - bearerAuth: []
@@ -89,6 +93,10 @@ medicalRecordRouter.get(
  *                 format: uuid
  *                 example: "a1b2c3d4-e5f6-7890-1234-56789abcdef0"
  *                 description: ID do procedimento realizado (Aciona a baixa automática de estoque)
+ *               appointmentId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID do agendamento vinculado para controle de idempotência
  *               odontogramSnapshot:
  *                 type: string
  *                 description: JSON em string representando o snapshot do odontograma
@@ -100,13 +108,15 @@ medicalRecordRouter.get(
  *                 description: Até 20 arquivos em imagem/anexos
  *     responses:
  *       201:
- *         description: Evolução cadastrada com sucesso e estoque abatido
+ *         description: Evolução cadastrada com sucesso, arquivos salvos e estoque abatido
  *       400:
  *         description: Dados inválidos
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         description: Paciente ou Procedimento não encontrado
  */
 medicalRecordRouter.post(
   '/:patientId/evolutions', 
@@ -137,6 +147,8 @@ medicalRecordRouter.post(
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - description
  *             properties:
  *               description:
  *                 type: string
@@ -180,6 +192,8 @@ medicalRecordRouter.put(
  *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
  */
 medicalRecordRouter.patch(
   '/evolutions/:evolutionId/lock', 
@@ -261,6 +275,8 @@ medicalRecordRouter.get(
  *     responses:
  *       200:
  *         description: Condição do dente salva
+ *       400:
+ *         description: Número de dente inválido
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  *       403:
@@ -295,12 +311,14 @@ medicalRecordRouter.put(
  *           type: integer
  *         description: Número do dente (ex: 16, 21)
  *     responses:
- *       200:
- *         description: Condição removida
+ *       204:
+ *         description: Condição removida com sucesso
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
  */
 medicalRecordRouter.delete(
   '/:patientId/odontogram/:toothNumber', 
@@ -387,6 +405,8 @@ medicalRecordRouter.get(
  *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
  */
 medicalRecordRouter.put(
   '/:patientId', 
