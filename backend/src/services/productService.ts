@@ -207,18 +207,10 @@ export async function updateProductService(
     throw new AppError('Produto não encontrado.', 404)
   }
 
-  if (data.supplierId) {
-    const supplier = await prisma.supplier.findFirst({
-      where: { id: data.supplierId, tenantId, clinicId },
-    })
-    if (!supplier) {
-      throw new AppError('Fornecedor não encontrado.', 404)
-    }
-  }
+  // 🟢 Remove batchNumber se o front tiver enviado por engano
+  const { manufacturingDate, expiryDate, costPrice, itemsPerPackage, batchNumber, ...rest }: any = data
 
-  const { manufacturingDate, expiryDate, costPrice, itemsPerPackage, ...rest } = data
-
-  const parsedCost = costPrice !== undefined && costPrice !== null 
+  const parsedCost = costPrice !== undefined && costPrice !== null && costPrice !== ''
     ? parseFloat(String(costPrice).replace(',', '.')) 
     : undefined
 
@@ -229,16 +221,18 @@ export async function updateProductService(
   const updated = await prisma.product.update({
     where: { id: productId },
     data: {
-      ...rest,
-      ...(parsedCost !== undefined && { costPrice: isNaN(parsedCost) ? null : parsedCost }),
-      ...(parsedItemsPerPackage !== undefined && { itemsPerPackage: parsedItemsPerPackage > 0 ? parsedItemsPerPackage : 1 }),
-      ...(manufacturingDate !== undefined && {
-        manufacturingDate: manufacturingDate ? new Date(manufacturingDate) : null,
-      }),
-      ...(expiryDate !== undefined && {
-        expiryDate: expiryDate ? new Date(expiryDate) : null,
-      }),
-    },
+  ...rest,
+  ...(parsedCost !== undefined && { costPrice: isNaN(parsedCost) ? null : parsedCost }),
+  ...(parsedItemsPerPackage !== undefined && { 
+    itemsPerPackage: !isNaN(parsedItemsPerPackage) && parsedItemsPerPackage > 0 ? parsedItemsPerPackage : 1 
+  }),
+  ...(manufacturingDate !== undefined && {
+    manufacturingDate: manufacturingDate ? new Date(manufacturingDate) : null,
+  }),
+  ...(expiryDate !== undefined && {
+    expiryDate: expiryDate ? new Date(expiryDate) : null,
+  }),
+},
     include: {
       supplier: { select: { id: true, name: true } },
     },
