@@ -9,11 +9,23 @@ import type {
   CreateEvolutionDTO,
 } from '../types/medicalRecord.types'
 
+// Helper para obter o ID do paciente ou prontuário da rota
 function getRecordIdParam(req: Request): string {
   const { id, patientId, medicalRecordId } = req.params
   return (id || patientId || medicalRecordId) as string
 }
 
+// Helper para extrair o ActorContext com fallback seguro de propriedades do JWT
+function extractActor(req: Request, fallbackRole: UserRole = 'DENTIST') {
+  const user = req.user as CustomJwtPayload
+  return {
+    userId: user.userId || (user as any).sub || (user as any).id,
+    userName: (user as any).name || 'Profissional',
+    userRole: (user.role as UserRole) || fallbackRole,
+  }
+}
+
+// Processa arquivos recebidos via Multer + array de anexos via JSON Body
 async function processAttachments(req: Request): Promise<string[]> {
   const files = req.files as Express.Multer.File[] | undefined
   let attachmentUrls: string[] = []
@@ -59,7 +71,7 @@ async function processAttachments(req: Request): Promise<string[]> {
   return attachmentUrls
 }
 
-// ─── MÓDULO DE EVOLUÇÃO ──────────────────────────────────────────────────────
+// ─── 1. MÓDULO DE EVOLUÇÃO CLÍNICA ──────────────────────────────────────────
 
 export async function getEvolutionsController(
   req: Request,
@@ -89,13 +101,8 @@ export async function createEvolutionController(
 ): Promise<void> {
   try {
     const user = req.user as CustomJwtPayload
-    const dentistId = user.userId || (user as any).sub || (user as any).id
+    const actor = extractActor(req, 'DENTIST')
     const targetId = getRecordIdParam(req)
-    const actor = {
-      userId: dentistId,
-      userName: (user as any).name || 'Usuário',
-      userRole: (user.role as UserRole) || 'DENTIST',
-    }
 
     const attachmentUrls = await processAttachments(req)
 
@@ -110,16 +117,17 @@ export async function createEvolutionController(
 
     const evolutionData: CreateEvolutionDTO = {
       description: req.body.description,
-      procedureId: req.body.procedureId, // 🚀 Gatilho para o Exit Inteligente
+      procedureId: req.body.procedureId || undefined,
       odontogramSnapshot: parsedSnapshot,
       attachments: attachmentUrls,
-    }
+      appointmentId: req.body.appointmentId || undefined, // 🟢 Repassa para controle de idempotência
+    } as any
 
     const evolution = await medicalRecordService.CreateEvolution(
       user.tenantId,
       user.clinicId!,
       targetId,
-      dentistId,
+      actor.userId,
       evolutionData,
       actor
     )
@@ -137,14 +145,9 @@ export async function updateEvolutionController(
 ): Promise<void> {
   try {
     const user = req.user as CustomJwtPayload
-    const userId = user.userId || (user as any).sub || (user as any).id
     const { evolutionId } = req.params
     const { description } = req.body
-    const actor = {
-      userId,
-      userName: (user as any).name || 'Usuário',
-      userRole: (user.role as UserRole) || 'DENTIST',
-    }
+    const actor = extractActor(req, 'DENTIST')
 
     const updatedEvolution = await medicalRecordService.updateEvolution(
       user.tenantId,
@@ -167,13 +170,8 @@ export async function lockEvolutionController(
 ): Promise<void> {
   try {
     const user = req.user as CustomJwtPayload
-    const userId = user.userId || (user as any).sub || (user as any).id
     const { evolutionId } = req.params
-    const actor = {
-      userId,
-      userName: (user as any).name || 'Usuário',
-      userRole: (user.role as UserRole) || 'DENTIST',
-    }
+    const actor = extractActor(req, 'DENTIST')
 
     const lockedEvolution = await medicalRecordService.lockEvolution(
       user.tenantId,
@@ -188,7 +186,7 @@ export async function lockEvolutionController(
   }
 }
 
-// ─── MÓDULO DE PRONTUÁRIO & ODONTOGRAMA ─────────────────────────────────────
+// ─── 2. MÓDULO DE PRONTUÁRIO & ODONTOGRAMA ──────────────────────────────────
 
 export async function getMedicalRecordByPatientController(
   req: Request,
@@ -218,13 +216,8 @@ export async function updateMedicalRecordController(
 ): Promise<void> {
   try {
     const user = req.user as CustomJwtPayload
-    const userId = user.userId || (user as any).sub || (user as any).id
     const targetId = getRecordIdParam(req)
-    const actor = {
-      userId,
-      userName: (user as any).name || 'Usuário',
-      userRole: (user.role as UserRole) || 'DENTIST',
-    }
+    const actor = extractActor(req, 'ADMIN')
 
     const record = await medicalRecordService.updateMedicalRecord(
       user.tenantId,
@@ -268,13 +261,8 @@ export async function upsertToothConditionController(
 ): Promise<void> {
   try {
     const user = req.user as CustomJwtPayload
-    const userId = user.userId || (user as any).sub || (user as any).id
     const targetId = getRecordIdParam(req)
-    const actor = {
-      userId,
-      userName: (user as any).name || 'Usuário',
-      userRole: (user.role as UserRole) || 'DENTIST',
-    }
+    const actor = extractActor(req, 'DENTIST')
 
     const toothCondition = await medicalRecordService.upsertToothCondition(
       user.tenantId,
@@ -297,14 +285,9 @@ export async function deleteToothConditionController(
 ): Promise<void> {
   try {
     const user = req.user as CustomJwtPayload
-    const userId = user.userId || (user as any).sub || (user as any).id
     const { toothNumber } = req.params
     const targetId = getRecordIdParam(req)
-    const actor = {
-      userId,
-      userName: (user as any).name || 'Usuário',
-      userRole: (user.role as UserRole) || 'DENTIST',
-    }
+    const actor = extractActor(req, 'DENTIST')
 
     await medicalRecordService.deleteToothCondition(
       user.tenantId,
