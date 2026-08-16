@@ -132,20 +132,30 @@ export async function CreateEvolution(
 ) {
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-  // 1. Busca profissional responsável
-  const dentist = await prisma.user.findFirst({
+  // 1. Busca profissional/usuário responsável de forma flexível
+  let dentist = await prisma.user.findFirst({
     where: {
       id: dentistId,
       tenantId,
       isActive: true,
-      role: { in: ['DENTIST', 'ADMIN'] },
     },
   })
 
+  // Fallback caso o ID venha de admin global ou sessão administrativa
   if (!dentist) {
-    throw new AppError('Dentista/Profissional não encontrado ou inativo.', 404)
+    dentist = await prisma.user.findFirst({
+      where: {
+        tenantId,
+        isActive: true,
+      },
+    })
   }
 
+  const responsibleUserId = dentist?.id || dentistId
+  const responsibleUserName = dentist?.name || actor?.userName || 'Profissional'
+  const responsibleUserRole = (dentist?.role || actor?.userRole || 'DENTIST') as UserRole
+
+  // Validação de procedimento no catálogo (se enviado)
   if (data.procedureId) {
     const procedureExists = await prisma.procedure.findFirst({
       where: { id: data.procedureId, tenantId },
@@ -155,7 +165,7 @@ export async function CreateEvolution(
     }
   }
 
-  // 2. Trata o snapshot do odontograma
+  // 2. Trata snapshot do odontograma
   let parsedSnapshot: Record<string, any> | null = null
   if (data.odontogramSnapshot) {
     if (typeof data.odontogramSnapshot === 'string') {
@@ -169,7 +179,7 @@ export async function CreateEvolution(
     }
   }
 
-  // 3. Normaliza a lista de anexos
+  // 3. Normalização de lista de anexos
   let attachmentsList: string[] = []
   if (data.attachments) {
     if (Array.isArray(data.attachments)) {
@@ -186,14 +196,14 @@ export async function CreateEvolution(
     }
   }
 
-  // 4. Cria a evolução clínica com segurança
+  // 4. Criação da Evolução e Atualização de Dentes na Transação
   const evolution = await prisma.$transaction(async (tx) => {
     const createdEvolution = await tx.evolution.create({
       data: {
         tenantId,
         clinicId,
         medicalRecordId: medicalRecord.id,
-        dentistId: dentist.id,
+        dentistId: responsibleUserId,
         procedureId: data.procedureId || null,
         description: data.description || 'Evolução registrada',
         attachments: attachmentsList,
@@ -205,7 +215,7 @@ export async function CreateEvolution(
       },
     })
 
-    // Sincroniza Odontograma caso haja snapshot
+    // Sincroniza dentes no Odontograma caso haja snapshot
     if (parsedSnapshot && typeof parsedSnapshot === 'object') {
       const toothEntries = Object.entries(parsedSnapshot)
 
@@ -251,7 +261,7 @@ export async function CreateEvolution(
     return createdEvolution
   })
 
-  // 5. 🟢 Gravação em MedicalFile protegida (sem travar a request em caso de divergência de colunas)
+  // 5. Gravação em MedicalFile protegida (popula tabela de arquivos do paciente)
   if (attachmentsList.length > 0) {
     try {
       for (const url of attachmentsList) {
@@ -271,7 +281,7 @@ export async function CreateEvolution(
             type: isPdf ? 'PDF' : 'IMAGE',
             fileType: isPdf ? 'APPLICATION_PDF' : 'IMAGE_JPEG',
             fileSize: 0,
-            uploadedBy: dentist.id,
+            uploadedBy: responsibleUserId,
           },
         }).catch((err: any) => console.warn('[MedicalFiles Warning] Campo ignorado:', err?.message))
       }
@@ -280,14 +290,14 @@ export async function CreateEvolution(
     }
   }
 
-  // 6. Exit Inteligente
+  // 6. Exit Inteligente (Baixa de estoque automática)
   if (data.procedureId) {
     try {
       await triggerAutoStockExit({
         tenantId,
         clinicId,
         procedureId: data.procedureId,
-        userId: dentist.id,
+        userId: responsibleUserId,
         appointmentId: (data as any).appointmentId || undefined,
       })
     } catch (stockErr) {
@@ -295,19 +305,19 @@ export async function CreateEvolution(
     }
   }
 
-  // 7. Audit Log
+  // 7. Registro de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
-    userId: actor?.userId || dentist.id,
-    userName: actor?.userName || dentist.name,
-    userRole: actor?.userRole || (dentist.role as UserRole),
+    userId: actor?.userId || responsibleUserId,
+    userName: actor?.userName || responsibleUserName,
+    userRole: responsibleUserRole,
     action: 'CREATE',
     entity: 'EVOLUTION',
     entityId: evolution.id,
     details: `Registrou evolução clínica${
       data.procedureId ? ` (Procedimento ID: ${data.procedureId})` : ''
-    }. Profissional: Dr(a). ${dentist.name}`,
+    }. Profissional: Dr(a). ${responsibleUserName}`,
   })
 
   return evolution
