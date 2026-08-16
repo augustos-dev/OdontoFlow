@@ -1,9 +1,16 @@
-// app/components/DetalhesAgendamentoModal.tsx
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import styles from './DetalhesAgendamentoModal.module.css'
+
+interface Procedure {
+  id: string
+  name: string
+  code?: string
+  basePrice?: number
+}
 
 interface Appointment {
   id: string
@@ -14,6 +21,8 @@ interface Appointment {
   room: string
   notes?: string
   cancellationReason?: string
+  procedureId?: string
+  procedure?: Procedure
   patient: { id: string; name: string; phone: string; email?: string }
   dentist: { id: string; name: string; cro?: string }
   transaction?: { id: string; amount: string; paymentMethod: string } | null
@@ -23,6 +32,12 @@ interface Props {
   appointment: Appointment | null
   onClose: () => void
   onSuccess: () => void
+  onOpenEvolutionModal?: (params: {
+    patientId: string
+    patientName: string
+    procedureId?: string
+    appointmentId: string
+  }) => void
 }
 
 const STATUS_LIST = [
@@ -43,11 +58,18 @@ const PAYMENT_LABEL: Record<string, string> = {
   CONVENIO: 'Convênio',
 }
 
-export default function DetalhesAgendamentoModal({ appointment, onClose, onSuccess }: Props) {
+export default function DetalhesAgendamentoModal({
+  appointment,
+  onClose,
+  onSuccess,
+  onOpenEvolutionModal,
+}: Props) {
+  const router = useRouter()
+
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [cancellationReason, setCancellationReason] = useState('')
   const [pendingStatus, setPendingStatus] = useState<string | null>(null)
-  
+
   const [loadingStatus, setLoadingStatus] = useState(false)
   const [loadingDelete, setLoadingDelete] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -57,7 +79,7 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
 
   const isFinished = ['FINALIZADO', 'CANCELADO', 'FALTOU'].includes(appointment.status)
 
-  // Datas
+  // Datas e horários
   const dt = new Date(appointment.dateTime)
   const dateFormatted = dt.toLocaleDateString('pt-BR', {
     weekday: 'short',
@@ -72,20 +94,52 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
   const currentStatusObj = STATUS_LIST.find((s) => s.value === appointment.status) || STATUS_LIST[0]
 
   function getInitials(name: string) {
-    return name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()
+    return name
+      .split(' ')
+      .slice(0, 2)
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
   }
 
   function handleOpenWhatsapp() {
-    const cleanPhone = appointment.patient.phone.replace(/\D/g, '')
-    const msg = encodeURIComponent(`Olá ${appointment.patient.name}, confirmamos sua consulta para ${dateFormatted} às ${timeFormatted}?`)
+    const cleanPhone = appointment?.patient?.phone ? appointment.patient.phone.replace(/\D/g, '') : ''
+    const msg = encodeURIComponent(
+      `Olá ${appointment?.patient?.name}, confirmamos sua consulta para ${dateFormatted} às ${timeFormatted}?`
+    )
     window.open(`https://wa.me/55${cleanPhone}?text=${msg}`, '_blank')
+  }
+
+  // 1. Redireciona para o prontuário do paciente
+  function handleOpenPatientRecord() {
+    if (!appointment?.patient?.id) return
+    onClose()
+    router.push(`/pacientes/${appointment.patient.id}?tab=prontuario`)
+  }
+
+  // 2. Aciona o modal de nova evolução clínica já com o agendamento e procedimento amarrados
+  function handleAddEvolution() {
+    if (!appointment?.patient?.id) return
+    onClose()
+
+    if (onOpenEvolutionModal) {
+      onOpenEvolutionModal({
+        patientId: appointment.patient.id,
+        patientName: appointment.patient.name,
+        procedureId: appointment.procedureId || appointment.procedure?.id,
+        appointmentId: appointment.id,
+      })
+    } else {
+      router.push(
+        `/pacientes/${appointment.patient.id}?tab=prontuario&openEvolution=true&appointmentId=${appointment.id}&procedureId=${appointment.procedureId || ''}`
+      )
+    }
   }
 
   async function handleSelectStatus(targetStatus: string) {
     setShowStatusDropdown(false)
     setError('')
 
-    // Se for cancelamento, exige motivo antes de salvar
     if (targetStatus === 'CANCELADO') {
       setPendingStatus(targetStatus)
       return
@@ -98,8 +152,9 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
     setLoadingStatus(true)
     setError('')
     try {
-      await api.patch(`/appointments/${appointment.id}/status`, {
+      await api.patch(`/appointments/${appointment?.id}/status`, {
         status: statusToSave,
+        procedureId: appointment?.procedureId || appointment?.procedure?.id || undefined,
         ...(reason && { cancellationReason: reason }),
       })
       setPendingStatus(null)
@@ -114,7 +169,7 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
   async function handleDelete() {
     setLoadingDelete(true)
     try {
-      await api.delete(`/appointments/${appointment.id}`)
+      await api.delete(`/appointments/${appointment?.id}`)
       onSuccess()
       handleClose()
     } catch (err: any) {
@@ -142,7 +197,13 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
         <div className={styles.header}>
           <div className={styles.avatar}>{getInitials(appointment.patient.name)}</div>
           <div className={styles.headerInfo}>
-            <h3 className={styles.patientName}>{appointment.patient.name}</h3>
+            <h3
+              className={styles.patientNameClickable}
+              onClick={handleOpenPatientRecord}
+              title="Clique para ir ao cadastro do paciente"
+            >
+              {appointment.patient.name}
+            </h3>
             <div className={styles.phoneRow}>
               <span>{appointment.patient.phone}</span>
               <button type="button" className={styles.btnWhatsapp} onClick={handleOpenWhatsapp}>
@@ -156,22 +217,42 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
           <button type="button" className={styles.closeBtn} onClick={handleClose}>✕</button>
         </div>
 
-        {/* ─── ATALHOS RÁPIDOS ─── */}
+        {/* ─── ATALHOS RÁPIDOS FUNCIONAIS ─── */}
         <div className={styles.quickActions}>
-          <button type="button" className={styles.btnOutline}>Abrir prontuário</button>
-          <button type="button" className={styles.btnOutline}>Adicionar evolução</button>
+          <button
+            type="button"
+            className={styles.btnOutline}
+            onClick={handleOpenPatientRecord}
+          >
+            Abrir prontuário
+          </button>
+          <button
+            type="button"
+            className={styles.btnOutline}
+            onClick={handleAddEvolution}
+          >
+            Adicionar evolução
+          </button>
         </div>
 
         {/* ─── BOTAO DE AÇÃO PRINCIPAL ─── */}
         <div className={styles.primaryActionRow}>
-          <button type="button" className={styles.btnEdit}>
+          <button
+            type="button"
+            className={styles.btnEdit}
+            onClick={handleOpenPatientRecord}
+          >
             ✏️ Editar agendamento
           </button>
           <button
             type="button"
             className={styles.btnIconCopy}
             title="Copiar detalhes"
-            onClick={() => navigator.clipboard.writeText(`${appointment.patient.name} - ${dateFormatted} às ${timeFormatted}`)}
+            onClick={() =>
+              navigator.clipboard.writeText(
+                `${appointment.patient.name} - ${dateFormatted} às ${timeFormatted}`
+              )
+            }
           >
             📋
           </button>
@@ -181,7 +262,9 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
         <div className={styles.detailsList}>
           <div className={styles.detailItem}>
             <span className={styles.icon}>👨‍⚕️</span>
-            <span><strong>{appointment.dentist.name}</strong> • {appointment.room?.replace('_', ' ') ?? '—'}</span>
+            <span>
+              <strong>{appointment.dentist.name}</strong> • {appointment.room?.replace('_', ' ') ?? '—'}
+            </span>
           </div>
 
           <div className={styles.detailItem}>
@@ -193,8 +276,20 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
 
           <div className={styles.detailItem}>
             <span className={styles.icon}>🏷️</span>
-            <span>{appointment.type === 'PARTICULAR' ? 'Particular' : 'Convênio'} ({appointment.durationMin} min)</span>
+            <span>
+              {appointment.type === 'PARTICULAR' ? 'Particular' : 'Convênio'} ({appointment.durationMin} min)
+            </span>
           </div>
+
+          {/* Procedimento atrelado com indicação de Ficha Técnica */}
+          {appointment.procedure && (
+            <div className={styles.procedureBadgeBox}>
+              <span className={styles.icon}>🦷</span>
+              <span>
+                <strong>Procedimento:</strong> {appointment.procedure.name}
+              </span>
+            </div>
+          )}
 
           {appointment.notes && (
             <div className={styles.notesBox}>
@@ -211,7 +306,10 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
           {appointment.transaction && (
             <div className={styles.transactionCard}>
               <span className={styles.transactionAmount}>
-                {Number(appointment.transaction.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                {Number(appointment.transaction.amount).toLocaleString('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                })}
               </span>
               <span className={styles.transactionMethod}>
                 {PAYMENT_LABEL[appointment.transaction.paymentMethod] ?? appointment.transaction.paymentMethod}
@@ -300,7 +398,11 @@ export default function DetalhesAgendamentoModal({ appointment, onClose, onSucce
               >
                 {loadingDelete ? '...' : 'Sim'}
               </button>
-              <button type="button" className={styles.confirmNo} onClick={() => setConfirmDelete(false)}>
+              <button
+                type="button"
+                className={styles.confirmNo}
+                onClick={() => setConfirmDelete(false)}
+              >
                 Não
               </button>
             </div>

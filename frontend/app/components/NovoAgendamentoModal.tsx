@@ -4,8 +4,26 @@ import { useEffect, useState } from 'react'
 import api from '@/lib/api'
 import styles from './NovoAgendementoModal.module.css'
 
-interface Patient { id: string; name: string; phone: string }
-interface User { id: string; name: string; role: string }
+interface Patient {
+  id: string
+  name: string
+  phone: string
+  cpf?: string
+}
+
+interface User {
+  id: string
+  name: string
+  role: string
+}
+
+interface Procedure {
+  id: string
+  name: string
+  code?: string
+  durationMin?: number
+  basePrice?: number
+}
 
 interface Props {
   open: boolean
@@ -72,6 +90,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
   // Dados remotos
   const [patients, setPatients] = useState<Patient[]>([])
   const [dentists, setDentists] = useState<User[]>([])
+  const [procedures, setProcedures] = useState<Procedure[]>([])
   const [patientSearch, setPatientSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -88,9 +107,10 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
   const [form, setForm] = useState({
     patientId: '',
     dentistId: '',
+    procedureId: '',
     date: new Date().toISOString().slice(0, 10),
     time: '09:00',
-    durationMin: 30, // Padrão ajustado para 30 min
+    durationMin: 30,
     type: 'PARTICULAR',
     room: 'SALA_1',
     notes: '',
@@ -103,7 +123,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
       try {
         const params = patientSearch ? `?name=${patientSearch}&limit=10` : '?limit=10'
         const { data } = await api.get(`/patients${params}`)
-        setPatients(data.data)
+        setPatients(data?.data || data || [])
       } catch (err) {
         console.error('Erro ao buscar pacientes:', err)
       }
@@ -111,58 +131,92 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
     return () => clearTimeout(timer)
   }, [patientSearch, open])
 
-  // 2. Busca dentistas ao abrir o modal
+  // 2. Busca dentistas e procedimentos ao abrir o modal
   useEffect(() => {
     if (!open) return
 
-    async function loadDentists() {
+    async function loadData() {
       try {
-        const response = await api.get('/users')
-        const allUsers = response.data.data
+        const [usersRes, procRes] = await Promise.all([
+          api.get('/users'),
+          api.get('/procedures'),
+        ])
+
+        const allUsers = usersRes.data?.data || usersRes.data || []
         const dentistsOnly = allUsers.filter((u: User) => u.role === 'DENTIST')
-        
         setDentists(dentistsOnly)
+
         if (dentistsOnly.length > 0 && !form.dentistId) {
           set('dentistId', dentistsOnly[0].id)
         }
+
+        const proceduresList = procRes.data?.data || procRes.data || []
+        setProcedures(proceduresList)
       } catch (err) {
-        console.error('Erro ao carregar dentistas no modal:', err)
+        console.error('Erro ao carregar dados no modal:', err)
       }
     }
 
-    loadDentists()
+    loadData()
   }, [open])
 
   function set(field: string, value: any) {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
+  // 3. Mapeamento dinâmico ao selecionar procedimento
+  function handleProcedureChange(procedureId: string) {
+    set('procedureId', procedureId)
+
+    if (!procedureId) return
+
+    const proc = procedures.find((p) => p.id === procedureId)
+    if (proc) {
+      if (proc.durationMin) {
+        set('durationMin', proc.durationMin)
+      }
+      // Procura tag correspondente ou atualiza etiqueta/nota
+      const matchedTag = TAG_OPTIONS.find((t) =>
+        proc.name.toUpperCase().includes(t.label.toUpperCase())
+      )
+      if (matchedTag) setSelectedTag(matchedTag)
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
 
-    if (!form.patientId) { setError('Selecione um paciente.'); return }
-    if (!form.dentistId) { setError('Selecione um dentista.'); return }
-    if (!form.date || !form.time) { setError('Informe a data e o horário.'); return }
+    if (tab === 'CONSULTA' && !form.patientId) {
+      setError('Selecione um paciente.')
+      return
+    }
+    if (!form.dentistId) {
+      setError('Selecione um dentista.')
+      return
+    }
+    if (!form.date || !form.time) {
+      setError('Informe a data e o horário.')
+      return
+    }
 
     setLoading(true)
     try {
-      // Criação segura da data ISO sem desvio de timezone local
       const dateTimeISO = new Date(`${form.date}T${form.time}:00`).toISOString()
 
-      // Junta as observações com a etiqueta selecionada
-      const customNotes = form.notes 
+      const customNotes = form.notes
         ? `[${selectedTag.label}] ${form.notes}`
         : selectedTag.label
 
       await api.post('/appointments', {
-        patientId: form.patientId,
+        patientId: form.patientId || undefined,
         dentistId: form.dentistId,
+        procedureId: form.procedureId || undefined,
         dateTime: dateTimeISO,
         durationMin: Number(form.durationMin),
         room: form.room,
         notes: customNotes,
-        type: form.type || 'PARTICULAR', // Mantém o Enum de tipo aceito pelo Prisma ('PARTICULAR' / 'CONVENIO')
+        type: form.type || 'PARTICULAR',
         status: 'AGENDADO',
       })
 
@@ -180,6 +234,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
     setForm({
       patientId: '',
       dentistId: dentists[0]?.id || '',
+      procedureId: '',
       date: new Date().toISOString().slice(0, 10),
       time: '09:00',
       durationMin: 30,
@@ -205,6 +260,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
   return (
     <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && handleClose()}>
       <div className={styles.modal}>
+        
         {/* ─── ABAS & BOTÃO FECHAR ─── */}
         <div className={styles.headerRow}>
           <div className={styles.tabs}>
@@ -234,6 +290,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
+          
           {/* ─── DENTISTA & CADEIRA ─── */}
           <div className={styles.row2}>
             <div className={styles.field}>
@@ -242,6 +299,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
                 className={styles.select}
                 value={form.dentistId}
                 onChange={(e) => set('dentistId', e.target.value)}
+                required
               >
                 <option value="">Selecione...</option>
                 {dentists.map((d) => (
@@ -264,57 +322,80 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
             </div>
           </div>
 
-          {/* ─── PACIENTE ─── */}
+          {/* ─── PROCEDIMENTO (OPCIONAL COM AUTO-FILL) ─── */}
           <div className={styles.field}>
-            <label className={styles.label}>Paciente</label>
-            <div className={styles.patientRow}>
-              <div className={styles.searchWrapper}>
-                <input
-                  className={styles.input}
-                  placeholder="Busque por nome, telefone, CPF ou cadastre um novo paciente..."
-                  value={selectedPatient ? selectedPatient.name : patientSearch}
-                  onChange={(e) => {
-                    setPatientSearch(e.target.value)
-                    set('patientId', '')
-                  }}
-                />
-                
-                {/* Dropdown de Autocomplete de Pacientes */}
-                {patients.length > 0 && !form.patientId && patientSearch && (
-                  <div className={styles.dropdown}>
-                    {patients.map((p) => (
-                      <div
-                        key={p.id}
-                        className={styles.dropdownItem}
-                        onClick={() => {
-                          set('patientId', p.id)
-                          setPatientSearch(p.name)
-                        }}
-                      >
-                        <div className={styles.dropdownAvatar}>
-                          {p.name.split(' ').slice(0, 2).map((n) => n[0]).join('')}
-                        </div>
-                        <div>
-                          <div className={styles.dropdownName}>{p.name}</div>
-                          <div className={styles.dropdownSub}>{p.phone}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <button type="button" className={styles.btnRegister}>
-                <span>+</span> Cadastrar
-              </button>
-            </div>
-
-            {selectedPatient && (
-              <div className={styles.selectedPatientTag}>
-                ✓ {selectedPatient.name} — {selectedPatient.phone}
-              </div>
-            )}
+            <label className={styles.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Procedimento (Ficha Técnica & Tempo Automático)</span>
+              <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: 600 }}>Opcional</span>
+            </label>
+            <select
+              className={styles.select}
+              value={form.procedureId}
+              onChange={(e) => handleProcedureChange(e.target.value)}
+              style={{ borderColor: form.procedureId ? '#0284c7' : undefined }}
+            >
+              <option value="">Nenhum (definir duração e insumos manualmente)</option>
+              {procedures.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} {p.code ? `(${p.code})` : ''} {p.durationMin ? `— ${p.durationMin} min` : ''}
+                </option>
+              ))}
+            </select>
           </div>
+
+          {/* ─── PACIENTE (APENAS NA ABA CONSULTA) ─── */}
+          {tab === 'CONSULTA' && (
+            <div className={styles.field}>
+              <label className={styles.label}>Paciente</label>
+              <div className={styles.patientRow}>
+                <div className={styles.searchWrapper}>
+                  <input
+                    className={styles.input}
+                    placeholder="Busque por nome, telefone, CPF ou cadastre um novo paciente..."
+                    value={selectedPatient ? selectedPatient.name : patientSearch}
+                    onChange={(e) => {
+                      setPatientSearch(e.target.value)
+                      set('patientId', '')
+                    }}
+                  />
+                  
+                  {/* Dropdown de Autocomplete de Pacientes */}
+                  {patients.length > 0 && !form.patientId && patientSearch && (
+                    <div className={styles.dropdown}>
+                      {patients.map((p) => (
+                        <div
+                          key={p.id}
+                          className={styles.dropdownItem}
+                          onClick={() => {
+                            set('patientId', p.id)
+                            setPatientSearch(p.name)
+                          }}
+                        >
+                          <div className={styles.dropdownAvatar}>
+                            {p.name.split(' ').slice(0, 2).map((n) => n[0]).join('')}
+                          </div>
+                          <div>
+                            <div className={styles.dropdownName}>{p.name}</div>
+                            <div className={styles.dropdownSub}>{p.phone || 'Sem telefone'}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button type="button" className={styles.btnRegister}>
+                  <span>+</span> Cadastrar
+                </button>
+              </div>
+
+              {selectedPatient && (
+                <div className={styles.selectedPatientTag}>
+                  ✓ {selectedPatient.name} — {selectedPatient.phone || 'Sem telefone'}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ─── DATA, HORÁRIO & DURAÇÃO ─── */}
           <div className={styles.rowGridDate}>
@@ -325,6 +406,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
                 className={styles.input}
                 value={form.date}
                 onChange={(e) => set('date', e.target.value)}
+                required
               />
             </div>
 
@@ -335,6 +417,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
                 className={styles.input}
                 value={form.time}
                 onChange={(e) => set('time', e.target.value)}
+                required
               />
             </div>
 
@@ -345,8 +428,9 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
                 className={styles.input}
                 value={form.durationMin}
                 onChange={(e) => set('durationMin', Number(e.target.value))}
-                step="15"
-                min="15"
+                step="5"
+                min="5"
+                required
               />
             </div>
 
@@ -412,7 +496,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
             </div>
           </div>
 
-          {/* ─── ETIQUETA / PROCEDIMENTO ─── */}
+          {/* ─── ETIQUETA ─── */}
           <div className={styles.field}>
             <label className={styles.label}>Etiqueta</label>
             <div className={styles.tagWrapper}>
@@ -459,7 +543,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
         </form>
       </div>
 
-      {/* ─── MODAL AUXILIAR: BUSCADOR DE HORÁRIOS VAGOS (PASSO DE 15 MIN) ─── */}
+      {/* ─── MODAL AUXILIAR: BUSCADOR DE HORÁRIOS VAGOS ─── */}
       {showSlotPicker && (
         <div className={styles.subModalOverlay}>
           <div className={styles.subModal}>

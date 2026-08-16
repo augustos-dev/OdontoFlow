@@ -19,7 +19,9 @@ import {
   AlignLeft,
   AlignCenter,
   Clock,
-  Save
+  Save,
+  Boxes,
+  Stethoscope
 } from 'lucide-react'
 import api from '../../../lib/api'
 import { Odontogram, OdontogramData } from '../tooth/Odontogram'
@@ -42,6 +44,14 @@ interface LastEvolution {
   description?: string
 }
 
+interface ProcedureOption {
+  id: string
+  name: string
+  code?: string
+  basePrice?: number
+  procedureProducts?: any[]
+}
+
 interface AddEvolutionModalProps {
   patientId: string
   medicalRecordId?: string | null
@@ -49,8 +59,8 @@ interface AddEvolutionModalProps {
   onClose: () => void
   onSuccess?: () => void
   lastEvolution?: LastEvolution | null
-  userPlan?: 'FREE' | 'BASIC' | 'PREMIUM'
-  initialOdontogramState?: OdontogramData // Prop opcional para injetar o estado acumulado
+  userPlan?: 'FREE' | 'BASIC' | 'PREMIUM' | 'ENTERPRISE'
+  initialOdontogramState?: OdontogramData
 }
 
 export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
@@ -60,7 +70,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   onClose,
   onSuccess,
   lastEvolution,
-  userPlan = 'BASIC',
+  userPlan = 'PREMIUM',
   initialOdontogramState,
 }) => {
   const [title, setTitle] = useState('')
@@ -70,6 +80,11 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   const [images, setImages] = useState<File[]>([])
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
   
+  // 🟢 NOVO: Seleção de Procedimentos para Exit Inteligente
+  const [procedures, setProcedures] = useState<ProcedureOption[]>([])
+  const [selectedProcedureId, setSelectedProcedureId] = useState<string>('')
+  const [loadingProcedures, setLoadingProcedures] = useState<boolean>(false)
+
   const [previousEvolutions, setPreviousEvolutions] = useState<EvolutionItem[]>([])
   const [showLastEvo, setShowLastEvo] = useState(true)
   const [isTranscribing, setIsTranscribing] = useState(false)
@@ -79,24 +94,39 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
 
   const editableRef = useRef<HTMLDivElement>(null)
 
-  // Chave do Rascunho por Paciente
   const DRAFT_KEY = `odontoflow_draft_evolution_${patientId}`
+  const isPremiumOrEnterprise = userPlan === 'PREMIUM' || userPlan === 'ENTERPRISE'
 
-  // ── 1. Inicializa / Busca o Odontograma Mais Recente ──
+  // ── 1. Carrega Catálogo de Procedimentos (Apenas se o plano for elegível) ──
+  useEffect(() => {
+    if (!isOpen) return
+
+    setLoadingProcedures(true)
+    api.get('/procedures')
+      .then((res) => {
+        const list = res.data?.data || res.data || []
+        setProcedures(list)
+      })
+      .catch((err) => {
+        console.error('Erro ao carregar catálogo de procedimentos:', err)
+      })
+      .finally(() => {
+        setLoadingProcedures(false)
+      })
+  }, [isOpen])
+
+  // ── 2. Inicializa / Busca o Odontograma Mais Recente ──
   useEffect(() => {
     if (!isOpen || !patientId) return
 
-    // Se o componente pai passou o estado atual, usamos direto
     if (initialOdontogramState && Object.keys(initialOdontogramState).length > 0) {
       setOdontogramSnapshot(JSON.parse(JSON.stringify(initialOdontogramState)))
       return
     }
 
-    // Fallback: Busca a última evolução da API para extrair o odontogramSnapshot recente
     api.get(`/medical-records/${patientId}/evolutions?limit=10`)
       .then((res) => {
         const list = Array.isArray(res.data) ? res.data : res.data?.evolutions || []
-        // Encontra a evolução mais recente que tenha um snapshot
         const evoWithSnapshot = list.find((item: any) => {
           if (!item.odontogramSnapshot) return false
           const parsed = typeof item.odontogramSnapshot === 'string'
@@ -119,7 +149,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
       })
   }, [isOpen, patientId, initialOdontogramState])
 
-  // ── 2. Carrega Rascunho de Texto quando o Modal Abre ──
+  // ── 3. Carrega Rascunho de Texto ──
   useEffect(() => {
     if (isOpen && patientId) {
       const savedDraft = localStorage.getItem(DRAFT_KEY)
@@ -128,6 +158,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
           const parsed = JSON.parse(savedDraft)
           if (parsed.title) setTitle(parsed.title)
           if (parsed.type) setType(parsed.type)
+          if (parsed.selectedProcedureId) setSelectedProcedureId(parsed.selectedProcedureId)
           if (parsed.description) {
             setDescription(parsed.description)
             if (editableRef.current) {
@@ -142,16 +173,16 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
     }
   }, [isOpen, patientId, DRAFT_KEY])
 
-  // ── 3. Salva Rascunho de Texto a cada alteração ──
+  // ── 4. Salva Rascunho de Texto ──
   useEffect(() => {
-    if (isOpen && patientId && (title.trim() || description.trim())) {
-      const draftData = { title, type, description }
+    if (isOpen && patientId && (title.trim() || description.trim() || selectedProcedureId)) {
+      const draftData = { title, type, description, selectedProcedureId }
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData))
       setHasDraft(true)
     }
-  }, [title, type, description, isOpen, patientId, DRAFT_KEY])
+  }, [title, type, description, selectedProcedureId, isOpen, patientId, DRAFT_KEY])
 
-  // ── 4. Busca histórico recente de evoluções para exibir no card inferior ──
+  // ── 5. Busca histórico recente de evoluções ──
   useEffect(() => {
     if (isOpen && patientId) {
       api.get(`/medical-records/${patientId}/evolutions?limit=1`)
@@ -168,10 +199,8 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
 
   if (!isOpen) return null
 
-  const isPremium = userPlan === 'PREMIUM'
-
   const handleAiAction = (actionCallback: () => void) => {
-    if (!isPremium) {
+    if (!isPremiumOrEnterprise) {
       setShowUpgradeModal(true)
       return
     }
@@ -182,6 +211,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
     localStorage.removeItem(DRAFT_KEY)
     setTitle('')
     setType('NOTE')
+    setSelectedProcedureId('')
     setDescription('')
     if (editableRef.current) {
       editableRef.current.innerHTML = ''
@@ -238,6 +268,9 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
         const formData = new FormData()
         formData.append('medicalRecordId', medicalRecordId)
         formData.append('description', fullDescription)
+        if (selectedProcedureId && isPremiumOrEnterprise) {
+          formData.append('procedureId', selectedProcedureId) // 🟢 Envia o ID para baixa de estoque
+        }
         formData.append(
           'odontogramSnapshot',
           JSON.stringify(Object.keys(odontogramSnapshot).length > 0 ? odontogramSnapshot : null)
@@ -248,6 +281,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
         payload = {
           medicalRecordId,
           description: fullDescription,
+          procedureId: (selectedProcedureId && isPremiumOrEnterprise) ? selectedProcedureId : undefined, // 🟢
           odontogramSnapshot: Object.keys(odontogramSnapshot).length > 0 ? odontogramSnapshot : null,
         }
       }
@@ -260,6 +294,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
         setTitle('')
         setDescription('')
         setType('NOTE')
+        setSelectedProcedureId('')
         setImages([])
         setImagePreviews([])
         setOdontogramSnapshot({})
@@ -275,6 +310,9 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
       setLoading(false)
     }
   }
+
+  // Identifica o procedimento selecionado para exibir informações de insumos
+  const currentProcedure = procedures.find((p) => p.id === selectedProcedureId)
 
   return (
     <>
@@ -330,10 +368,12 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
               </div>
             )}
 
-            {/* Inputs de Topo */}
-            <div className="add-evolution-grid">
+            {/* Inputs de Topo com Alinhamento Garantido */}
+            <div className="add-evolution-grid-three">
               <div className="form-group">
-                <label className="form-label">Título do Procedimento</label>
+                <div className="label-with-badge">
+                  <label className="form-label">Título do Procedimento</label>
+                </div>
                 <input
                   type="text"
                   placeholder="Ex: Restauração Resina Dente 16"
@@ -344,7 +384,9 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
               </div>
 
               <div className="form-group">
-                <label className="form-label">Tipo de Registro</label>
+                <div className="label-with-badge">
+                  <label className="form-label">Tipo de Registro</label>
+                </div>
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value)}
@@ -355,7 +397,57 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
                   <option value="ANAMNESIS">Anamnese</option>
                 </select>
               </div>
+
+              <div className="form-group">
+                <div className="label-with-badge">
+                  <label className="form-label">Procedimento para Baixa</label>
+                  {!isPremiumOrEnterprise && (
+                    <span style={{ fontSize: '0.65rem', background: '#fef3c7', color: '#b45309', padding: '1px 6px', borderRadius: '8px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                      <Crown className="w-2.5 h-2.5" /> Premium
+                    </span>
+                  )}
+                </div>
+
+                <div className="premium-select-wrapper">
+                  <select
+                    value={selectedProcedureId}
+                    onChange={(e) => {
+                      if (!isPremiumOrEnterprise) {
+                        setShowUpgradeModal(true)
+                        return
+                      }
+                      setSelectedProcedureId(e.target.value)
+                    }}
+                    className={`form-select ${!isPremiumOrEnterprise ? 'disabled-premium' : ''}`}
+                    disabled={loadingProcedures}
+                  >
+                    <option value="">Nenhum (Sem baixa automática)</option>
+                    {procedures.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.code ? `(${p.code})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {!isPremiumOrEnterprise && (
+                    <div
+                      className="premium-select-overlay"
+                      onClick={() => setShowUpgradeModal(true)}
+                      title="Exclusivo dos planos Premium e Enterprise"
+                    />
+                  )}
+                </div>
+              </div>
             </div>
+
+            {/* Aviso Informativo do Exit Inteligente */}
+            {selectedProcedureId && isPremiumOrEnterprise && currentProcedure && (
+              <div className="auto-exit-badge-info">
+                <Boxes className="w-4 h-4 text-sky-600" />
+                <span>
+                  <strong>Exit Inteligente Ativo:</strong> Salvar esta evolução disparará a baixa automática dos insumos vinculados à ficha técnica de <strong>{currentProcedure.name}</strong>.
+                </span>
+              </div>
+            )}
 
             {/* Editor Rich Text com Barra Superior */}
             <div className="form-group">
@@ -440,21 +532,21 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleAiAction(() => setIsTranscribing(!isTranscribing))}
-                      className={`btn-ia-action ${isTranscribing ? 'is-recording' : ''} ${!isPremium ? 'locked' : ''}`}
+                      className={`btn-ia-action ${isTranscribing ? 'is-recording' : ''} ${!isPremiumOrEnterprise ? 'locked' : ''}`}
                     >
                       <Mic className={`w-3.5 h-3.5 ${isTranscribing ? 'text-red-500' : 'text-slate-500'}`} />
                       <span>{isTranscribing ? 'Ouvindo...' : 'Transcrever com IA'}</span>
-                      {!isPremium && <Crown className="w-3 h-3 text-amber-500 shrink-0" />}
+                      {!isPremiumOrEnterprise && <Crown className="w-3 h-3 text-amber-500 shrink-0" />}
                     </button>
 
                     <button 
                       type="button" 
                       onClick={() => handleAiAction(() => alert('Melhorando texto com IA...'))}
-                      className={`btn-ia-action btn-ia-sparkles ${!isPremium ? 'locked' : ''}`}
+                      className={`btn-ia-action btn-ia-sparkles ${!isPremiumOrEnterprise ? 'locked' : ''}`}
                     >
                       <Sparkles className="w-3.5 h-3.5 text-purple-600" />
                       <span>Melhorar com IA</span>
-                      {!isPremium && <Crown className="w-3 h-3 text-amber-500 shrink-0" />}
+                      {!isPremiumOrEnterprise && <Crown className="w-3 h-3 text-amber-500 shrink-0" />}
                     </button>
                   </div>
                 </div>
@@ -462,16 +554,16 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
             </div>
 
             {/* Banner Condicional por Plano */}
-            {isPremium ? (
+            {isPremiumOrEnterprise ? (
               <div className="ia-trial-banner">
                 <Crown className="w-4 h-4 text-amber-500 shrink-0" />
-                <span>Você possui <strong>recursos de IA ilimitados</strong> no plano Premium!</span>
+                <span>Sua clínica possui a <strong>baixa automática de insumos (Exit Inteligente)</strong> e IA habilitados!</span>
               </div>
             ) : (
               <div className="ia-locked-banner" onClick={() => setShowUpgradeModal(true)}>
                 <Lock className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>
-                  A transcrição por voz e melhoria de texto com IA são exclusivas do <strong>Plano Premium</strong>.{' '}
+                  A baixa automática de estoque e recursos de IA são exclusivos dos <strong>Planos Premium e Enterprise</strong>.{' '}
                   <u className="cursor-pointer font-bold">Faça upgrade aqui</u>.
                 </span>
               </div>
@@ -512,7 +604,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
               </button>
             </div>
 
-            {/* 📋 SEÇÃO: ÚLTIMA EVOLUÇÃO (APENAS O CARD PRINCIPAL) */}
+            {/* 📋 SEÇÃO: ÚLTIMA EVOLUÇÃO */}
             <div className="recent-evolutions-section">
               <h4 className="recent-evolutions-title">Última Evolução</h4>
 
@@ -569,9 +661,9 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
             <div className="upgrade-icon-wrapper">
               <Crown className="w-8 h-8 text-amber-500" />
             </div>
-            <h3 className="upgrade-title">Recurso Exclusivo Premium</h3>
+            <h3 className="upgrade-title">Recurso Exclusivo Premium / Enterprise</h3>
             <p className="upgrade-description">
-              A transcrição automática de consultas por voz e o aprimoramento clínico com Inteligência Artificial estão disponíveis no <strong>Plano Premium</strong>.
+              A baixa automática de insumos no estoque (Exit Inteligente) e o aprimoramento clínico por voz estão disponíveis nos <strong>Planos Premium e Enterprise</strong>.
             </p>
             <div className="upgrade-actions">
               <button 

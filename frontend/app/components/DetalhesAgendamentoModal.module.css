@@ -1,10 +1,8 @@
-/* app/components/DetalhesAgendamentoModal.module.css */
-
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.35);
-  backdrop-filter: blur(3px);
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -16,23 +14,21 @@
   background: #ffffff;
   border-radius: 16px;
   width: 100%;
-  max-width: 390px; /* Tamanho compacto e focado */
+  max-width: 440px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  position: relative;
-  animation: popIn 0.18s ease-out;
+  animation: scaleIn 0.18s ease-out;
 }
 
-@keyframes popIn {
-  from { opacity: 0; transform: scale(0.95) translateY(4px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
 }
 
-/* ─── CABEÇALHO ─── */
-
+/* ─── HEADER ─── */
 .header {
   display: flex;
   align-items: flex-start;
@@ -43,10 +39,10 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: #cbd5e1;
-  color: #334155;
-  font-size: 14px;
+  background: #e0f2fe;
+  color: #0284c7;
   font-weight: 700;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -55,34 +51,29 @@
 
 .headerInfo {
   flex: 1;
-  min-width: 0;
 }
 
-.patientName {
-  font-size: 15px;
+.patientNameClickable {
+  margin: 0;
+  font-size: 16px;
   font-weight: 700;
   color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.patientNameClickable:hover {
+  color: #0284c7;
+  text-decoration: underline;
 }
 
 .phoneRow {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 2px;
   font-size: 12px;
   color: #64748b;
-}
-
-.emailSub {
-  font-size: 11px;
-  color: #94a3b8;
-  margin-top: 1px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin-top: 2px;
 }
 
 .btnWhatsapp {
@@ -93,23 +84,25 @@
   font-weight: 600;
   cursor: pointer;
   padding: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .btnWhatsapp:hover {
   text-decoration: underline;
 }
 
+.emailSub {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
 .closeBtn {
   background: none;
   border: none;
-  font-size: 16px;
   color: #94a3b8;
+  font-size: 16px;
   cursor: pointer;
-  padding: 2px;
-  line-height: 1;
+  padding: 2px 6px;
 }
 
 .closeBtn:hover {
@@ -117,7 +110,6 @@
 }
 
 /* ─── ATALHOS RÁPIDOS ─── */
-
 .quickActions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -127,22 +119,23 @@
 .btnOutline {
   background: #ffffff;
   border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 8px 12px;
   border-radius: 8px;
-  padding: 8px 10px;
   font-size: 12px;
   font-weight: 600;
-  color: #334155;
   cursor: pointer;
   transition: all 0.15s ease;
+  text-align: center;
 }
 
 .btnOutline:hover {
   background: #f8fafc;
-  border-color: #94a3b8;
+  border-color: #0284c7;
+  color: #0284c7;
 }
 
-/* ─── AÇÃO PRINCIPAL EDITAR ─── */
-
+/* ─── AÇÃO PRINCIPAL ─── */
 .primaryActionRow {
   display: flex;
   gap: 8px;
@@ -154,7 +147,7 @@
   color: #ffffff;
   border: none;
   border-radius: 8px;
-  padding: 10px;
+  padding: 10px 14px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -173,92 +166,90 @@
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  width: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  padding: 0 12px;
   font-size: 14px;
+  cursor: pointer;
 }
 
 .btnIconCopy:hover {
-  background: #f8fafc;
+  background: #f1f5f9;
 }
 
 /* ─── DETALHES ─── */
-
 .detailsList {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: #f8fafc;
-  padding: 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  color: #334155;
 }
 
 .detailItem {
   display: flex;
   align-items: center;
+  font-size: 13px;
+  color: #334155;
   gap: 8px;
 }
 
 .icon {
   font-size: 14px;
-  opacity: 0.8;
 }
 
 .iconTime {
-  font-size: 13px;
-  margin-left: 6px;
+  margin-left: 8px;
+  font-size: 14px;
 }
 
-.notesBox {
+.procedureBadgeBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
-  color: #475569;
-  border-top: 1px dashed #e2e8f0;
-  padding-top: 6px;
+  color: #0369a1;
+  background: #e0f2fe;
+  padding: 6px 10px;
+  border-radius: 6px;
   margin-top: 2px;
 }
 
-.cancelReasonBox {
+.notesBox, .cancelReasonBox {
   font-size: 12px;
-  color: #dc2626;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  padding: 6px 8px;
-  border-radius: 6px;
+  color: #475569;
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 6px;
   margin-top: 2px;
 }
 
 .transactionCard {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
-  padding: 8px 10px;
+  padding: 6px 10px;
   border-radius: 6px;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .transactionAmount {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: #16a34a;
 }
 
 .transactionMethod {
-  font-size: 12px;
-  color: #16a34a;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
+  color: #15803d;
 }
 
 /* ─── SELECT DE STATUS ─── */
-
 .statusSection {
   position: relative;
+  width: 100%;
 }
 
 .statusSelectTrigger {
@@ -266,14 +257,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border: 1.5px solid #60a5fa;
-  background: #ffffff;
   padding: 10px 14px;
   border-radius: 8px;
-  cursor: pointer;
+  border: 1.5px solid #0284c7;
+  background: #ffffff;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: #0f172a;
+  cursor: pointer;
 }
 
 .statusLeft {
@@ -283,10 +274,9 @@
 }
 
 .dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  display: inline-block;
 }
 
 .arrow {
@@ -296,16 +286,15 @@
 
 .statusDropdownMenu {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 4px);
   left: 0;
   right: 0;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
-  z-index: 50;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  z-index: 100;
   overflow: hidden;
-  padding: 4px 0;
 }
 
 .statusOption {
@@ -314,87 +303,90 @@
   justify-content: space-between;
   padding: 10px 14px;
   font-size: 13px;
-  cursor: pointer;
+  font-weight: 600;
   color: #334155;
-  transition: background 0.15s ease;
+  cursor: pointer;
 }
 
 .statusOption:hover {
-  background: #f1f5f9;
+  background: #f8fafc;
 }
 
 .selectedOption {
   background: #f0f9ff;
-  font-weight: 600;
   color: #0284c7;
 }
 
 .check {
   color: #0284c7;
   font-weight: 700;
-  font-size: 14px;
 }
 
-/* ─── CAMPO CANCELAMENTO ─── */
-
+/* ─── CANCELAMENTO ─── */
 .cancelReasonField {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .textarea {
+  width: 100%;
   padding: 8px 12px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #fecaca;
   border-radius: 8px;
   font-size: 12px;
   outline: none;
-  font-family: inherit;
-  resize: vertical;
+  background: #fff5f5;
+  box-sizing: border-box;
+}
+
+.cancelActions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .btnConfirmCancel {
   background: #dc2626;
   color: #ffffff;
   border: none;
+  padding: 6px 14px;
   border-radius: 6px;
-  padding: 8px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 
+.btnConfirmCancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── FOOTER ─── */
 .error {
   font-size: 12px;
   color: #dc2626;
   background: #fef2f2;
-  padding: 8px;
+  border: 1px solid #fecaca;
+  padding: 6px 10px;
   border-radius: 6px;
+  margin: 0;
 }
-
-/* ─── FOOTER ─── */
 
 .footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 10px;
-  border-top: 1px solid #f1f5f9;
+  margin-top: 4px;
 }
 
 .deleteBtn {
   background: none;
-  border: 1px solid #fecaca;
+  border: none;
   color: #dc2626;
-  border-radius: 6px;
-  padding: 6px 12px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-}
-
-.deleteBtn:hover {
-  background: #fef2f2;
+  padding: 6px 0;
 }
 
 .confirmDeleteRow {
@@ -402,41 +394,42 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
+  color: #dc2626;
+  font-weight: 600;
 }
 
 .confirmYes {
   background: #dc2626;
-  color: white;
+  color: #ffffff;
   border: none;
-  border-radius: 4px;
   padding: 4px 8px;
+  border-radius: 4px;
   font-size: 11px;
-  font-weight: 600;
   cursor: pointer;
 }
 
 .confirmNo {
-  background: none;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
+  background: #e2e8f0;
+  color: #334155;
+  border: none;
   padding: 4px 8px;
+  border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
 }
 
 .closeFooterBtn {
-  margin-left: auto;
-  background: none;
+  background: #ffffff;
   border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  color: #64748b;
   padding: 6px 16px;
+  border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
-  color: #475569;
   cursor: pointer;
 }
 
 .closeFooterBtn:hover {
-  background: #f8fafc;
+  background: #f1f5f9;
   color: #0f172a;
 }

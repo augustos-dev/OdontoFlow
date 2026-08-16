@@ -1,5 +1,3 @@
-/* app/components/NovoAgendementoModal.module.css */
-
 .overlay {
   position: fixed;
   inset: 0;
@@ -13,13 +11,13 @@
 }
 
 .modal {
-  background: var(--bg-card, #ffffff);
+  background: #ffffff;
   border-radius: 16px;
   width: 100%;
-  max-width: 720px; /* Largura expandida para não espremer */
+  max-width: 680px;
   max-height: 90vh;
   overflow-y: auto;
-  overflow-x: hidden; /* Remove o scrollbar horizontal */
+  overflow-x: hidden;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   animation: fadeIn 0.2s ease-out;
 }
@@ -30,16 +28,15 @@
 }
 
 /* ─── ABAS & CABEÇALHO ─── */
-
 .headerRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 28px;
-  border-bottom: 1px solid var(--border, #e2e8f0);
+  padding: 16px 24px;
+  border-bottom: 1px solid #e2e8f0;
   position: sticky;
   top: 0;
-  background: var(--bg-card, #ffffff);
+  background: #ffffff;
   z-index: 10;
 }
 
@@ -54,7 +51,7 @@
 .tabBtn {
   border: none;
   background: transparent;
-  padding: 8px 18px;
+  padding: 6px 16px;
   font-size: 13px;
   font-weight: 600;
   color: #64748b;
@@ -72,13 +69,11 @@
 .closeBtn {
   background: none;
   border: none;
-  font-size: 20px;
+  font-size: 18px;
   color: #94a3b8;
   padding: 4px 8px;
   border-radius: 6px;
-  line-height: 1;
   cursor: pointer;
-  transition: all 0.15s ease;
 }
 
 .closeBtn:hover {
@@ -87,12 +82,11 @@
 }
 
 /* ─── FORMULÁRIO PRINCIPAL ─── */
-
 .form {
-  padding: 24px 28px 28px;
+  padding: 20px 24px 24px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .field {
@@ -104,22 +98,20 @@
 }
 
 .label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: #475569;
 }
 
 .input, .select, .textarea {
   width: 100%;
-  padding: 10px 14px;
+  padding: 9px 12px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   color: #0f172a;
   background: #ffffff;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-  font-family: inherit;
   box-sizing: border-box;
 }
 
@@ -130,52 +122,43 @@
 
 .textarea {
   resize: vertical;
-  min-height: 80px;
+  min-height: 70px;
 }
 
 .row2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-/* ─── GRID DE DATA / HORÁRIO / DURAÇÃO E BOTÃO DE ENCONTRAR ─── */
-
-.dateSectionHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  gap: 14px;
 }
 
 .rowGridDate {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: 1.2fr 1fr 1fr auto;
+  gap: 10px;
+  align-items: flex-end;
 }
 
 .btnFindSlot {
   background: #f0f9ff;
   border: 1px solid #bae6fd;
   color: #0284c7;
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 9px 12px;
+  border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s ease;
+  height: 38px;
 }
 
 .btnFindSlot:hover {
   background: #e0f2fe;
-  border-color: #7dd3fc;
 }
 
-/* ─── CAMPO PACIENTE + BUSCA ─── */
-
+/* ─── PACIENTE ─── */
 .patientRow {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
 }
 
@@ -188,17 +171,16 @@
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   color: #2563eb;
-  padding: 0 18px;
+  padding: 0 16px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   white-space: nowrap;
-  height: 43px; /* Alinhado com a altura do input */
-  transition: background 0.15s ease;
+  height: 38px;
 }
 
 .btnRegister:hover {
@@ -215,17 +197,16 @@
   border-radius: 8px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   z-index: 100;
-  max-height: 220px;
+  max-height: 200px;
   overflow-y: auto;
 }
 
 .dropdownItem {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 10px;
+  padding: 8px 12px;
   cursor: pointer;
-  transition: background 0.15s ease;
 }
 
 .dropdownItem:hover {
@@ -233,27 +214,26 @@
 }
 
 .dropdownAvatar {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: #e0f2fe;
   color: #0369a1;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
 }
 
 .dropdownName {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: #0f172a;
 }
 
 .dropdownSub {
-  font-size: 11px;
+  font-size: 10px;
   color: #64748b;
 }
 
@@ -261,19 +241,18 @@
   font-size: 12px;
   color: #0369a1;
   background: #e0f2fe;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 6px;
   font-weight: 600;
   margin-top: 4px;
 }
 
-/* ─── RADIOS & RETORNO ─── */
-
+/* ─── RADIOS & ETIQUETAS ─── */
 .radioGroup {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   align-items: center;
-  height: 42px;
+  height: 38px;
 }
 
 .radioGroup label {
@@ -283,10 +262,7 @@
   cursor: pointer;
   font-size: 13px;
   color: #334155;
-  font-weight: 500;
 }
-
-/* ─── ETIQUETAS / PROCEDIMENTOS ─── */
 
 .tagWrapper {
   position: relative;
@@ -299,20 +275,17 @@
   gap: 10px;
   border: 1px solid #cbd5e1;
   background: #ffffff;
-  padding: 10px 14px;
+  padding: 9px 12px;
   border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
   color: #0f172a;
-  text-align: left;
 }
 
 .tagDot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  display: inline-block;
-  flex-shrink: 0;
 }
 
 .tagDropdown {
@@ -325,40 +298,35 @@
   border-radius: 8px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   z-index: 100;
-  overflow: hidden;
 }
 
 .tagOption {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
+  padding: 8px 12px;
   cursor: pointer;
-  font-size: 13px;
-  color: #0f172a;
-  transition: background 0.15s ease;
+  font-size: 12px;
 }
 
 .tagOption:hover {
   background: #f8fafc;
 }
 
-/* ─── AÇÕES & MENSAGEM DE ERRO ─── */
-
 .error {
-  font-size: 13px;
+  font-size: 12px;
   color: #dc2626;
   background: #fef2f2;
   border: 1px solid #fecaca;
-  padding: 10px 14px;
-  border-radius: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
 }
 
 .actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  padding-top: 16px;
+  gap: 10px;
+  padding-top: 14px;
   border-top: 1px solid #f1f5f9;
 }
 
@@ -366,17 +334,11 @@
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 10px 20px;
+  padding: 8px 18px;
   font-size: 13px;
   font-weight: 600;
   color: #475569;
   cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.cancelBtn:hover {
-  border-color: #94a3b8;
-  color: #0f172a;
 }
 
 .submitBtn {
@@ -384,11 +346,10 @@
   color: #ffffff;
   border: none;
   border-radius: 8px;
-  padding: 10px 24px;
+  padding: 8px 22px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s ease;
 }
 
 .submitBtn:hover:not(:disabled) {
@@ -401,7 +362,6 @@
 }
 
 /* ─── SUB-MODAL DE HORÁRIOS DISPONÍVEIS ─── */
-
 .subModalOverlay {
   position: fixed;
   inset: 0;
@@ -417,8 +377,8 @@
   background: #ffffff;
   border-radius: 12px;
   width: 100%;
-  max-width: 520px;
-  padding: 24px;
+  max-width: 480px;
+  padding: 20px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
@@ -426,11 +386,11 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .subHeader h3 {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: #0f172a;
 }
@@ -438,33 +398,32 @@
 .subHeader button {
   background: none;
   border: none;
-  font-size: 18px;
+  font-size: 16px;
   color: #94a3b8;
   cursor: pointer;
 }
 
 .subTitleSection {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #64748b;
-  margin: 14px 0 8px;
+  margin: 12px 0 6px;
 }
 
 .slotsGrid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 6px;
 }
 
 .slotBtn {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  padding: 8px 6px;
+  padding: 6px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 11px;
   color: #334155;
   cursor: pointer;
-  transition: all 0.15s ease;
 }
 
 .slotBtn:hover {
@@ -474,7 +433,7 @@
 }
 
 .subFooter {
-  margin-top: 20px;
+  margin-top: 16px;
   display: flex;
   justify-content: flex-end;
 }

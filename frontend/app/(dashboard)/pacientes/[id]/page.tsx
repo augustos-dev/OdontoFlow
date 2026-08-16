@@ -20,7 +20,8 @@ import {
   Loader2,
   Eye,
   ExternalLink,
-  Save
+  Save,
+  Printer
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './perfil.module.css'
@@ -31,6 +32,8 @@ import { EvolutionsTimeline } from '../../../components/medical-record/Evolution
 import { AddEvolutionModal } from '../../../components/medical-record/AddEvolutionModal'
 import { Odontogram, OdontogramData } from '../../../components/tooth/Odontogram'
 import { PatientFilesTab, PatientFile } from '../../../components/pacienteFile/PatientFilesTab'
+import { PDFDownloadLink } from '@react-pdf/renderer'
+import { MedicalRecordPDF } from '@/app/components/pacienteFile/MedicalRecordPDF'
 
 // Import de Tipos Globais
 import { Patient } from '../../../../types/patient.types'
@@ -91,6 +94,9 @@ export default function PerfilPacientePage() {
   const [patientFiles, setPatientFiles] = useState<PatientFile[]>([])
   const [panoramicFile, setPanoramicFile] = useState<PatientFile | null>(null)
 
+  // Impressao de prontuario 
+  const [isClient, setIsClient] = useState(false)
+
   // Estados de Edição do Prontuário Base / Anamnese
   const [isEditingMR, setIsEditingMR] = useState(false)
   const [savingMR, setSavingMR] = useState(false)
@@ -129,6 +135,10 @@ export default function PerfilPacientePage() {
       setHasDraft(true)
     }
   }, [mrForm, isEditingMR, id, DRAFT_KEY])
+
+  useEffect(() => {
+  setIsClient(true)
+}, [])
 
   // ── 2. Carga Principal de Dados ──
   async function load() {
@@ -357,12 +367,41 @@ export default function PerfilPacientePage() {
   return (
     <div className={styles.page}>
       
-      {/* ─── Header do Perfil ─── */}
+     {/* ─── Header do Perfil ─── */}
       <div className={styles.profileHeader}>
-        <button className={styles.backBtn} onClick={() => router.back()}>
-          <ArrowLeft size={16} />
-          <span>Voltar</span>
-        </button>
+        
+        {/* Barra superior de navegação e exportação */}
+        <div className={styles.profileTopBar}>
+          <button className={styles.backBtn} onClick={() => router.back()}>
+            <ArrowLeft size={16} />
+            <span>Voltar</span>
+          </button>
+
+          <div className={styles.headerRightActions}>
+            {isClient && patient && (
+              <PDFDownloadLink
+                document={
+                  <MedicalRecordPDF 
+                    patient={patient} 
+                    evolutions={patientFiles || []} 
+                    odontogramData={currentOdontogram || {}} 
+                  />
+                }
+                fileName={`Prontuario_${patient.name.replace(/\s+/g, '_')}.pdf`}
+                className={styles.btnPrintRecord}
+              >
+                {({ loading }) => (
+                  <>
+                    <Printer size={15} />
+                    <span>{loading ? 'Gerando...' : 'Exportar Prontuário (PDF)'}</span>
+                  </>
+                )}
+              </PDFDownloadLink>
+            )}
+          </div>
+        </div>
+
+        {/* Informações cadastrais do paciente */}
         <div className={styles.profileInfo}>
           <div className={styles.profileAvatar}>{getInitials(patient.name)}</div>
           <div>
