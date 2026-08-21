@@ -201,7 +201,7 @@ export async function CreateEvolution(
     const createdEvolution = await tx.evolution.create({
       data: {
         tenantId,
-        clinicId,
+        // clinicId,
         medicalRecordId: medicalRecord.id,
         dentistId: responsibleUserId,
         procedureId: data.procedureId || null,
