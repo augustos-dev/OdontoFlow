@@ -1,15 +1,28 @@
 'use client'
 
 import React, { useState, useMemo, useEffect } from 'react'
-import { PdfCanvasThumbnail } from './ThumbnailCanvas'
+import dynamic from 'next/dynamic'
 import './PatientFilesTab.css'
+
+// Importação dinâmica para desativar o SSR e evitar erros com DOMMatrix/Canvas do PDF.js
+const PdfCanvasThumbnail = dynamic(
+  () => import('./ThumbnailCanvas').then((mod) => mod.PdfCanvasThumbnail),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full text-xs text-slate-400">
+        Carregando...
+      </div>
+    ),
+  }
+)
 
 export interface PatientFile {
   id: string
   name: string
   url: string
   size?: string
-  createdAt: string // Deve ser uma string ISO no formato "YYYY-MM-DDTHH:mm:ss.sssZ" ou timestamp
+  createdAt: string
   type?: 'image' | 'pdf' | 'other'
 }
 
@@ -25,16 +38,13 @@ function formatFileName(fileName: string): string {
   const uuidOrHashRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}[-_]?/i
   const longHashRegex = /^[a-f0-9]{20,}[-_]?/i
 
-  let cleaned = fileName.replace(uuidOrHashRegex, '').replace(longHashRegex, '')
+  const cleaned = fileName.replace(uuidOrHashRegex, '').replace(longHashRegex, '')
   if (!cleaned || cleaned.startsWith('.')) return fileName
   return cleaned
 }
 
-/**
-  Valida se o arquivo foi criado há menos de 24 horas
- */
 function isWithin24Hours(createdAtStr?: string): boolean {
-  if (!createdAtStr) return true // Se não houver data, permite por padrão no MVP
+  if (!createdAtStr) return true
   const createdAt = new Date(createdAtStr).getTime()
   if (isNaN(createdAt)) return true
 
@@ -44,7 +54,12 @@ function isWithin24Hours(createdAtStr?: string): boolean {
   return now - createdAt <= twentyFourHoursInMs
 }
 
-export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDeleteFile }: PatientFilesTabProps) {
+export function PatientFilesTab({
+  files = [],
+  patientId,
+  onUploadNewFile,
+  onDeleteFile,
+}: PatientFilesTabProps) {
   const [localFiles, setLocalFiles] = useState<PatientFile[]>(files)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectAll, setSelectAll] = useState(false)
@@ -52,12 +67,10 @@ export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDele
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Sincroniza localFiles quando as props externas mudarem
   useEffect(() => {
     setLocalFiles(files)
   }, [files])
 
-  // Filtra os arquivos locais pelo termo de busca
   const filteredFiles = useMemo(() => {
     if (!Array.isArray(localFiles)) return []
     return localFiles.filter((file) => {
@@ -70,7 +83,6 @@ export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDele
     })
   }, [localFiles, searchTerm])
 
-  // Verifica se TODOS os selecionados estão dentro do limite de 24 horas
   const selectedAreDeletable = useMemo(() => {
     if (selectedFileIds.length === 0) return false
     return selectedFileIds.every((id) => {
@@ -94,21 +106,22 @@ export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDele
     )
   }
 
-  // DELEÇÃO NO BACKEND COM TRAVA DE 24 HORAS
   const handleDeleteSelected = async () => {
     if (selectedFileIds.length === 0) return
 
-    // Trava de segurança no frontend
     if (!selectedAreDeletable) {
-      alert('Atenção: Alguns arquivos selecionados têm mais de 24 horas de envio e não podem mais ser excluídos.')
+      alert('Atenção: Arquivos com mais de 24 horas não podem ser excluídos.')
       return
     }
 
-    if (window.confirm(`Tem certeza que deseja excluir ${selectedFileIds.length} arquivo(s) permanentemente do banco de dados?`)) {
+    if (
+      window.confirm(
+        `Tem certeza que deseja excluir ${selectedFileIds.length} arquivo(s) permanentemente?`
+      )
+    ) {
       setIsDeleting(true)
 
       try {
-        // Chamada de API para o Backend (Next.js App Router API Route)
         const response = await fetch('/api/patients/files/delete', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -119,13 +132,12 @@ export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDele
         })
 
         if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.message || 'Falha ao excluir arquivos do banco.')
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.message || 'Falha ao excluir arquivos.')
         }
 
-        // Remoção otimista do estado visual após resposta do banco
         setLocalFiles((prev) => prev.filter((file) => !selectedFileIds.includes(file.id)))
-        
+
         if (onDeleteFile) {
           onDeleteFile(selectedFileIds)
         }
@@ -134,7 +146,7 @@ export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDele
         setSelectAll(false)
       } catch (error: any) {
         console.error('Erro na deleção de arquivos:', error)
-        alert(error.message || 'Erro ao tentar deletar os arquivos. Tente novamente.')
+        alert(error.message || 'Erro ao tentar deletar os arquivos.')
       } finally {
         setIsDeleting(false)
       }
@@ -144,6 +156,7 @@ export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDele
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       onUploadNewFile(e.target.files)
+      e.target.value = ''
     }
   }
 
@@ -191,15 +204,16 @@ export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDele
         </div>
       </div>
 
-      {/* Control Bar com Ação de Excluir */}
+      {/* Control Bar com Seleção e Exclusão */}
       <div className="files-control-bar">
         <div className="control-bar-left">
           <label className="checkbox-label">
             <input
               type="checkbox"
-              checked={selectAll}
+              checked={selectAll && filteredFiles.length > 0}
               onChange={handleToggleSelectAll}
               className="checkbox-input"
+              disabled={filteredFiles.length === 0}
             />
             <span>Selecionar todos</span>
           </label>
@@ -211,7 +225,6 @@ export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDele
           )}
         </div>
 
-        {/* Botão de Excluir */}
         {selectedFileIds.length > 0 && (
           <button
             type="button"
@@ -221,7 +234,7 @@ export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDele
             title={
               !selectedAreDeletable
                 ? 'Arquivos com mais de 24 horas não podem ser excluídos'
-                : 'Excluir do banco de dados'
+                : 'Excluir arquivos selecionados'
             }
           >
             <svg viewBox="0 0 24 24" className="btn-delete-icon">
@@ -265,7 +278,7 @@ export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDele
                   />
                 </div>
 
-                {/* Badge de Expiração / Trava se passou de 24h */}
+                {/* Badge de Expiração / Trava 24h */}
                 {!canBeDeleted && (
                   <span
                     className="lock-badge"
@@ -352,7 +365,6 @@ export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDele
           })}
         </div>
       ) : (
-        /* Empty State */
         <div className="files-empty-state">
           <svg viewBox="0 0 24 24">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -363,7 +375,7 @@ export function PatientFilesTab({ files = [], patientId, onUploadNewFile, onDele
         </div>
       )}
 
-      {/* Lightbox Modal para Imagens */}
+      {/* Modal Lightbox */}
       {previewUrl && (
         <div className="lightbox-backdrop" onClick={() => setPreviewUrl(null)}>
           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
