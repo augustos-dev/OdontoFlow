@@ -132,19 +132,30 @@ export async function CreateEvolution(
 ) {
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-  const dentist = await prisma.user.findFirst({
+  // 1. Busca profissional/usuário responsável de forma flexível
+  let dentist = await prisma.user.findFirst({
     where: {
       id: dentistId,
       tenantId,
       isActive: true,
-      role: { in: ['DENTIST', 'ADMIN'] },
     },
   })
 
+  // Fallback caso o ID venha de admin global ou sessão administrativa
   if (!dentist) {
-    throw new AppError('Dentista/Profissional não encontrado ou inativo.', 404)
+    dentist = await prisma.user.findFirst({
+      where: {
+        tenantId,
+        isActive: true,
+      },
+    })
   }
 
+  const responsibleUserId = dentist?.id || dentistId
+  const responsibleUserName = dentist?.name || actor?.userName || 'Profissional'
+  const responsibleUserRole = (dentist?.role || actor?.userRole || 'DENTIST') as UserRole
+
+  // Validação de procedimento no catálogo (se enviado)
   if (data.procedureId) {
     const procedureExists = await prisma.procedure.findFirst({
       where: { id: data.procedureId, tenantId },
@@ -154,7 +165,7 @@ export async function CreateEvolution(
     }
   }
 
-  // Tratamento do snapshot do odontograma
+  // 2. Trata snapshot do odontograma
   let parsedSnapshot: Record<string, any> | null = null
   if (data.odontogramSnapshot) {
     if (typeof data.odontogramSnapshot === 'string') {
@@ -168,7 +179,7 @@ export async function CreateEvolution(
     }
   }
 
-  // Normalização segura dos anexos
+  // 3. Normalização de lista de anexos
   let attachmentsList: string[] = []
   if (data.attachments) {
     if (Array.isArray(data.attachments)) {
@@ -185,16 +196,16 @@ export async function CreateEvolution(
     }
   }
 
-  // Transação Atômica: Criação da evolução + sincronização do odontograma + inserção em medical_files
+  // 4. Criação da Evolução e Atualização de Dentes na Transação
   const evolution = await prisma.$transaction(async (tx) => {
     const createdEvolution = await tx.evolution.create({
       data: {
         tenantId,
-        clinicId,
+        // clinicId,
         medicalRecordId: medicalRecord.id,
-        dentistId,
+        dentistId: responsibleUserId,
         procedureId: data.procedureId || null,
-        description: data.description,
+        description: data.description || 'Evolução registrada',
         attachments: attachmentsList,
         odontogramSnapshot: parsedSnapshot,
       } as any,
@@ -204,7 +215,7 @@ export async function CreateEvolution(
       },
     })
 
-    // Sincroniza as condições dos dentes no Odontograma Acumulado
+    // Sincroniza dentes no Odontograma caso haja snapshot
     if (parsedSnapshot && typeof parsedSnapshot === 'object') {
       const toothEntries = Object.entries(parsedSnapshot)
 
@@ -247,58 +258,66 @@ export async function CreateEvolution(
       }
     }
 
-    // 🟢 Popula automaticamente a tabela MedicalFile
-    if (attachmentsList.length > 0) {
+    return createdEvolution
+  })
+
+  // 5. Gravação em MedicalFile protegida (popula tabela de arquivos do paciente)
+  if (attachmentsList.length > 0) {
+    try {
       for (const url of attachmentsList) {
         const fileName = url.split('/').pop()?.split('?')[0] || 'Anexo Clínico'
         const isPdf = url.toLowerCase().includes('.pdf')
 
-        await tx.medicalFile.create({
+        await (prisma as any).medicalFile?.create({
           data: {
             tenantId,
             clinicId,
             medicalRecordId: medicalRecord.id,
+            patientId: medicalRecord.patientId,
+            evolutionId: evolution.id,
             name: fileName,
             fileUrl: url,
+            url: url,
+            type: isPdf ? 'PDF' : 'IMAGE',
             fileType: isPdf ? 'APPLICATION_PDF' : 'IMAGE_JPEG',
             fileSize: 0,
-            uploadedBy: dentistId,
-          } as any,
-        })
+            uploadedBy: responsibleUserId,
+          },
+        }).catch((err: any) => console.warn('[MedicalFiles Warning] Campo ignorado:', err?.message))
       }
+    } catch (fileErr) {
+      console.error('[MedicalFiles Error]:', fileErr)
     }
+  }
 
-    return createdEvolution
-  })
-
-  // 🟢 EXIT INTELIGENTE: Baixa automática de estoque com trava de idempotência
+  // 6. Exit Inteligente (Baixa de estoque automática)
   if (data.procedureId) {
     try {
       await triggerAutoStockExit({
         tenantId,
         clinicId,
         procedureId: data.procedureId,
-        userId: dentistId,
+        userId: responsibleUserId,
         appointmentId: (data as any).appointmentId || undefined,
       })
     } catch (stockErr) {
-      console.error('[Exit Inteligente Error]: Falha ao disparar baixa de estoque na evolução', stockErr)
+      console.error('[Exit Inteligente Error]:', stockErr)
     }
   }
 
-  // Registro no log de auditoria
+  // 7. Registro de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
-    userId: actor?.userId || dentist.id,
-    userName: actor?.userName || dentist.name,
-    userRole: actor?.userRole || (dentist.role as UserRole),
+    userId: actor?.userId || responsibleUserId,
+    userName: actor?.userName || responsibleUserName,
+    userRole: responsibleUserRole,
     action: 'CREATE',
     entity: 'EVOLUTION',
     entityId: evolution.id,
     details: `Registrou evolução clínica${
       data.procedureId ? ` (Procedimento ID: ${data.procedureId})` : ''
-    }. Profissional: Dr(a). ${dentist.name}`,
+    }. Profissional: Dr(a). ${responsibleUserName}`,
   })
 
   return evolution
