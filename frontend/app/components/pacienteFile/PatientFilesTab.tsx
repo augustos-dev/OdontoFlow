@@ -1,8 +1,21 @@
 'use client'
 
 import React, { useState, useMemo, useEffect } from 'react'
-import { PdfCanvasThumbnail } from './ThumbnailCanvas'
+import dynamic from 'next/dynamic'
 import './PatientFilesTab.css'
+
+// Importação dinâmica para desativar o SSR e evitar erros com DOMMatrix/Canvas do PDF.js
+const PdfCanvasThumbnail = dynamic(
+  () => import('./ThumbnailCanvas').then((mod) => mod.PdfCanvasThumbnail),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full text-xs text-slate-400">
+        Carregando...
+      </div>
+    ),
+  }
+)
 
 export interface PatientFile {
   id: string
