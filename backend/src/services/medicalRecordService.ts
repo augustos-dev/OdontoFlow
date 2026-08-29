@@ -130,6 +130,9 @@ export async function CreateEvolution(
   data: CreateEvolutionDTO,
   actor?: ActorContext
 ) {
+  // 🛡️ Garante que data nunca seja undefined
+  data = data || {} as CreateEvolutionDTO
+
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
   // 1. Busca profissional/usuário responsável de forma flexível
@@ -179,7 +182,7 @@ export async function CreateEvolution(
     }
   }
 
-  // 3. Normalização de lista de anexos
+  // 3. Normalização de lista de anexos (protegido contra undefined)
   let attachmentsList: string[] = []
   if (data.attachments) {
     if (Array.isArray(data.attachments)) {
@@ -205,7 +208,7 @@ export async function CreateEvolution(
         medicalRecordId: medicalRecord.id,
         dentistId: responsibleUserId,
         procedureId: data.procedureId || null,
-        description: data.description || 'Evolução registrada',
+        description: data.description || 'Upload de arquivo rápido via Aba Arquivos',
         attachments: attachmentsList,
         odontogramSnapshot: parsedSnapshot,
       } as any,
