@@ -137,8 +137,8 @@ export default function PerfilPacientePage() {
   }, [mrForm, isEditingMR, id, DRAFT_KEY])
 
   useEffect(() => {
-  setIsClient(true)
-}, [])
+    setIsClient(true)
+  }, [])
 
   // ── 2. Carga Principal de Dados ──
   async function load() {
@@ -179,7 +179,7 @@ export default function PerfilPacientePage() {
             setCurrentOdontogram(parsedSnapshot)
           }
 
-          // Extração dos Anexos
+          // Extração dos Anexos e Identificação Restrita da Panorâmica/Exames
           const extractedFiles: PatientFile[] = evolutions.flatMap((evo: any) => {
             const rawAttachments = evo.attachments || []
 
@@ -208,6 +208,7 @@ export default function PerfilPacientePage() {
                 size: item.size ? `${(item.size / 1024).toFixed(0)} KB` : undefined,
               }
 
+              // Restrito estritamente a exames de imagem ou laudos específicos
               const isPanoramic = (
                 lowerName.includes('panoram') || 
                 lowerName.includes('raio-x') || 
@@ -224,8 +225,7 @@ export default function PerfilPacientePage() {
             })
           })
 
-          const validFiles = extractedFiles.filter((file) => Boolean(file.url))
-          setPatientFiles(validFiles)
+          setPatientFiles(extractedFiles.filter((file) => Boolean(file.url)))
           setPanoramicFile(foundPanoramic)
         }
       } catch (evoErr) {
@@ -731,7 +731,7 @@ export default function PerfilPacientePage() {
           {/* VISÃO GERAL */}
           {tab === 'visao_geral' && (
             <>
-              {/* Radiografia Panorâmica */}
+              {/* Radiografia Panorâmica (Exibida apenas se houver arquivo correspondente) */}
               {panoramicFile && (
                 <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
