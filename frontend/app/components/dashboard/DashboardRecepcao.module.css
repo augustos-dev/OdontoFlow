@@ -1,0 +1,186 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 16px 20px;
+  border: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metricIconBg {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #ecfeff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.metricLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+}
+
+.metricValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.alertText {
+  color: #dc2626;
+}
+
+.metricSub {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.mainGrid {
+  display: grid;
+  grid-template-columns: 2.2fr 1fr;
+  gap: 16px;
+}
+
+.agendaCard {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #f1f5f9;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.agendaHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.agendaHeader h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.agendaHeader p {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 2px 0 0;
+}
+
+.statusLegend {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.dotConfirmado { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #2563eb; }
+.dotAtend { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #16a34a; }
+.dotFinalizado { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
+
+.roomsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.roomCol {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid #f1f5f9;
+}
+
+.roomCol h4 {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  margin: 0 0 12px;
+}
+
+.roomEmpty {
+  padding: 40px 10px;
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.sidebarCards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cardSide {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #f1f5f9;
+  padding: 16px 20px;
+}
+
+.cardSide h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.sideHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.counterBadge {
+  background: #ecfeff;
+  color: #0891b2;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.emptyText {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 16px;
+}
+
+.loading {
+  padding: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #64748b;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

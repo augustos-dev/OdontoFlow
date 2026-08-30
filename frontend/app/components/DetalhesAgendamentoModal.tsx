@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import styles from './DetalhesAgendamentoModal.module.css'
+import { FinalizarAtendimentoModal } from '@/app/components/financeiro/FinalizarAtendimentoModal'
 
 interface Procedure {
   id: string
@@ -23,7 +24,14 @@ interface Appointment {
   cancellationReason?: string
   procedureId?: string
   procedure?: Procedure
-  patient: { id: string; name: string; phone: string; email?: string }
+  patient: { 
+    id: string
+    name: string
+    phone: string
+    email?: string
+    insuranceProvider?: string | null
+    insuranceNumber?: string | null
+  }
   dentist: { id: string; name: string; cro?: string }
   transaction?: { id: string; amount: string; paymentMethod: string } | null
 }
@@ -45,7 +53,7 @@ const STATUS_LIST = [
   { value: 'CONFIRMADO', label: 'Confirmada', color: '#16a34a' },
   { value: 'AGUARDANDO', label: 'Paciente aguardando', color: '#ea580c' },
   { value: 'EM_ATENDIMENTO', label: 'Paciente em atendimento', color: '#9333ea' },
-  { value: 'FINALIZADO', label: 'Finalizada', color: '#52525b' },
+  { value: 'FINALIZADO', label: 'Finalizada (Cobrança)', color: '#16a34a' },
   { value: 'FALTOU', label: 'Faltou', color: '#dc2626' },
   { value: 'CANCELADO', label: 'Cancelada', color: '#dc2626' },
 ]
@@ -69,6 +77,7 @@ export default function DetalhesAgendamentoModal({
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [cancellationReason, setCancellationReason] = useState('')
   const [pendingStatus, setPendingStatus] = useState<string | null>(null)
+  const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false)
 
   const [loadingStatus, setLoadingStatus] = useState(false)
   const [loadingDelete, setLoadingDelete] = useState(false)
@@ -140,6 +149,12 @@ export default function DetalhesAgendamentoModal({
     setShowStatusDropdown(false)
     setError('')
 
+    // Abre o modal de cobrança/finalização caso escolha FINALIZADO
+    if (targetStatus === 'FINALIZADO') {
+      setIsFinalizarModalOpen(true)
+      return
+    }
+
     if (targetStatus === 'CANCELADO') {
       setPendingStatus(targetStatus)
       return
@@ -186,234 +201,252 @@ export default function DetalhesAgendamentoModal({
     setPendingStatus(null)
     setError('')
     setConfirmDelete(false)
+    setIsFinalizarModalOpen(false)
     onClose()
   }
 
   return (
-    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && handleClose()}>
-      <div className={styles.popoverCard}>
-        
-        {/* ─── HEADER: AVATAR, PACIENTE & WHATSAPP ─── */}
-        <div className={styles.header}>
-          <div className={styles.avatar}>{getInitials(appointment.patient.name)}</div>
-          <div className={styles.headerInfo}>
-            <h3
-              className={styles.patientNameClickable}
-              onClick={handleOpenPatientRecord}
-              title="Clique para ir ao cadastro do paciente"
-            >
-              {appointment.patient.name}
-            </h3>
-            <div className={styles.phoneRow}>
-              <span>{appointment.patient.phone}</span>
-              <button type="button" className={styles.btnWhatsapp} onClick={handleOpenWhatsapp}>
-                💬 Confirmar consulta
-              </button>
+    <>
+      <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && handleClose()}>
+        <div className={styles.popoverCard}>
+          
+          {/* ─── HEADER: AVATAR, PACIENTE & WHATSAPP ─── */}
+          <div className={styles.header}>
+            <div className={styles.avatar}>{getInitials(appointment.patient.name)}</div>
+            <div className={styles.headerInfo}>
+              <h3
+                className={styles.patientNameClickable}
+                onClick={handleOpenPatientRecord}
+                title="Clique para ir ao cadastro do paciente"
+              >
+                {appointment.patient.name}
+              </h3>
+              <div className={styles.phoneRow}>
+                <span>{appointment.patient.phone}</span>
+                <button type="button" className={styles.btnWhatsapp} onClick={handleOpenWhatsapp}>
+                  💬 Confirmar consulta
+                </button>
+              </div>
+              {appointment.patient.email && (
+                <div className={styles.emailSub}>{appointment.patient.email}</div>
+              )}
             </div>
-            {appointment.patient.email && (
-              <div className={styles.emailSub}>{appointment.patient.email}</div>
-            )}
-          </div>
-          <button type="button" className={styles.closeBtn} onClick={handleClose}>✕</button>
-        </div>
-
-        {/* ─── ATALHOS RÁPIDOS FUNCIONAIS ─── */}
-        <div className={styles.quickActions}>
-          <button
-            type="button"
-            className={styles.btnOutline}
-            onClick={handleOpenPatientRecord}
-          >
-            Abrir prontuário
-          </button>
-          <button
-            type="button"
-            className={styles.btnOutline}
-            onClick={handleAddEvolution}
-          >
-            Adicionar evolução
-          </button>
-        </div>
-
-        {/* ─── BOTAO DE AÇÃO PRINCIPAL ─── */}
-        <div className={styles.primaryActionRow}>
-          <button
-            type="button"
-            className={styles.btnEdit}
-            onClick={handleOpenPatientRecord}
-          >
-            ✏️ Editar agendamento
-          </button>
-          <button
-            type="button"
-            className={styles.btnIconCopy}
-            title="Copiar detalhes"
-            onClick={() =>
-              navigator.clipboard.writeText(
-                `${appointment.patient.name} - ${dateFormatted} às ${timeFormatted}`
-              )
-            }
-          >
-            📋
-          </button>
-        </div>
-
-        {/* ─── DETALHES DO AGENDAMENTO ─── */}
-        <div className={styles.detailsList}>
-          <div className={styles.detailItem}>
-            <span className={styles.icon}>👨‍⚕️</span>
-            <span>
-              <strong>{appointment.dentist.name}</strong> • {appointment.room?.replace('_', ' ') ?? '—'}
-            </span>
+            <button type="button" className={styles.closeBtn} onClick={handleClose}>✕</button>
           </div>
 
-          <div className={styles.detailItem}>
-            <span className={styles.icon}>📅</span>
-            <span>{dateFormatted}</span>
-            <span className={styles.iconTime}>🕒</span>
-            <span>{timeFormatted}</span>
-          </div>
-
-          <div className={styles.detailItem}>
-            <span className={styles.icon}>🏷️</span>
-            <span>
-              {appointment.type === 'PARTICULAR' ? 'Particular' : 'Convênio'} ({appointment.durationMin} min)
-            </span>
-          </div>
-
-          {/* Procedimento atrelado com indicação de Ficha Técnica */}
-          {appointment.procedure && (
-            <div className={styles.procedureBadgeBox}>
-              <span className={styles.icon}>🦷</span>
-              <span>
-                <strong>Procedimento:</strong> {appointment.procedure.name}
-              </span>
-            </div>
-          )}
-
-          {appointment.notes && (
-            <div className={styles.notesBox}>
-              <strong>Observações:</strong> {appointment.notes}
-            </div>
-          )}
-
-          {appointment.cancellationReason && (
-            <div className={styles.cancelReasonBox}>
-              <strong>Motivo do Cancelamento:</strong> {appointment.cancellationReason}
-            </div>
-          )}
-
-          {appointment.transaction && (
-            <div className={styles.transactionCard}>
-              <span className={styles.transactionAmount}>
-                {Number(appointment.transaction.amount).toLocaleString('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                })}
-              </span>
-              <span className={styles.transactionMethod}>
-                {PAYMENT_LABEL[appointment.transaction.paymentMethod] ?? appointment.transaction.paymentMethod}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* ─── SELECT DE STATUS COM DROPDOWN FLUTUANTE ─── */}
-        {!isFinished && (
-          <div className={styles.statusSection}>
+          {/* ─── ATALHOS RÁPIDOS FUNCIONAIS ─── */}
+          <div className={styles.quickActions}>
             <button
               type="button"
-              className={styles.statusSelectTrigger}
-              onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-              disabled={loadingStatus}
+              className={styles.btnOutline}
+              onClick={handleOpenPatientRecord}
             >
-              <div className={styles.statusLeft}>
-                <span className={styles.dot} style={{ background: currentStatusObj.color }} />
-                <span>{currentStatusObj.label}</span>
-              </div>
-              <span className={styles.arrow}>{showStatusDropdown ? '▲' : '▼'}</span>
+              Abrir prontuário
             </button>
+            <button
+              type="button"
+              className={styles.btnOutline}
+              onClick={handleAddEvolution}
+            >
+              Adicionar evolução
+            </button>
+          </div>
 
-            {showStatusDropdown && (
-              <div className={styles.statusDropdownMenu}>
-                {STATUS_LIST.map((st) => (
-                  <div
-                    key={st.value}
-                    className={`${styles.statusOption} ${st.value === appointment.status ? styles.selectedOption : ''}`}
-                    onClick={() => handleSelectStatus(st.value)}
-                  >
-                    <div className={styles.statusLeft}>
-                      <span className={styles.dot} style={{ background: st.color }} />
-                      <span>{st.label}</span>
-                    </div>
-                    {st.value === appointment.status && <span className={styles.check}>✓</span>}
-                  </div>
-                ))}
+          {/* ─── BOTÃO DE AÇÃO PRINCIPAL & FINALIZAR ─── */}
+          <div className={styles.primaryActionRow}>
+            {!isFinished && (
+              <button
+                type="button"
+                className={styles.btnFinishAction || styles.btnEdit}
+                style={{ background: '#16a34a', color: '#ffffff', border: 'none' }}
+                onClick={() => setIsFinalizarModalOpen(true)}
+              >
+                💳 Finalizar & Cobrar
+              </button>
+            )}
+            <button
+              type="button"
+              className={styles.btnIconCopy}
+              title="Copiar detalhes"
+              onClick={() =>
+                navigator.clipboard.writeText(
+                  `${appointment.patient.name} - ${dateFormatted} às ${timeFormatted}`
+                )
+              }
+            >
+              📋
+            </button>
+          </div>
+
+          {/* ─── DETALHES DO AGENDAMENTO ─── */}
+          <div className={styles.detailsList}>
+            <div className={styles.detailItem}>
+              <span className={styles.icon}>👨‍⚕️</span>
+              <span>
+                <strong>{appointment.dentist.name}</strong> • {appointment.room?.replace('_', ' ') ?? '—'}
+              </span>
+            </div>
+
+            <div className={styles.detailItem}>
+              <span className={styles.icon}>📅</span>
+              <span>{dateFormatted}</span>
+              <span className={styles.iconTime}>🕒</span>
+              <span>{timeFormatted}</span>
+            </div>
+
+            <div className={styles.detailItem}>
+              <span className={styles.icon}>🏷️</span>
+              <span>
+                {appointment.type === 'PARTICULAR' ? 'Particular' : 'Convênio'} ({appointment.durationMin} min)
+              </span>
+            </div>
+
+            {/* Procedimento atrelado */}
+            {appointment.procedure && (
+              <div className={styles.procedureBadgeBox}>
+                <span className={styles.icon}>🦷</span>
+                <span>
+                  <strong>Procedimento:</strong> {appointment.procedure.name}
+                </span>
+              </div>
+            )}
+
+            {appointment.notes && (
+              <div className={styles.notesBox}>
+                <strong>Observações:</strong> {appointment.notes}
+              </div>
+            )}
+
+            {appointment.cancellationReason && (
+              <div className={styles.cancelReasonBox}>
+                <strong>Motivo do Cancelamento:</strong> {appointment.cancellationReason}
+              </div>
+            )}
+
+            {appointment.transaction && (
+              <div className={styles.transactionCard}>
+                <span className={styles.transactionAmount}>
+                  {Number(appointment.transaction.amount).toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                  })}
+                </span>
+                <span className={styles.transactionMethod}>
+                  {PAYMENT_LABEL[appointment.transaction.paymentMethod] ?? appointment.transaction.paymentMethod}
+                </span>
               </div>
             )}
           </div>
-        )}
 
-        {/* Campo para preencher o motivo caso o usuário selecione CANCELADO */}
-        {pendingStatus === 'CANCELADO' && (
-          <div className={styles.cancelReasonField}>
-            <textarea
-              className={styles.textarea}
-              placeholder="Informe o motivo do cancelamento..."
-              value={cancellationReason}
-              onChange={(e) => setCancellationReason(e.target.value)}
-              rows={2}
-            />
-            <div className={styles.cancelActions}>
+          {/* ─── SELECT DE STATUS COM DROPDOWN FLUTUANTE ─── */}
+          {!isFinished && (
+            <div className={styles.statusSection}>
               <button
                 type="button"
-                className={styles.btnConfirmCancel}
-                disabled={loadingStatus || !cancellationReason.trim()}
-                onClick={() => executeStatusUpdate('CANCELADO', cancellationReason)}
+                className={styles.statusSelectTrigger}
+                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                disabled={loadingStatus}
               >
-                {loadingStatus ? 'Salvando...' : 'Confirmar Cancelamento'}
+                <div className={styles.statusLeft}>
+                  <span className={styles.dot} style={{ background: currentStatusObj.color }} />
+                  <span>{currentStatusObj.label}</span>
+                </div>
+                <span className={styles.arrow}>{showStatusDropdown ? '▲' : '▼'}</span>
               </button>
+
+              {showStatusDropdown && (
+                <div className={styles.statusDropdownMenu}>
+                  {STATUS_LIST.map((st) => (
+                    <div
+                      key={st.value}
+                      className={`${styles.statusOption} ${st.value === appointment.status ? styles.selectedOption : ''}`}
+                      onClick={() => handleSelectStatus(st.value)}
+                    >
+                      <div className={styles.statusLeft}>
+                        <span className={styles.dot} style={{ background: st.color }} />
+                        <span>{st.label}</span>
+                      </div>
+                      {st.value === appointment.status && <span className={styles.check}>✓</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {error && <p className={styles.error}>{error}</p>}
+          {/* Campo para motivo de cancelamento */}
+          {pendingStatus === 'CANCELADO' && (
+            <div className={styles.cancelReasonField}>
+              <textarea
+                className={styles.textarea}
+                placeholder="Informe o motivo do cancelamento..."
+                value={cancellationReason}
+                onChange={(e) => setCancellationReason(e.target.value)}
+                rows={2}
+              />
+              <div className={styles.cancelActions}>
+                <button
+                  type="button"
+                  className={styles.btnConfirmCancel}
+                  disabled={loadingStatus || !cancellationReason.trim()}
+                  onClick={() => executeStatusUpdate('CANCELADO', cancellationReason)}
+                >
+                  {loadingStatus ? 'Salvando...' : 'Confirmar Cancelamento'}
+                </button>
+              </div>
+            </div>
+          )}
 
-        {/* ─── FOOTER (EXCLUSÃO / FECHAR) ─── */}
-        <div className={styles.footer}>
-          {!isFinished && !confirmDelete && (
-            <button type="button" className={styles.deleteBtn} onClick={() => setConfirmDelete(true)}>
-              🗑 Excluir
+          {error && <p className={styles.error}>{error}</p>}
+
+          {/* ─── FOOTER (EXCLUSÃO / FECHAR) ─── */}
+          <div className={styles.footer}>
+            {!isFinished && !confirmDelete && (
+              <button type="button" className={styles.deleteBtn} onClick={() => setConfirmDelete(true)}>
+                🗑 Excluir
+              </button>
+            )}
+
+            {confirmDelete && (
+              <div className={styles.confirmDeleteRow}>
+                <span>Excluir?</span>
+                <button
+                  type="button"
+                  className={styles.confirmYes}
+                  onClick={handleDelete}
+                  disabled={loadingDelete}
+                >
+                  {loadingDelete ? '...' : 'Sim'}
+                </button>
+                <button
+                  type="button"
+                  className={styles.confirmNo}
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  Não
+                </button>
+              </div>
+            )}
+
+            <button type="button" className={styles.closeFooterBtn} onClick={handleClose}>
+              Fechar
             </button>
-          )}
+          </div>
 
-          {confirmDelete && (
-            <div className={styles.confirmDeleteRow}>
-              <span>Excluir?</span>
-              <button
-                type="button"
-                className={styles.confirmYes}
-                onClick={handleDelete}
-                disabled={loadingDelete}
-              >
-                {loadingDelete ? '...' : 'Sim'}
-              </button>
-              <button
-                type="button"
-                className={styles.confirmNo}
-                onClick={() => setConfirmDelete(false)}
-              >
-                Não
-              </button>
-            </div>
-          )}
-
-          <button type="button" className={styles.closeFooterBtn} onClick={handleClose}>
-            Fechar
-          </button>
         </div>
-
       </div>
-    </div>
+
+      {/* ─── MODAL DE PAGAMENTO / CONVÊNIO AO FINALIZAR ─── */}
+      <FinalizarAtendimentoModal
+        isOpen={isFinalizarModalOpen}
+        appointment={appointment as any}
+        onClose={() => setIsFinalizarModalOpen(false)}
+        onSuccess={() => {
+          setIsFinalizarModalOpen(false)
+          onSuccess()
+          handleClose()
+        }}
+      />
+    </>
   )
 }
