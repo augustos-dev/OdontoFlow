@@ -26,11 +26,13 @@ export interface PatientFile {
   type?: 'image' | 'pdf' | 'other'
 }
 
-interface PatientFilesTabProps {
-  files?: PatientFile[]
+export interface PatientFilesTabProps {
+  files: PatientFile[]
+  onUploadNewFile: (files: FileList) => Promise<void>
   patientId?: string
-  onUploadNewFile: (files: FileList) => void
-  onDeleteFile?: (fileIds: string[]) => void
+  onDeleteFile?: (fileId: string) => void
+  panoramicFileId?: string | null
+  onTogglePinPanoramic?: (fileId: string) => void
 }
 
 function formatFileName(fileName: string): string {
@@ -59,6 +61,8 @@ export function PatientFilesTab({
   patientId,
   onUploadNewFile,
   onDeleteFile,
+  panoramicFileId,
+  onTogglePinPanoramic,
 }: PatientFilesTabProps) {
   const [localFiles, setLocalFiles] = useState<PatientFile[]>(files)
   const [searchTerm, setSearchTerm] = useState('')
@@ -139,7 +143,7 @@ export function PatientFilesTab({
         setLocalFiles((prev) => prev.filter((file) => !selectedFileIds.includes(file.id)))
 
         if (onDeleteFile) {
-          onDeleteFile(selectedFileIds)
+          selectedFileIds.forEach((fileId) => onDeleteFile(fileId))
         }
 
         setSelectedFileIds([])
@@ -262,11 +266,12 @@ export function PatientFilesTab({
             const isPdf = checkIsPdf(file)
             const displayName = formatFileName(file.name)
             const canBeDeleted = isWithin24Hours(file.createdAt)
+            const isPinned = panoramicFileId === file.id
 
             return (
               <div
                 key={file.id}
-                className={`file-card ${isSelected ? 'selected' : ''}`}
+                className={`file-card ${isSelected ? 'selected' : ''} ${isPinned ? 'pinned-card' : ''}`}
               >
                 {/* Checkbox Individual */}
                 <div className="card-checkbox-container">
@@ -278,8 +283,15 @@ export function PatientFilesTab({
                   />
                 </div>
 
+                {/* Badge de Fixado na Visão Geral */}
+                {isPinned && (
+                  <span className="pin-badge" title="Exibido na Visão Geral">
+                    📌 Principal
+                  </span>
+                )}
+
                 {/* Badge de Expiração / Trava 24h */}
-                {!canBeDeleted && (
+                {!canBeDeleted && !isPinned && (
                   <span
                     className="lock-badge"
                     title="Este arquivo tem mais de 24 horas e não pode ser removido."
@@ -317,6 +329,23 @@ export function PatientFilesTab({
 
                   {/* Overlay de Ações no Hover */}
                   <div className="file-overlay">
+                    {/* Botão de Fixar / Desfixar como Panorâmica Principal */}
+                    {onTogglePinPanoramic && (
+                      <button
+                        type="button"
+                        className={`overlay-btn ${isPinned ? 'pinned' : ''}`}
+                        title={isPinned ? 'Remover da Visão Geral' : 'Definir como Panorâmica Principal'}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onTogglePinPanoramic(file.id)
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                        </svg>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       className="overlay-btn"

@@ -90,9 +90,11 @@ export default function PerfilPacientePage() {
   // Estado do Odontograma Acumulado
   const [currentOdontogram, setCurrentOdontogram] = useState<OdontogramData | null>(null)
 
-  // Arquivos e Raio-X Panorâmico
+  // Arquivos e Raio-X Panorâmico Manual (Salvo por paciente no localStorage)
   const [patientFiles, setPatientFiles] = useState<PatientFile[]>([])
-  const [panoramicFile, setPanoramicFile] = useState<PatientFile | null>(null)
+  const [panoramicFileId, setPanoramicFileId] = useState<string | null>(null)
+
+  const PANORAMIC_KEY = `odontoflow_panoramic_${id}`
 
   // Impressao de prontuario 
   const [isClient, setIsClient] = useState(false)
@@ -113,7 +115,16 @@ export default function PerfilPacientePage() {
 
   const DRAFT_KEY = `odontoflow_draft_mr_${id}`
 
-  // ── 1. Rascunho Automático (LocalStorage) ──
+  // ── 1. Rascunho Automático & Panorâmica Fixada ──
+  useEffect(() => {
+    if (id) {
+      const savedPanoramic = localStorage.getItem(PANORAMIC_KEY)
+      if (savedPanoramic) {
+        setPanoramicFileId(savedPanoramic)
+      }
+    }
+  }, [id, PANORAMIC_KEY])
+
   useEffect(() => {
     if (isEditingMR && id) {
       const savedDraft = localStorage.getItem(DRAFT_KEY)
@@ -166,8 +177,6 @@ export default function PerfilPacientePage() {
         const { data: evolutions } = await api.get(`/medical-records/${id}/evolutions`)
 
         if (Array.isArray(evolutions)) {
-          let foundPanoramic: PatientFile | null = null
-
           // 🎯 Busca o snapshot de Odontograma mais recente no histórico de evoluções
           const evolutionsWithSnapshot = evolutions
             .filter((evo: any) => evo.odontogramSnapshot)
@@ -179,7 +188,7 @@ export default function PerfilPacientePage() {
             setCurrentOdontogram(parsedSnapshot)
           }
 
-          // Extração dos Anexos e Identificação Restrita da Panorâmica/Exames
+          // Extração dos Anexos
           const extractedFiles: PatientFile[] = evolutions.flatMap((evo: any) => {
             const rawAttachments = evo.attachments || []
 
@@ -196,10 +205,8 @@ export default function PerfilPacientePage() {
                 : fileUrl.split('/').pop()?.split('?')[0] || `Anexo_${index + 1}`
 
               const isPdf = fileUrl.toLowerCase().includes('.pdf')
-              const lowerName = fileName.toLowerCase()
-              const lowerUrl = fileUrl.toLowerCase()
 
-              const fileObj: PatientFile = {
+              return {
                 id: `${evo.id}-${index}`,
                 name: fileName,
                 url: fileUrl,
@@ -207,26 +214,10 @@ export default function PerfilPacientePage() {
                 type: isPdf ? 'pdf' : 'image',
                 size: item.size ? `${(item.size / 1024).toFixed(0)} KB` : undefined,
               }
-
-              // Restrito estritamente a exames de imagem ou laudos específicos
-              const isPanoramic = (
-                lowerName.includes('panoram') || 
-                lowerName.includes('raio-x') || 
-                lowerName.includes('rx') ||
-                lowerName.includes('laudo') ||
-                lowerUrl.includes('panoram')
-              )
-
-              if (isPanoramic && !foundPanoramic) {
-                foundPanoramic = fileObj
-              }
-
-              return fileObj
             })
           })
 
           setPatientFiles(extractedFiles.filter((file) => Boolean(file.url)))
-          setPanoramicFile(foundPanoramic)
         }
       } catch (evoErr) {
         console.error('Erro ao buscar evoluções do paciente:', evoErr)
@@ -242,6 +233,20 @@ export default function PerfilPacientePage() {
   useEffect(() => {
     if (id) load()
   }, [id])
+
+  // Função para fixar ou desfixar o arquivo panorâmico principal
+  function handleTogglePinPanoramic(fileId: string) {
+    if (panoramicFileId === fileId) {
+      setPanoramicFileId(null)
+      localStorage.removeItem(PANORAMIC_KEY)
+    } else {
+      setPanoramicFileId(fileId)
+      localStorage.setItem(PANORAMIC_KEY, fileId)
+    }
+  }
+
+  // Encontra o arquivo panorâmico selecionado manualmente
+  const panoramicFile = patientFiles.find((f) => f.id === panoramicFileId) || null
 
   function toggleTag(field: keyof typeof mrForm, tag: string) {
     setMrForm((prev) => {
@@ -731,14 +736,14 @@ export default function PerfilPacientePage() {
           {/* VISÃO GERAL */}
           {tab === 'visao_geral' && (
             <>
-              {/* Radiografia Panorâmica (Exibida apenas se houver arquivo correspondente) */}
-              {panoramicFile && (
-                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#0f172a' }}>
-                      <Eye size={18} style={{ color: '#06b6d4' }} />
-                      <span>{panoramicFile.type === 'pdf' ? 'Laudo / Radiografia Panorâmica (PDF)' : 'Radiografia Panorâmica do Paciente'}</span>
-                    </div>
+              {/* Radiografia Panorâmica / Exame Principal Selecionado */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#0f172a' }}>
+                    <Eye size={18} style={{ color: '#06b6d4' }} />
+                    <span>{panoramicFile ? (panoramicFile.type === 'pdf' ? 'Laudo / Exame Principal (PDF)' : 'Radiografia Panorâmica Principal') : 'Radiografia Panorâmica do Paciente'}</span>
+                  </div>
+                  {panoramicFile && (
                     <a 
                       href={panoramicFile.url} 
                       target="_blank" 
@@ -748,8 +753,10 @@ export default function PerfilPacientePage() {
                       <span>Abrir Documento Inteiro</span>
                       <ExternalLink size={12} />
                     </a>
-                  </div>
+                  )}
+                </div>
 
+                {panoramicFile ? (
                   <div style={{ width: '100%', height: '280px', backgroundColor: '#09090b', borderRadius: '8px', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '1px solid #27272a' }}>
                     {panoramicFile.type === 'pdf' ? (
                       <iframe 
@@ -765,8 +772,26 @@ export default function PerfilPacientePage() {
                       />
                     )}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div style={{ 
+                    width: '100%', 
+                    height: '180px', 
+                    backgroundColor: '#f8fafc', 
+                    border: '2px dashed #cbd5e1', 
+                    borderRadius: '8px', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    justifyContent: 'center', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    color: '#64748b'
+                  }}>
+                    <Folder size={28} style={{ color: '#94a3b8' }} />
+                    <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>Nenhuma radiografia definida como principal</span>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Vá até a aba "Arquivos" e clique no botão de fixar no exame desejado.</span>
+                  </div>
+                )}
+              </div>
 
               <div className={styles.card}>
                 <div>
@@ -901,6 +926,8 @@ export default function PerfilPacientePage() {
             <PatientFilesTab
               files={patientFiles}
               onUploadNewFile={handleUploadFiles}
+              panoramicFileId={panoramicFileId}
+              onTogglePinPanoramic={handleTogglePinPanoramic}
             />
           )}
 
