@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { 
   Package, 
   AlertTriangle, 
@@ -9,10 +9,8 @@ import {
   Loader2,
   Plus,
   BarChart3,
-  TrendingDown,
   Building2,
   Search,
-  Phone,
   Mail,
   History,
   X,
@@ -22,7 +20,10 @@ import {
   DollarSign,
   Trash2,
   Save,
-  Info
+  Info,
+  MessageCircle,
+  ExternalLink,
+  ShieldAlert
 } from 'lucide-react'
 import api from '@/lib/api'
 import { StockManagementModal } from '../../components/estoque/StockManagementModal'
@@ -265,10 +266,17 @@ export default function EstoquePage() {
 
   const totalStockValue = products.reduce((acc, p) => acc + (p.costPrice || 0) * p.quantity, 0)
 
-  const topUsedProducts = products
-    .filter((p) => p.usageCount && p.usageCount > 0)
-    .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))
-    .slice(0, 5)
+  // Top 5 Produtos com Maior Saída / Consumo
+  const topUsedProducts = useMemo(() => {
+    return [...products]
+      .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))
+      .slice(0, 5)
+  }, [products])
+
+  const maxUsage = useMemo(() => {
+    const highest = Math.max(...topUsedProducts.map(p => p.usageCount || 0))
+    return highest > 0 ? highest : 10
+  }, [topUsedProducts])
 
   function formatDate(dt?: string) {
     if (!dt) return '—'
@@ -280,12 +288,6 @@ export default function EstoquePage() {
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
 
-  function getStockTextClass(status: string) {
-    if (status === 'CRITICO') return styles.qtyTextCritico
-    if (status === 'BAIXO') return styles.qtyTextBaixo
-    return styles.qtyTextOk
-  }
-
   function getAlertLabel(p: Product) {
     const status = getComputedStatus(p)
     if (status === 'CRITICO' || status === 'BAIXO') {
@@ -294,23 +296,72 @@ export default function EstoquePage() {
     return { label: 'OK', cls: styles.alertOk, isAlert: false }
   }
 
-  function getConversionPreview(product: Product) {
-    const cost = Number(product.costPrice || 0)
-    const pkgCount = Number(product.itemsPerPackage || 1)
-    if (cost <= 0 || pkgCount <= 0) return null
+  function cleanPhone(rawPhone?: string) {
+    if (!rawPhone) return ''
+    return rawPhone.replace(/\D/g, '')
+  }
 
-    if (product.unit === 'CX') {
-      return `R$ ${(cost / pkgCount).toFixed(2)} por unidade individual (${pkgCount} un/cx)`
-    }
-    if (product.unit === 'UN' && pkgCount > 1) {
-      return `R$ ${(cost / pkgCount).toFixed(2)} por grama/ml (${pkgCount} g/ml por seringa)`
-    }
-    return null
+  function buildWhatsAppUrl(sup: Supplier) {
+    const phone = cleanPhone(sup.phone)
+    if (!phone) return null
+    const text = encodeURIComponent(
+      `Olá ${sup.contact ? sup.contact : sup.name}, tudo bem? Sou da Clínica Sorriso Feliz. Gostaria de solicitar um orçamento/reposição para insumos odontológicos.`
+    )
+    const finalPhone = phone.length <= 11 ? `55${phone}` : phone
+    return `https://wa.me/${finalPhone}?text=${text}`
+  }
+
+  function buildMailtoUrl(sup: Supplier) {
+    if (!sup.email) return null
+    const subject = encodeURIComponent('Solicitação de Cotação - Clínica Sorriso Feliz')
+    const body = encodeURIComponent(
+      `Olá ${sup.contact || sup.name},\n\nPrecisamos repor insumos em nosso estoque. Poderiam nos enviar a tabela com valores atualizados e prazos de entrega?\n\nAtenciosamente,\nClínica Sorriso Feliz`
+    )
+    return `mailto:${sup.email}?subject=${subject}&body=${body}`
   }
 
   return (
     <div className={styles.page}>
       
+      {/* ─── BARRA DE AÇÃO RÁPIDA ─── */}
+      <div className={styles.actionBar}>
+        <div className={styles.contextInfo}>
+          <span className={styles.contextBadge}>Ficha Técnica & Insumos</span>
+          <span className={styles.contextText}>Controle de baixas automáticas e rastreamento de fornecedores</span>
+        </div>
+
+        <div className={styles.actionButtons}>
+          <button 
+            type="button" 
+            className={styles.iconBtn} 
+            onClick={() => { loadStockData(); loadSuppliers(); }}
+            title="Sincronizar Estoque"
+          >
+            <RefreshCw size={15} />
+          </button>
+
+          {mainTab === 'products' ? (
+            <button 
+              type="button"
+              className={styles.newBtn} 
+              onClick={() => setIsManagementModalOpen(true)}
+            >
+              <Plus size={15} />
+              <span>Gerenciar Estoque</span>
+            </button>
+          ) : (
+            <button 
+              type="button"
+              className={styles.newBtn} 
+              onClick={() => setIsSupplierModalOpen(true)}
+            >
+              <Plus size={15} />
+              <span>Novo Fornecedor</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* ─── KPIS / CARDS DE MÉTRICAS ─── */}
       <div className={styles.metricsGrid}>
         <div className={styles.metricCard}>
@@ -360,127 +411,127 @@ export default function EstoquePage() {
         </div>
       </div>
 
-      {/* ─── GRÁFICO DE SAÍDAS (OPCIONAL) ─── */}
-      {topUsedProducts.length > 0 && mainTab === 'products' && (
+      {/* ─── ANALYTICS EXECUTIVO (CONSUMO & REPOSIÇÃO) ─── */}
+      <div className={styles.adminAnalyticsGrid}>
+        {/* Gráfico de Barras: Top 5 Saídas */}
         <div className={styles.chartCard}>
           <div className={styles.chartHeader}>
-            <div className={styles.chartTitleRow}>
-              <div className={styles.titleIconBg}>
-                <BarChart3 size={20} color="var(--primary, #0284c7)" />
-              </div>
-              <div>
-                <h3 className={styles.chartTitle}>Materiais Mais Utilizados (Mês Atual)</h3>
-                <p className={styles.chartSub}>Insumos com maior volume de saída nos atendimentos</p>
-              </div>
+            <div className={styles.chartTitleWrapper}>
+              <BarChart3 size={18} color="#06b6d4" />
+              <h4>Top 5 Insumos Mais Utilizados</h4>
             </div>
+            <span className={styles.chartBadge}>Consumo Clínico</span>
           </div>
 
-          <div className={styles.chartBarsContainer}>
-            {topUsedProducts.map((item) => {
-              const maxUsage = topUsedProducts[0].usageCount || 1
-              const percentage = Math.min(100, Math.round(((item.usageCount || 0) / maxUsage) * 100))
-
-              return (
-                <div key={item.id} className={styles.chartBarRow}>
-                  <div className={styles.chartBarInfo}>
-                    <span className={styles.chartBarName}>{item.name}</span>
-                    <span className={styles.chartBarUsage}>
-                      <TrendingDown size={14} className={styles.usageIcon} />
-                      {item.usageCount} {item.unit || 'unidades'} consumidas
-                    </span>
-                  </div>
-                  <div className={styles.barTrack}>
-                    <div 
-                      className={styles.barFill} 
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ─── CARD PRINCIPAL DE ESTOQUE ─── */}
-      <div className={styles.agendaCard}>
-        <div className={styles.agendaHeader}>
-          <div>
-            <h2 className={styles.agendaTitle}>Gestão de Estoque & Insumos</h2>
-            <p className={styles.agendaSub}>Gerencie o consumo, reposição, lote e o custo total de insumos em tempo real</p>
-          </div>
-
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button 
-              type="button" 
-              className={styles.iconBtn} 
-              onClick={() => { loadStockData(); loadSuppliers(); }}
-              title="Recarregar Dados"
-            >
-              <RefreshCw size={16} />
-            </button>
-
-            {mainTab === 'products' ? (
-              <button 
-                type="button"
-                className={styles.newBtn} 
-                onClick={() => setIsManagementModalOpen(true)}
-              >
-                <Plus size={16} />
-                <span>Gerenciar Estoque</span>
-              </button>
+          <div className={styles.chartContent}>
+            {topUsedProducts.length === 0 || (topUsedProducts[0]?.usageCount || 0) === 0 ? (
+              <div className={styles.emptyStateContainer}>
+                <p className={styles.emptyChartTitle}>Nenhuma baixa clínica registrada</p>
+                <p className={styles.emptyChartSub}>O volume de saída cresce conforme os atendimentos são finalizados.</p>
+              </div>
             ) : (
-              <button 
-                type="button"
-                className={styles.newBtn} 
-                onClick={() => setIsSupplierModalOpen(true)}
-              >
-                <Plus size={16} />
-                <span>Novo Fornecedor</span>
-              </button>
+              topUsedProducts.map((item) => {
+                const count = item.usageCount || 0
+                const percent = Math.min(100, Math.round((count / maxUsage) * 100))
+
+                return (
+                  <div key={item.id} className={styles.barItem}>
+                    <div className={styles.barLabelGroup}>
+                      <span className={styles.barName}>{item.name}</span>
+                      <span className={styles.barAmount}>
+                        {count} {item.unit || 'un'} ({percent}%)
+                      </span>
+                    </div>
+                    <div className={styles.barTrack}>
+                      <div className={styles.barFill} style={{ width: `${percent}%`, background: '#06b6d4' }} />
+                    </div>
+                  </div>
+                )
+              })
             )}
           </div>
         </div>
 
+        {/* Card Alerta de Reposição Crítica */}
+        <div className={styles.chartCard}>
+          <div className={styles.chartHeader}>
+            <div className={styles.chartTitleWrapper}>
+              <ShieldAlert size={18} color="#ef4444" />
+              <h4>Urgência de Abastecimento</h4>
+            </div>
+            <span className={styles.chartBadge} style={{ color: '#ef4444', background: '#fee2e2' }}>
+              {lowStock.length} Pendentes
+            </span>
+          </div>
+
+          <div className={styles.chartContent}>
+            {lowStock.length === 0 ? (
+              <div className={styles.emptyStateContainer}>
+                <CheckCircle2 size={24} color="#16a34a" style={{ marginBottom: '6px' }} />
+                <p className={styles.emptyChartTitle}>Todos os estoques estão abastecidos!</p>
+                <p className={styles.emptyChartSub}>Nenhum material abaixo do nível mínimo de segurança.</p>
+              </div>
+            ) : (
+              <div className={styles.criticalList}>
+                {lowStock.slice(0, 4).map((p) => (
+                  <div key={p.id} className={styles.criticalItem}>
+                    <div>
+                      <span className={styles.criticalName}>{p.name}</span>
+                      <span className={styles.criticalSub}>Mínimo: {p.minQuantity} {p.unit}</span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span className={styles.criticalQty}>{p.quantity} {p.unit}</span>
+                      <span className={styles.criticalTag}>Repor</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ─── CARD PRINCIPAL DE ESTOQUE ─── */}
+      <div className={styles.agendaCard}>
         {/* ─── CONTROLES & FILTROS SUPERIORES ─── */}
         <div className={styles.controlsBar}>
           <div className={styles.navTabsGroup}>
             <button 
-              type="button"
+              type="button" 
               className={`${styles.navTab} ${mainTab === 'products' ? styles.navTabActive : ''}`} 
               onClick={() => { setMainTab('products'); setSearchTerm(''); }}
             >
               <Package size={14} style={{ marginRight: '6px' }} />
-              Materiais & Produtos
+              Materiais & Produtos ({products.length})
             </button>
             <button 
-              type="button"
+              type="button" 
               className={`${styles.navTab} ${mainTab === 'suppliers' ? styles.navTabActive : ''}`} 
               onClick={() => { setMainTab('suppliers'); setSearchTerm(''); }}
             >
               <Building2 size={14} style={{ marginRight: '6px' }} />
-              Fornecedores
+              Fornecedores ({suppliers.length})
             </button>
           </div>
 
           {mainTab === 'products' && (
             <div className={styles.filterGroup}>
               <button 
-                type="button"
+                type="button" 
                 className={`${styles.filterBtn} ${productFilterTab === 'all' ? styles.filterBtnActive : ''}`} 
                 onClick={() => setProductFilterTab('all')}
               >
                 Todos ({products.length})
               </button>
               <button 
-                type="button"
+                type="button" 
                 className={`${styles.filterBtn} ${productFilterTab === 'critical' ? styles.filterBtnActive : ''}`} 
                 onClick={() => setProductFilterTab('critical')}
               >
                 Críticos ({lowStock.length})
               </button>
               <button 
-                type="button"
+                type="button" 
                 className={`${styles.filterBtn} ${productFilterTab === 'expiring' ? styles.filterBtnActive : ''}`} 
                 onClick={() => setProductFilterTab('expiring')}
               >
@@ -493,7 +544,7 @@ export default function EstoquePage() {
             <Search size={16} color="#94a3b8" />
             <input 
               type="text" 
-              placeholder={mainTab === 'products' ? 'Buscar por produto, lote...' : 'Buscar por fornecedor, CNPJ...'}
+              placeholder={mainTab === 'products' ? 'Buscar produto, lote...' : 'Buscar fornecedor, CNPJ...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className={styles.searchInput}
@@ -533,7 +584,6 @@ export default function EstoquePage() {
                   ) : (
                     displayed.map((p) => {
                       const alert = getAlertLabel(p)
-                      const computedStatus = getComputedStatus(p)
                       const lotDisplay = p.lotNumber || p.batchNumber
 
                       return (
@@ -555,15 +605,13 @@ export default function EstoquePage() {
                             ) : '—'}
                           </td>
 
-                          {/* 🟢 FORMATADO COMO DINHEIRO REAL */}
-                          <td style={{ fontWeight: 700, color: '#0f172a', fontSize: '13px' }}>
+                          <td className={styles.tableTextMuted}>
                             {formatCurrency(p.costPrice)}
                           </td>
 
-                          {/* 🟢 QUANTIDADE SEM FUNDO (APENAS COR NO TEXTO) */}
                           <td>
-                            <span className={`${styles.qtyTextOnly} ${getStockTextClass(computedStatus)}`}>
-                              {p.quantity} {p.unit || 'UN'}
+                            <span className={styles.qtyTextClean}>
+                              {p.quantity} <span className={styles.unitText}>{p.unit || 'UN'}</span>
                             </span>
                           </td>
 
@@ -603,7 +651,7 @@ export default function EstoquePage() {
           )
         )}
 
-        {/* ─── TABELA DE FORNECEDORES ─── */}
+        {/* ─── TABELA DE FORNECEDORES (COM LINKS DIRETOS) ─── */}
         {mainTab === 'suppliers' && (
           loadingSuppliers ? (
             <div className={styles.loading}>
@@ -619,7 +667,7 @@ export default function EstoquePage() {
                     <th>CNPJ / CPF</th>
                     <th>VENDEDOR / CONTATO</th>
                     <th>CONTATO / WHATSAPP</th>
-                    <th>E-MAIL</th>
+                    <th>E-MAIL COMERCIAL</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -630,36 +678,60 @@ export default function EstoquePage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredSuppliers.map((sup) => (
-                      <tr key={sup.id}>
-                        <td>
-                          <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                            {sup.corporateName || sup.name}
-                          </div>
-                        </td>
-                        <td style={{ color: '#64748b', fontSize: '13px' }}>
-                          {sup.cnpj || 'Não informado'}
-                        </td>
-                        <td style={{ fontSize: '13px', color: '#334155' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <UserCheck size={14} color="#0284c7" />
-                            {sup.contact || '—'}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: '13px', color: '#334155' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <Phone size={14} color="#0284c7" /> 
-                            {sup.phone || '—'}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: '13px', color: '#334155' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <Mail size={14} color="#64748b" /> 
-                            {sup.email || '—'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+                    filteredSuppliers.map((sup) => {
+                      const whatsappUrl = buildWhatsAppUrl(sup)
+                      const mailtoUrl = buildMailtoUrl(sup)
+
+                      return (
+                        <tr key={sup.id}>
+                          <td>
+                            <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                              {sup.corporateName || sup.name}
+                            </div>
+                          </td>
+                          <td style={{ color: '#64748b', fontSize: '13px' }}>
+                            {sup.cnpj || 'Não informado'}
+                          </td>
+                          <td style={{ fontSize: '13px', color: '#334155' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <UserCheck size={14} color="#0891b2" />
+                              {sup.contact || '—'}
+                            </span>
+                          </td>
+                          <td>
+                            {whatsappUrl ? (
+                              <a 
+                                href={whatsappUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className={styles.supplierLink}
+                                title="Enviar mensagem de cotação via WhatsApp"
+                              >
+                                <MessageCircle size={14} color="#16a34a" />
+                                <span>{sup.phone}</span>
+                                <ExternalLink size={11} className={styles.externalIcon} />
+                              </a>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontSize: '13px' }}>{sup.phone || '—'}</span>
+                            )}
+                          </td>
+                          <td>
+                            {mailtoUrl ? (
+                              <a 
+                                href={mailtoUrl} 
+                                className={styles.supplierLink}
+                                title="Enviar e-mail para o fornecedor"
+                              >
+                                <Mail size={14} color="#0284c7" />
+                                <span>{sup.email}</span>
+                              </a>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontSize: '13px' }}>{sup.email || '—'}</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })
                   )}
                 </tbody>
               </table>
@@ -763,9 +835,9 @@ export default function EstoquePage() {
                     onChange={(e) => setEditingProduct({ ...editingProduct, itemsPerPackage: Number(e.target.value) })}
                     style={{ borderColor: '#0284c7', marginTop: '4px' }}
                   />
-                  {getConversionPreview(editingProduct) && (
+                  {editingProduct.costPrice && editingProduct.itemsPerPackage && editingProduct.itemsPerPackage > 0 && (
                     <span style={{ fontSize: '11px', color: '#0369a1', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Info size={12} /> Custo fracionado na Ficha Técnica: <strong>{getConversionPreview(editingProduct)}</strong>
+                      <Info size={12} /> Custo fracionado na Ficha Técnica: <strong>R$ {(Number(editingProduct.costPrice) / Number(editingProduct.itemsPerPackage)).toFixed(2)} por item</strong>
                     </span>
                   )}
                 </div>
