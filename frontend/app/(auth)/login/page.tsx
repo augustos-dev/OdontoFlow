@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './login.module.css'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -62,10 +63,19 @@ export default function LoginPage() {
       <section className={styles.brandSide}>
         <div className={styles.glowOverlay} />
 
+       
         {/* Topo: Brand Minimalista */}
         <div className={styles.brandTop}>
           <div className={styles.logoBadge}>
-            <span className={styles.logoTooth}>🦷</span>
+            <div className={styles.logoTooth}>
+              <Image
+                src="/logo.svg"
+                alt="OdontoFlow Logo"
+                width={32}
+                height={32}
+                priority
+              />
+            </div>
             <div className={styles.logoTitleBlock}>
               <span className={styles.logoTitle}>OdontoFlow</span>
               <span className={styles.logoSubtitle}>PLATAFORMA CLÍNICA 2026</span>
