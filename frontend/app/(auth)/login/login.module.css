@@ -1,126 +1,420 @@
-/* app/(auth)/login/login.module.css */
-
-.container {
+.wrapper {
+  display: flex;
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--sidebar-bg);
-}
-
-.card {
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  padding: 48px;
   width: 100%;
-  max-width: 420px;
-  box-shadow: var(--shadow-lg);
+  background-color: #f8fafc;
+  font-family: inherit;
+  overflow: hidden;
 }
 
-.logo {
+/* ─── LADO ESQUERDO (SHOWCASE SANKHYA STYLE) ─── */
+.brandSide {
+  flex: 1.25;
+  background: radial-gradient(circle at 20% 30%, #0f172a 0%, #080d1a 100%);
+  position: relative;
+  padding: 48px 64px;
   display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.glowOverlay {
+  position: absolute;
+  top: -150px;
+  left: -150px;
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+  pointer-events: none;
+}
+
+.brandTop {
+  z-index: 2;
+}
+
+.logoBadge {
+  display: inline-flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 32px;
 }
 
-.logoIcon {
-  font-size: 28px;
-  background: var(--primary-light);
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-md);
+.logoTooth {
+  font-size: 26px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px 10px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.logoTitleBlock {
+  display: flex;
+  flex-direction: column;
 }
 
 .logoTitle {
   font-size: 20px;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
 }
 
 .logoSubtitle {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.08em;
-  margin-top: 2px;
-}
-
-.title {
-  font-size: 22px;
+  font-size: 9.5px;
   font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 6px;
+  letter-spacing: 0.1em;
+  color: #06b6d4;
 }
 
-.subtitle {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin-bottom: 28px;
+.brandContent {
+  max-width: 580px;
+  z-index: 2;
+  margin: 40px 0;
+}
+
+.awardBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(6, 182, 212, 0.1);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8;
+  letter-spacing: 0.05em;
+  margin-bottom: 24px;
+}
+
+.mainHeading {
+  font-size: 40px;
+  line-height: 1.15;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.03em;
+  margin-bottom: 18px;
+}
+
+.mainHeading span {
+  background: linear-gradient(135deg, #38bdf8 0%, #06b6d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.mainDescription {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #94a3b8;
+  margin-bottom: 32px;
+}
+
+.featuresList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.featureItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 10px 14px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.featureItem:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(6, 182, 212, 0.25);
+}
+
+.checkIcon {
+  color: #10b981;
+  display: flex;
+  align-items: center;
+}
+
+.featureItem p {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #e2e8f0;
+  margin: 0;
+}
+
+.kpiFloatCard {
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 14px 20px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+  max-width: fit-content;
+}
+
+.kpiFloatIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(6, 182, 212, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kpiFloatTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  display: block;
+}
+
+.kpiFloatSub {
+  font-size: 11.5px;
+  color: #94a3b8;
+  margin: 2px 0 0 0;
+}
+
+/* ─── LADO DIREITO (LOGIN CARD FLUTUANTE) ─── */
+.formSide {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 40px 32px;
+  background-color: #ffffff;
+  position: relative;
+}
+
+.loginCard {
+  width: 100%;
+  max-width: 410px;
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.userAvatarContainer {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.userAvatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #ecfeff;
+  border: 2px solid #cffafe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.1);
+}
+
+.cardHeader {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.welcomeTitle {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.welcomeSub {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.errorAlert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  margin-bottom: 18px;
+}
+
+.errorIcon {
+  flex-shrink: 0;
 }
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
-.field {
+.inputGroup {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.label {
-  font-size: 13px;
+.inputGroup label {
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #334155;
 }
 
-.input {
-  padding: 10px 14px;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 14px;
-  color: var(--text-primary);
-  background: var(--bg-card);
-  transition: border-color 0.2s;
+.labelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.forgotLink {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #0891b2;
+  text-decoration: none;
+}
+
+.forgotLink:hover {
+  text-decoration: underline;
+}
+
+.inputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.fieldIcon {
+  position: absolute;
+  left: 12px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.inputField {
+  width: 100%;
+  height: 44px;
+  padding: 0 40px 0 38px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: #0f172a;
   outline: none;
+  transition: all 0.15s ease;
 }
 
-.input:focus {
-  border-color: var(--primary);
+.inputField:focus {
+  background-color: #ffffff;
+  border-color: #06b6d4;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12);
 }
 
-.error {
-  font-size: 13px;
-  color: var(--status-cancelado-text);
-  background: var(--status-cancelado-bg);
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
+.inputField::placeholder {
+  color: #94a3b8;
 }
 
-.button {
-  margin-top: 8px;
-  padding: 12px;
-  background: var(--primary);
-  color: white;
+.togglePasswordBtn {
+  position: absolute;
+  right: 12px;
+  background: none;
   border: none;
-  border-radius: var(--radius-sm);
-  font-size: 15px;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.togglePasswordBtn:hover {
+  color: #475569;
+}
+
+.submitButton {
+  margin-top: 6px;
+  height: 44px;
+  background: #1e293b;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13.5px;
   font-weight: 600;
-  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.button:hover:not(:disabled) {
-  background: var(--primary-hover);
+.submitButton:hover {
+  background: #0f172a;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
 }
 
-.button:disabled {
-  opacity: 0.6;
+.submitButton:disabled {
+  opacity: 0.7;
   cursor: not-allowed;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 24px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.pageFooter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 11px;
+  color: #94a3b8;
+  width: 100%;
+}
+
+.footerDot {
+  color: #cbd5e1;
+}
+
+/* ─── RESPONSIVIDADE (TABLET / MOBILE) ─── */
+@media (max-width: 1024px) {
+  .brandSide {
+    display: none; /* Em telas menores, foca no formulário limpo */
+  }
+
+  .formSide {
+    background: radial-gradient(circle at top, #f8fafc 0%, #ffffff 100%);
+    padding: 32px 20px;
+  }
 }
