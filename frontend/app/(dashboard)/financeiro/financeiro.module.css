@@ -10,9 +10,10 @@
   align-items: center;
   justify-content: space-between;
   background: #ffffff;
-  border: 1px solid #f1f5f9;
+  border: 1px solid #eef2f6;
   border-radius: 12px;
   padding: 12px 20px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
 }
 
 .contextInfo {
@@ -26,8 +27,9 @@
   color: #0891b2;
   font-size: 11px;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 3px 8px;
   border-radius: 6px;
+  letter-spacing: 0.05em;
 }
 
 .contextText {
@@ -45,7 +47,7 @@
   align-items: center;
   gap: 6px;
   background: #06b6d4;
-  color: #fff;
+  color: #ffffff;
   border: none;
   border-radius: 8px;
   padding: 8px 16px;
@@ -60,7 +62,7 @@
   align-items: center;
   gap: 6px;
   background: #ef4444;
-  color: #fff;
+  color: #ffffff;
   border: none;
   border-radius: 8px;
   padding: 8px 16px;
@@ -74,7 +76,7 @@
   opacity: 0.9;
 }
 
-/* ─── 4 KPIs Grid ─── */
+/* ─── KPIs Grid ─── */
 .kpiGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -89,157 +91,129 @@
 
 .kpiCard {
   background: #ffffff;
-  border: 1px solid #f1f5f9;
+  border: 1px solid #eef2f6;
   border-radius: 12px;
   padding: 18px 20px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  gap: 4px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
 }
 
-.kpiIconWrapper {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+.kpiHeader {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   margin-bottom: 4px;
 }
 
 .kpiLabel {
   font-size: 11px;
   font-weight: 700;
-  color: #94a3b8;
+  color: #64748b;
   letter-spacing: 0.05em;
 }
+
+.kpiIconWrapper {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconCyan { background: #ecfeff; color: #0891b2; }
+.iconRed { background: #fee2e2; color: #ef4444; }
+.iconGreen { background: #dcfce7; color: #16a34a; }
+.iconSlate { background: #f8fafc; color: #64748b; }
 
 .kpiValue {
   font-size: 22px;
   font-weight: 700;
+  color: #0f172a;
 }
 
-/* ─── Admin Analytics Grid ─── */
-.adminAnalyticsGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
+.kpiSubGreen { font-size: 11px; font-weight: 600; color: #16a34a; }
+.kpiSubRed { font-size: 11px; font-weight: 600; color: #ef4444; }
+.kpiSubText { font-size: 11px; color: #94a3b8; }
 
-@media (max-width: 900px) {
-  .adminAnalyticsGrid {
-    grid-template-columns: 1fr;
-  }
-}
+.textRed { color: #ef4444; }
+.textGreen { color: #16a34a; }
 
+/* ─── Recharts Card ─── */
 .chartCard {
   background: #ffffff;
-  border: 1px solid #f1f5f9;
+  border: 1px solid #eef2f6;
   border-radius: 12px;
   padding: 20px;
-  min-height: 240px;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
 }
 
-.chartHeader {
+.cardHeader {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
-.chartTitleWrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.chartTitleWrapper h4 {
-  font-size: 14px;
+.cardTitle {
+  font-size: 15px;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
 }
 
-.chartBadge {
-  background: #f1f5f9;
-  color: #64748b;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 6px;
-  text-transform: uppercase;
-}
-
-.chartContent {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 14px;
-}
-
-.emptyStateContainer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 24px 12px;
-}
-
-.emptyChartTitle {
-  font-size: 13px;
-  font-weight: 600;
-  color: #475569;
-  margin: 0;
-}
-
-.emptyChartSub {
+.cardSubtitle {
   font-size: 12px;
   color: #94a3b8;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
-.barItem {
+.unitPill {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.chartContainer {
+  width: 100%;
+  height: 190px;
+}
+
+.customTooltip {
+  background: #0f172a;
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.barLabelGroup {
+.tooltipHeader {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.tooltipRow {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
+  color: #ffffff;
+  font-weight: 500;
 }
 
-.barName {
-  font-weight: 600;
-  color: #334155;
-}
+.dotCyan { width: 6px; height: 6px; border-radius: 50%; background: #06b6d4; }
+.dotRed { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; }
 
-.barAmount {
-  font-weight: 600;
-  color: #64748b;
-}
-
-.barTrack {
-  height: 8px;
-  background: #f1f5f9;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.barFill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-/* ─── Abas & Tabelas ─── */
+/* ─── Abas ─── */
 .tabNav {
   display: flex;
   gap: 12px;
@@ -268,12 +242,13 @@
   border-bottom-color: #06b6d4;
 }
 
+/* ─── Tabela e Filtros ─── */
 .tableCard {
   background: #ffffff;
-  border: 1px solid #f1f5f9;
+  border: 1px solid #eef2f6;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
 }
 
 .tableToolbar {
@@ -282,6 +257,8 @@
   justify-content: space-between;
   padding: 16px 20px;
   border-bottom: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .tableHeading {
@@ -289,6 +266,35 @@
   font-weight: 700;
   color: #0f172a;
   margin: 0;
+}
+
+.toolbarFilters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.selectWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.selectIcon {
+  position: absolute;
+  left: 10px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.supplierSelectFilter {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 12px 6px 28px;
+  font-size: 12px;
+  color: #334155;
+  background: #ffffff;
+  outline: none;
 }
 
 .filterButtonGroup {
@@ -299,9 +305,9 @@
 }
 
 .filterBtn {
-  background: #fff;
+  background: #ffffff;
   border: none;
-  padding: 6px 12px;
+  padding: 6px 14px;
   font-size: 12px;
   color: #64748b;
   cursor: pointer;
@@ -310,8 +316,12 @@
 
 .filterBtnActive {
   background: #06b6d4;
-  color: #fff;
+  color: #ffffff;
   font-weight: 600;
+}
+
+.tableWrapper {
+  overflow-x: auto;
 }
 
 .table {
@@ -340,12 +350,37 @@
 .descCell {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+}
+
+.descGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 5px; /* aumenta um tiquinho o espaçamento */
+  align-items: flex-start; /* garante que o badge não estique */
+}
+
+.supplierBadge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0891b2;
+  background: #ecfeff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.patientBadge {
+  font-size: 11px;
+  color: #64748b;
 }
 
 .iconIn, .iconOut {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -361,6 +396,21 @@
 .valueDesp { font-weight: 700; color: #ef4444; }
 .dateCell { color: #94a3b8; font-size: 12px; }
 
+.btnDeleteRow {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.btnDeleteRow:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
 .statusBadge {
   background: #dcfce7;
   color: #16a34a;
@@ -368,6 +418,13 @@
   font-weight: 700;
   padding: 3px 8px;
   border-radius: 12px;
+}
+
+.emptyTableState {
+  text-align: center;
+  padding: 36px 12px;
+  color: #94a3b8;
+  font-size: 13px;
 }
 
 /* ─── Modal ─── */
@@ -383,7 +440,7 @@
 }
 
 .modalCard {
-  background: #fff;
+  background: #ffffff;
   border-radius: 12px;
   width: 100%;
   max-width: 480px;
@@ -460,7 +517,7 @@
 }
 
 .btnCancel {
-  background: #fff;
+  background: #ffffff;
   border: 1px solid #e2e8f0;
   color: #64748b;
   border-radius: 8px;
@@ -474,7 +531,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #fff;
+  color: #ffffff;
   border: none;
   border-radius: 8px;
   padding: 8px 16px;
@@ -486,14 +543,6 @@
 .btnSaveIncome { background: #16a34a; }
 .btnSaveExpense { background: #ef4444; }
 
-.loadingWrapper {
-  padding: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: #64748b;
-}
 .labelRowWithAction {
   display: flex;
   align-items: center;
@@ -516,6 +565,15 @@
 .btnQuickLink:hover {
   text-decoration: underline;
   color: #06b6d4;
+}
+
+.loadingWrapper {
+  padding: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #64748b;
 }
 
 .spinner {

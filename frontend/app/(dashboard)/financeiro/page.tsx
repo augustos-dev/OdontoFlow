@@ -15,9 +15,20 @@ import {
   BarChart3,
   X,
   Receipt,
-  Truck,
-  Building
+  Building,
+  Filter,
+  Trash2
 } from 'lucide-react'
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend
+} from 'recharts'
 import api from '@/lib/api'
 import styles from './financeiro.module.css'
 
@@ -26,9 +37,12 @@ interface Transaction {
   type: 'RECEITA' | 'DESPESA'
   amount: number
   paymentMethod: string
-  category: string
-  description: string
+  category?: string | null
+  description?: string | null
+  supplierId?: string | null
   paidAt: string
+  supplier?: { id: string; name: string } | null
+  appointment?: { id: string; patient: { name: string } } | null
 }
 
 interface Supplier {
@@ -84,33 +98,24 @@ function getMethodLabel(methodKey: string): string {
   return map[methodKey] || methodKey
 }
 
-function getMethodColor(methodKey: string): string {
-  const map: Record<string, string> = {
-    PIX: '#06b6d4',
-    CREDIT_CARD: '#3b82f6',
-    DEBIT_CARD: '#8b5cf6',
-    CASH: '#10b981',
-    CONVENIO: '#f59e0b',
-    OUTROS: '#94a3b8'
-  }
-  return map[methodKey] || '#06b6d4'
-}
-
 export default function FinanceiroPage() {
   const [user, setUser] = useState<any>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [plans, setPlans] = useState<TreatmentPlan[]>([])
   const [activeTab, setActiveTab] = useState<'caixa' | 'planos'>('caixa')
+  
+  // Filtros
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'RECEITA' | 'DESPESA'>('ALL')
+  const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string>('ALL')
   const [loading, setLoading] = useState(true)
 
-  // Modal Principal (Receita / Despesa)
+  // Modal Principal
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalType, setModalType] = useState<'RECEITA' | 'DESPESA'>('DESPESA')
   const [saving, setSaving] = useState(false)
 
-  // Modal de Cadastro Rápido de Fornecedor
+  // Modal de Fornecedor
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
   const [newSupplierName, setNewSupplierName] = useState('')
   const [newSupplierCnpj, setNewSupplierCnpj] = useState('')
@@ -194,24 +199,15 @@ export default function FinanceiroPage() {
       return
     }
 
-    // Prefixa fornecedor na descrição se for despesa vinculada
-    let finalDescription = description
-    if (modalType === 'DESPESA' && selectedSupplierId) {
-      const sup = suppliers.find(s => s.id === selectedSupplierId)
-      if (sup && !description.includes(sup.name)) {
-        finalDescription = `[${sup.name}] ${description}`
-      }
-    }
-
     setSaving(true)
     try {
       await api.post('/transactions', {
         type: modalType,
         amount: numericAmount,
         category,
-        description: finalDescription,
+        description,
         paymentMethod,
-        supplierId: selectedSupplierId || undefined,
+        supplierId: modalType === 'DESPESA' && selectedSupplierId ? selectedSupplierId : undefined,
         paidAt: new Date().toISOString(),
       })
 
@@ -223,6 +219,20 @@ export default function FinanceiroPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  async function handleDeleteTransaction(id: string) {
+    if (!window.confirm('Deseja realmente remover esta transação?')) return
+    try {
+      await api.delete(`/transactions/${id}`)
+      loadData()
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Falha ao deletar transação.')
+    }
+  }
+
+  function formatCurrency(val: number) {
+    return Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
 
   // Cálculos de KPIs
@@ -249,54 +259,52 @@ export default function FinanceiroPage() {
     }
   }, [transactions])
 
-  // Analytics: Formas de Entrada (Sem duplicidade)
-  const paymentDistribution = useMemo(() => {
-    const counts: Record<string, number> = {}
-    let total = 0
+  // Dados consolidados para o Gráfico de Barras do Recharts (Entradas vs Saídas por dia)
+  const chartTimelineData = useMemo(() => {
+    const daysMap = new Map<string, { date: string; formattedDate: string; receitas: number; despesas: number }>()
+    
+    // Inicializa últimos 7 dias
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      const dateKey = d.toISOString().slice(0, 10)
+      const [, m, day] = dateKey.split('-')
+      daysMap.set(dateKey, { date: dateKey, formattedDate: `${day}/${m}`, receitas: 0, despesas: 0 })
+    }
 
-    transactions.filter(t => t.type === 'RECEITA').forEach(t => {
-      const val = Number(t.amount) || 0
-      const norm = normalizePaymentMethod(t.paymentMethod)
-      counts[norm] = (counts[norm] || 0) + val
-      total += val
+    transactions.forEach(t => {
+      const key = t.paidAt.slice(0, 10)
+      if (daysMap.has(key)) {
+        const entry = daysMap.get(key)!
+        if (t.type === 'RECEITA') {
+          entry.receitas += Number(t.amount) || 0
+        } else {
+          entry.despesas += Number(t.amount) || 0
+        }
+      }
     })
 
-    const activeMethods = Object.entries(counts)
-      .filter(([_, val]) => val > 0)
-      .sort((a, b) => b[1] - a[1])
-
-    return { activeMethods, total }
+    return Array.from(daysMap.values())
   }, [transactions])
 
-  // Analytics: Despesas por Categoria
-  const expensesByCategory = useMemo(() => {
-    const map: Record<string, number> = {}
-    transactions.filter(t => t.type === 'DESPESA').forEach(t => {
-      const val = Number(t.amount) || 0
-      map[t.category] = (map[t.category] || 0) + val
-    })
-
-    return Object.entries(map).sort((a, b) => b[1] - a[1])
-  }, [transactions])
-
+  // Filtragem
   const filteredTransactions = useMemo(() => {
-    if (typeFilter === 'ALL') return transactions
-    return transactions.filter(t => t.type === typeFilter)
-  }, [transactions, typeFilter])
-
-  function formatCurrency(val: number) {
-    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-  }
+    return transactions.filter(t => {
+      const matchType = typeFilter === 'ALL' || t.type === typeFilter
+      const matchSupplier = selectedSupplierFilter === 'ALL' || t.supplierId === selectedSupplierFilter
+      return matchType && matchSupplier
+    })
+  }, [transactions, typeFilter, selectedSupplierFilter])
 
   const isAdmin = user?.role === 'ADMIN'
 
   return (
     <div className={styles.container}>
-      {/* ─── Ações Rápidas do Topo ─── */}
+      {/* ─── Top Bar Executiva ─── */}
       <div className={styles.actionBar}>
         <div className={styles.contextInfo}>
-          <span className={styles.contextBadge}>Operação de Caixa</span>
-          <span className={styles.contextText}>Mapeamento de custos operacionais e fornecedores</span>
+          <span className={styles.contextBadge}>MÓDULO FINANCEIRO</span>
+          <span className={styles.contextText}>Fluxo de caixa, conciliação e despesas com fornecedores</span>
         </div>
 
         <div className={styles.actionButtons}>
@@ -320,118 +328,114 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
-      {/* ─── 4 KPIs Estruturados ─── */}
+      {/* ─── 4 KPIs Executivos ─── */}
       <div className={styles.kpiGrid}>
         <div className={styles.kpiCard}>
-          <div className={styles.kpiIconWrapper} style={{ background: '#ecfeff', color: '#0891b2' }}>
-            <DollarSign size={20} />
+          <div className={styles.kpiHeader}>
+            <span className={styles.kpiLabel}>RECEITA TOTAL</span>
+            <div className={`${styles.kpiIconWrapper} ${styles.iconCyan}`}>
+              <DollarSign size={18} />
+            </div>
           </div>
-          <span className={styles.kpiLabel}>RECEITA TOTAL</span>
-          <h3 className={styles.kpiValue} style={{ color: '#0f172a' }}>{formatCurrency(totalReceitas)}</h3>
+          <h3 className={styles.kpiValue}>{formatCurrency(totalReceitas)}</h3>
+          <span className={styles.kpiSubGreen}>Entradas brutas</span>
         </div>
 
         <div className={styles.kpiCard}>
-          <div className={styles.kpiIconWrapper} style={{ background: '#fee2e2', color: '#ef4444' }}>
-            <TrendingUp size={20} style={{ transform: 'rotate(180deg)' }} />
+          <div className={styles.kpiHeader}>
+            <span className={styles.kpiLabel}>DESPESAS TOTAIS</span>
+            <div className={`${styles.kpiIconWrapper} ${styles.iconRed}`}>
+              <TrendingUp size={18} style={{ transform: 'rotate(180deg)' }} />
+            </div>
           </div>
-          <span className={styles.kpiLabel}>DESPESAS TOTAIS</span>
-          <h3 className={styles.kpiValue} style={{ color: '#ef4444' }}>{formatCurrency(totalDespesas)}</h3>
+          <h3 className={`${styles.kpiValue} ${styles.textRed}`}>{formatCurrency(totalDespesas)}</h3>
+          <span className={styles.kpiSubText}>Custos e compras operacionais</span>
         </div>
 
         <div className={styles.kpiCard}>
-          <div className={styles.kpiIconWrapper} style={{ background: '#dcfce7', color: '#16a34a' }}>
-            <Clock size={20} />
+          <div className={styles.kpiHeader}>
+            <span className={styles.kpiLabel}>LUCRO LÍQUIDO</span>
+            <div className={`${styles.kpiIconWrapper} ${styles.iconGreen}`}>
+              <Clock size={18} />
+            </div>
           </div>
-          <span className={styles.kpiLabel}>LUCRO LÍQUIDO</span>
-          <h3 className={styles.kpiValue} style={{ color: '#16a34a' }}>{formatCurrency(saldoLiquido)}</h3>
+          <h3 className={`${styles.kpiValue} ${saldoLiquido >= 0 ? styles.textGreen : styles.textRed}`}>
+            {formatCurrency(saldoLiquido)}
+          </h3>
+          <span className={saldoLiquido >= 0 ? styles.kpiSubGreen : styles.kpiSubRed}>
+            Resultado consolidado
+          </span>
         </div>
 
         <div className={styles.kpiCard}>
-          <div className={styles.kpiIconWrapper} style={{ background: '#f8fafc', color: '#64748b' }}>
-            <BarChart3 size={20} />
+          <div className={styles.kpiHeader}>
+            <span className={styles.kpiLabel}>TICKET MÉDIO</span>
+            <div className={`${styles.kpiIconWrapper} ${styles.iconSlate}`}>
+              <BarChart3 size={18} />
+            </div>
           </div>
-          <span className={styles.kpiLabel}>TICKET MÉDIO</span>
-          <h3 className={styles.kpiValue} style={{ color: '#0f172a' }}>{formatCurrency(ticketMedio)}</h3>
+          <h3 className={styles.kpiValue}>{formatCurrency(ticketMedio)}</h3>
+          <span className={styles.kpiSubText}>Média por procedimento</span>
         </div>
       </div>
 
-      {/* ─── Painéis Analíticos Exclusivos ADMIN ─── */}
-      {isAdmin && (
-        <div className={styles.adminAnalyticsGrid}>
-          {/* Métodos de Pagamento */}
-          <div className={styles.chartCard}>
-            <div className={styles.chartHeader}>
-              <div className={styles.chartTitleWrapper}>
-                <CreditCard size={18} color="#06b6d4" />
-                <h4>Formas de Entrada de Receita</h4>
-              </div>
-              <span className={styles.chartBadge}>Admin Only</span>
-            </div>
-
-            <div className={styles.chartContent}>
-              {paymentDistribution.activeMethods.length === 0 ? (
-                <div className={styles.emptyStateContainer}>
-                  <p className={styles.emptyChartTitle}>Nenhuma receita registrada</p>
-                  <p className={styles.emptyChartSub}>Receitas aprovadas ou lançadas aparecerão aqui.</p>
-                </div>
-              ) : (
-                paymentDistribution.activeMethods.map(([methodKey, val]) => {
-                  const percent = paymentDistribution.total > 0 ? (val / paymentDistribution.total) * 100 : 0
-                  return (
-                    <div key={methodKey} className={styles.barItem}>
-                      <div className={styles.barLabelGroup}>
-                        <span className={styles.barName}>{getMethodLabel(methodKey)}</span>
-                        <span className={styles.barAmount}>{formatCurrency(val)} ({percent.toFixed(1)}%)</span>
-                      </div>
-                      <div className={styles.barTrack}>
-                        <div 
-                          className={styles.barFill} 
-                          style={{ width: `${percent}%`, background: getMethodColor(methodKey) }} 
-                        />
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
+      {/* ─── Comparativo com Recharts (Receitas vs Despesas) ─── */}
+      <div className={styles.chartCard}>
+        <div className={styles.cardHeader}>
+          <div>
+            <h3 className={styles.cardTitle}>Comparativo de Fluxo: Receitas x Despesas</h3>
+            <p className={styles.cardSubtitle}>Volume diário movimentado nos últimos 7 dias</p>
           </div>
-
-          {/* Composição das Despesas */}
-          <div className={styles.chartCard}>
-            <div className={styles.chartHeader}>
-              <div className={styles.chartTitleWrapper}>
-                <Receipt size={18} color="#ef4444" />
-                <h4>Composição das Despesas</h4>
-              </div>
-              <span className={styles.chartBadge}>Admin Only</span>
-            </div>
-
-            <div className={styles.chartContent}>
-              {expensesByCategory.length === 0 ? (
-                <div className={styles.emptyStateContainer}>
-                  <p className={styles.emptyChartTitle}>Nenhuma despesa operacional lançada</p>
-                  <p className={styles.emptyChartSub}>Vincule despesas com fornecedores no botão "Lançar Despesa".</p>
-                </div>
-              ) : (
-                expensesByCategory.map(([cat, val]) => {
-                  const percent = totalDespesas > 0 ? (val / totalDespesas) * 100 : 0
-                  return (
-                    <div key={cat} className={styles.barItem}>
-                      <div className={styles.barLabelGroup}>
-                        <span className={styles.barName}>{cat}</span>
-                        <span className={styles.barAmount}>{formatCurrency(val)} ({percent.toFixed(1)}%)</span>
-                      </div>
-                      <div className={styles.barTrack}>
-                        <div className={styles.barFill} style={{ width: `${percent}%`, background: '#ef4444' }} />
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </div>
+          <span className={styles.unitPill}>R$ Reais</span>
         </div>
-      )}
+
+        <div className={styles.chartContainer}>
+          <ResponsiveContainer width="100%" height={190}>
+            <BarChart data={chartTimelineData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis 
+                dataKey="formattedDate" 
+                axisLine={{ stroke: '#f1f5f9' }}
+                tickLine={false} 
+                tick={{ fill: '#94a3b8', fontSize: 11 }}
+              />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tickFormatter={(val) => `${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`}
+                width={40}
+              />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className={styles.customTooltip}>
+                        <span className={styles.tooltipHeader}>{payload[0].payload.formattedDate}</span>
+                        <div className={styles.tooltipRow}>
+                          <span className={styles.dotCyan} />
+                          <span>Receita: {formatCurrency(Number(payload[0].value))}</span>
+                        </div>
+                        <div className={styles.tooltipRow}>
+                          <span className={styles.dotRed} />
+                          <span>Despesa: {formatCurrency(Number(payload[1].value))}</span>
+                        </div>
+                      </div>
+                    )
+                  }
+                  return null
+                }}
+              />
+              <Legend 
+                wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+                formatter={(val) => val === 'receitas' ? 'Receitas (Entradas)' : 'Despesas (Saídas)'}
+              />
+              <Bar dataKey="receitas" fill="#06b6d4" radius={[4, 4, 0, 0]} maxBarSize={32} />
+              <Bar dataKey="despesas" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={32} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
 
       {/* ─── Navegação de Abas ─── */}
       <div className={styles.tabNav}>
@@ -454,34 +458,54 @@ export default function FinanceiroPage() {
         </button>
       </div>
 
-      {/* ─── Tabelas de Dados ─── */}
+      {/* ─── Extrato de Caixa & Filtros ─── */}
       {activeTab === 'caixa' ? (
         <div className={styles.tableCard}>
           <div className={styles.tableToolbar}>
             <h3 className={styles.tableHeading}>Extrato de Transações Recentes</h3>
             
-            <div className={styles.filterButtonGroup}>
-              <button 
-                type="button" 
-                className={`${styles.filterBtn} ${typeFilter === 'ALL' ? styles.filterBtnActive : ''}`}
-                onClick={() => setTypeFilter('ALL')}
-              >
-                Todas
-              </button>
-              <button 
-                type="button" 
-                className={`${styles.filterBtn} ${typeFilter === 'RECEITA' ? styles.filterBtnActive : ''}`}
-                onClick={() => setTypeFilter('RECEITA')}
-              >
-                Receitas
-              </button>
-              <button 
-                type="button" 
-                className={`${styles.filterBtn} ${typeFilter === 'DESPESA' ? styles.filterBtnActive : ''}`}
-                onClick={() => setTypeFilter('DESPESA')}
-              >
-                Despesas
-              </button>
+            <div className={styles.toolbarFilters}>
+              {/* Filtro de Fornecedores */}
+              {suppliers.length > 0 && (
+                <div className={styles.selectWrapper}>
+                  <Building size={13} className={styles.selectIcon} />
+                  <select 
+                    value={selectedSupplierFilter} 
+                    onChange={(e) => setSelectedSupplierFilter(e.target.value)}
+                    className={styles.supplierSelectFilter}
+                  >
+                    <option value="ALL">Todos os Fornecedores</option>
+                    {suppliers.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Botões de Filtro: Tipo */}
+              <div className={styles.filterButtonGroup}>
+                <button 
+                  type="button" 
+                  className={`${styles.filterBtn} ${typeFilter === 'ALL' ? styles.filterBtnActive : ''}`}
+                  onClick={() => setTypeFilter('ALL')}
+                >
+                  Todas
+                </button>
+                <button 
+                  type="button" 
+                  className={`${styles.filterBtn} ${typeFilter === 'RECEITA' ? styles.filterBtnActive : ''}`}
+                  onClick={() => setTypeFilter('RECEITA')}
+                >
+                  Receitas
+                </button>
+                <button 
+                  type="button" 
+                  className={`${styles.filterBtn} ${typeFilter === 'DESPESA' ? styles.filterBtnActive : ''}`}
+                  onClick={() => setTypeFilter('DESPESA')}
+                >
+                  Despesas
+                </button>
+              </div>
             </div>
           </div>
 
@@ -491,70 +515,116 @@ export default function FinanceiroPage() {
               <span>Carregando dados financeiros...</span>
             </div>
           ) : (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>DESCRIÇÃO / FORNECEDOR</th>
-                  <th>CATEGORIA</th>
-                  <th>MÉTODO</th>
-                  <th>VALOR</th>
-                  <th>DATA</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTransactions.map(t => {
-                  const isRec = t.type === 'RECEITA'
-                  return (
-                    <tr key={t.id} className={styles.tableRow}>
-                      <td className={styles.descCell}>
-                        <div className={isRec ? styles.iconIn : styles.iconOut}>
-                          {isRec ? <ArrowUpRight size={15} /> : <ArrowDownRight size={15} />}
-                        </div>
-                        <span className={styles.boldText}>{t.description}</span>
-                      </td>
-                      <td>{t.category}</td>
-                      <td>{getMethodLabel(normalizePaymentMethod(t.paymentMethod))}</td>
-                      <td className={isRec ? styles.valueRec : styles.valueDesp}>
-                        {isRec ? `+ ${formatCurrency(Number(t.amount))}` : `- ${formatCurrency(Number(t.amount))}`}
-                      </td>
-                      <td className={styles.dateCell}>
-                        {new Date(t.paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>DESCRIÇÃO / FORNECEDOR</th>
+                    <th>CATEGORIA</th>
+                    <th>MÉTODO</th>
+                    <th>VALOR</th>
+                    <th>DATA</th>
+                    {isAdmin && <th style={{ textAlign: 'center' }}>AÇÃO</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={isAdmin ? 6 : 5} className={styles.emptyTableState}>
+                        Nenhuma movimentação financeira encontrada com os filtros selecionados.
                       </td>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  ) : (
+                    filteredTransactions.map(t => {
+                      const isRec = t.type === 'RECEITA'
+                      return (
+                        <tr key={t.id} className={styles.tableRow}>
+                          <td className={styles.descCell}>
+                            <div className={isRec ? styles.iconIn : styles.iconOut}>
+                              {isRec ? <ArrowUpRight size={15} /> : <ArrowDownRight size={15} />}
+                            </div>
+                            <div className={styles.descGroup}>
+                              <span className={styles.boldText}>{t.description || 'Lançamento sem descrição'}</span>
+                              {t.supplier && (
+                                <span className={styles.supplierBadge}>
+                                  <Building size={11} /> {t.supplier.name}
+                                </span>
+                              )}
+                              {t.appointment?.patient && (
+                                <span className={styles.patientBadge}>
+                                  Paciente: {t.appointment.patient.name}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td>{t.category || 'Geral'}</td>
+                          <td>{getMethodLabel(normalizePaymentMethod(t.paymentMethod))}</td>
+                          <td className={isRec ? styles.valueRec : styles.valueDesp}>
+                            {isRec ? `+ ${formatCurrency(Number(t.amount))}` : `- ${formatCurrency(Number(t.amount))}`}
+                          </td>
+                          <td className={styles.dateCell}>
+                            {new Date(t.paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} • {new Date(t.paidAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                          </td>
+                          {isAdmin && (
+                            <td style={{ textAlign: 'center' }}>
+                              <button 
+                                type="button" 
+                                onClick={() => handleDeleteTransaction(t.id)} 
+                                className={styles.btnDeleteRow}
+                                title="Remover transação"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       ) : (
+        /* Aba de Planos de Tratamento */
         <div className={styles.tableCard}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>PACIENTE</th>
-                <th>TÍTULO DO PLANO</th>
-                <th>STATUS</th>
-                <th>VALOR TOTAL</th>
-                <th style={{ textAlign: 'right' }}>AÇÃO FINANCEIRA</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plans.map(p => (
-                <tr key={p.id} className={styles.tableRow}>
-                  <td className={styles.boldText}>{p.patient?.name}</td>
-                  <td>{p.title}</td>
-                  <td>
-                    <span className={styles.statusBadge}>{p.status}</span>
-                  </td>
-                  <td className={styles.boldText}>{formatCurrency(Number(p.totalAmount))}</td>
-                  <td style={{ textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>
-                    Integrado ao Caixa
-                  </td>
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>PACIENTE</th>
+                  <th>TÍTULO DO PLANO</th>
+                  <th>STATUS</th>
+                  <th>VALOR TOTAL</th>
+                  <th style={{ textAlign: 'right' }}>INTEGRAÇÃO</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {plans.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className={styles.emptyTableState}>
+                      Nenhum plano de tratamento cadastrado.
+                    </td>
+                  </tr>
+                ) : (
+                  plans.map(p => (
+                    <tr key={p.id} className={styles.tableRow}>
+                      <td className={styles.boldText}>{p.patient?.name}</td>
+                      <td>{p.title}</td>
+                      <td>
+                        <span className={styles.statusBadge}>{p.status}</span>
+                      </td>
+                      <td className={styles.boldText}>{formatCurrency(Number(p.totalAmount))}</td>
+                      <td style={{ textAlign: 'right', color: '#16a34a', fontWeight: 600 }}>
+                        Integrado ao Caixa
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -577,11 +647,11 @@ export default function FinanceiroPage() {
             </div>
 
             <form onSubmit={handleSaveTransaction} className={styles.modalForm}>
-              {/* Vínculo de Fornecedor exclusivo para Despesa */}
+              {/* Seleção de Fornecedor exclusivo para Despesa */}
               {modalType === 'DESPESA' && (
                 <div className={styles.formGroup}>
                   <div className={styles.labelRowWithAction}>
-                    <label>Fornecedor / Credor Vinculado</label>
+                    <label>Fornecedor Vinculado</label>
                     <button 
                       type="button" 
                       onClick={() => setIsSupplierModalOpen(true)}
@@ -597,12 +667,12 @@ export default function FinanceiroPage() {
                       setSelectedSupplierId(id)
                       const sup = suppliers.find(s => s.id === id)
                       if (sup && !description) {
-                        setDescription(`Compra/Serviço: ${sup.name}`)
+                        setDescription(`Compra: ${sup.name}`)
                       }
                     }}
                     className={styles.input}
                   >
-                    <option value="">Nenhum (Despesa interna/avulsa)</option>
+                    <option value="">Nenhum (Despesa interna / avulsa)</option>
                     {suppliers.map(s => (
                       <option key={s.id} value={s.id}>{s.name} {s.cnpj ? `(${s.cnpj})` : ''}</option>
                     ))}
@@ -615,7 +685,7 @@ export default function FinanceiroPage() {
                 <input 
                   type="text" 
                   required 
-                  placeholder={modalType === 'RECEITA' ? 'Ex: Pagamento Avulso / Avaliação' : 'Ex: Reposição de Resinas e Brocas'}
+                  placeholder={modalType === 'RECEITA' ? 'Ex: Pagamento Consulta Avulsa' : 'Ex: Compra de Luvas e Anestésicos'}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className={styles.input} 
@@ -627,7 +697,7 @@ export default function FinanceiroPage() {
                   <label>Valor (R$)*</label>
                   <input 
                     type="number" 
-                    step="0.01"
+                    step="0.01" 
                     required 
                     placeholder="0,00"
                     value={amount}
@@ -644,9 +714,10 @@ export default function FinanceiroPage() {
                     className={styles.input}
                   >
                     <option value="PIX">Pix</option>
-                    <option value="CREDIT_CARD">Cartão de Crédito</option>
-                    <option value="DEBIT_CARD">Cartão de Débito</option>
-                    <option value="CASH">Dinheiro</option>
+                    <option value="CREDITO">Cartão de Crédito</option>
+                    <option value="DEBITO">Cartão de Débito</option>
+                    <option value="DINHEIRO">Dinheiro</option>
+                    <option value="CONVENIO">Convênio</option>
                   </select>
                 </div>
               </div>
@@ -689,7 +760,7 @@ export default function FinanceiroPage() {
             <div className={styles.modalHeader}>
               <div className={styles.modalHeaderTitle}>
                 <Building size={18} color="#06b6d4" />
-                <h3>Cadastrar Novo Fornecedor</h3>
+                <h3>Cadastrar Fornecedor</h3>
               </div>
               <button onClick={() => setIsSupplierModalOpen(false)} className={styles.btnClose}>
                 <X size={18} />
@@ -724,7 +795,7 @@ export default function FinanceiroPage() {
                 <label>Contato / Vendedor</label>
                 <input 
                   type="text" 
-                  placeholder="Ex: Carlos Representante"
+                  placeholder="Ex: Carlos (85) 99999-9999"
                   value={newSupplierContact}
                   onChange={(e) => setNewSupplierContact(e.target.value)}
                   className={styles.input} 
@@ -737,7 +808,7 @@ export default function FinanceiroPage() {
                 </button>
                 <button type="submit" className={styles.btnSaveIncome} style={{ background: '#06b6d4' }}>
                   <Plus size={15} />
-                  <span>Cadastrar Fornecedor</span>
+                  <span>Cadastrar</span>
                 </button>
               </div>
             </form>

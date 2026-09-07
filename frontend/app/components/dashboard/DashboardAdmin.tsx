@@ -2,16 +2,28 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { 
-  Users, 
-  Calendar, 
-  DollarSign, 
-  TrendingUp, 
-  Activity, 
+import {
+  Users,
+  Calendar,
+  DollarSign,
+  TrendingUp,
+  Activity,
   Loader2,
   CalendarX2,
-  ArrowRight
+  ArrowRight,
+  PlusCircle,
+  Package, // 👈 Substitua PackageAlert por Package
+  Award
 } from 'lucide-react'
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts'
 import api from '@/lib/api'
 import styles from './dashboardAdmin.module.css'
 
@@ -36,8 +48,8 @@ interface UpcomingAppointment {
   status: string
   type: string
   room: string
-  patient?: { name: string; phone: string }
-  dentist?: { name: string }
+  patient?: { id?: string; name: string; phone: string }
+  dentist?: { id?: string; name: string }
 }
 
 interface TopDentist {
@@ -88,12 +100,10 @@ export function DashboardAdmin() {
     return new Date(dt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   }
 
-  // Normaliza os dados dos últimos 7 dias para o gráfico preencher a tela de ponta a ponta
   const normalizedChartData = useMemo(() => {
     const daysMap = new Map<string, number>()
-    
-    // Inicializa os últimos 7 dias
     const today = new Date()
+
     for (let i = 6; i >= 0; i--) {
       const d = new Date()
       d.setDate(today.getDate() - i)
@@ -101,7 +111,6 @@ export function DashboardAdmin() {
       daysMap.set(dateKey, 0)
     }
 
-    // Preenche com os dados reais retornados da API
     chartData.forEach((item) => {
       const key = item.date.slice(0, 10)
       if (daysMap.has(key)) {
@@ -109,49 +118,16 @@ export function DashboardAdmin() {
       }
     })
 
-    return Array.from(daysMap.entries()).map(([date, receitas]) => ({
-      date,
-      receitas,
-    }))
+    return Array.from(daysMap.entries()).map(([date, receitas]) => {
+      const [, m, d] = date.split('-')
+      return {
+        date,
+        formattedDate: `${d}/${m}`,
+        receitas,
+      }
+    })
   }, [chartData])
 
-  // Geração da curva SVG suavizada
-  const { svgPath, svgArea } = useMemo(() => {
-    if (normalizedChartData.length === 0) return { svgPath: '', svgArea: '' }
-    
-    const max = Math.max(...normalizedChartData.map((d) => d.receitas), 100) * 1.2
-    const width = 500
-    const height = 130
-    const paddingBottom = 15
-
-    const points = normalizedChartData.map((d, i, arr) => {
-      const x = (i / (arr.length - 1 || 1)) * width
-      const y = height - paddingBottom - (d.receitas / max) * (height - paddingBottom - 10)
-      return { x, y }
-    })
-
-    if (points.length === 1) {
-      return {
-        svgPath: `M 0,${points[0].y} L ${width},${points[0].y}`,
-        svgArea: `M 0,${points[0].y} L ${width},${points[0].y} L ${width},${height} L 0,${height} Z`,
-      }
-    }
-
-    // Curva Bezier
-    let path = `M ${points[0].x},${points[0].y}`
-    for (let i = 0; i < points.length - 1; i++) {
-      const current = points[i]
-      const next = points[i + 1]
-      const controlX = (current.x + next.x) / 2
-      path += ` C ${controlX},${current.y} ${controlX},${next.y} ${next.x},${next.y}`
-    }
-
-    const area = `${path} L ${width},${height} L 0,${height} Z`
-
-    return { svgPath: path, svgArea: area }
-  }, [normalizedChartData])
-
-  // Maior quantidade de atendimentos no ranking para cálculo de % da barra
   const maxDentistAppointments = useMemo(() => {
     return Math.max(...topDentists.map((d) => d.appointmentsCount), 1)
   }, [topDentists])
@@ -167,7 +143,7 @@ export function DashboardAdmin() {
 
   return (
     <div className={styles.container}>
-      {/* ─── Header de Visão Executiva ─── */}
+      {/* ─── Header Executivo ─── */}
       <div className={styles.header}>
         <div>
           <span className={styles.headerTag}>ODONTOFLOW • GESTÃO EXECUTIVA</span>
@@ -178,239 +154,329 @@ export function DashboardAdmin() {
         </div>
       </div>
 
-      {/* ─── 4 KPIs Executivos do Topo com Cores de Destaque ─── */}
+      {/* ─── KPIs Grid ─── */}
       <div className={styles.kpiGrid}>
-        <div className={styles.kpiCard}>
-          <div className={styles.kpiTop}>
+        <div 
+          className={styles.kpiCard}
+          onClick={() => router.push('/pacientes')}
+          title="Ver pacientes"
+        >
+          <div className={styles.kpiHeader}>
             <span className={styles.kpiLabel}>PACIENTES ATIVOS</span>
-            <div className={`${styles.iconCircle} ${styles.iconPacientes}`}>
+            <div className={`${styles.kpiIconWrapper} ${styles.iconCyan}`}>
               <Users size={16} />
             </div>
           </div>
-          <span className={styles.kpiValue}>{summary?.patients.total ?? 0}</span>
-          <span className={styles.kpiTrendPositive}>
-            ↑ +{summary?.patients.newThisMonth ?? 0} novos este mês
-          </span>
+          <div className={styles.kpiBody}>
+            <span className={styles.kpiValue}>{summary?.patients.total ?? 0}</span>
+            <span className={styles.trendBadgePositive}>
+              ↑ +{summary?.patients.newThisMonth ?? 0} no mês
+            </span>
+          </div>
         </div>
 
-        <div className={styles.kpiCard}>
-          <div className={styles.kpiTop}>
+        <div 
+          className={styles.kpiCard}
+          onClick={() => router.push('/agenda')}
+          title="Ver agenda"
+        >
+          <div className={styles.kpiHeader}>
             <span className={styles.kpiLabel}>ATENDIMENTOS NO MÊS</span>
-            <div className={`${styles.iconCircle} ${styles.iconAgenda}`}>
+            <div className={`${styles.kpiIconWrapper} ${styles.iconSky}`}>
               <Calendar size={16} />
             </div>
           </div>
-          <span className={styles.kpiValue}>{summary?.appointments.thisMonth ?? 0}</span>
-          <span className={styles.kpiSub}>
-            {summary?.appointments.today ?? 0} hoje • {summary?.appointments.thisWeek ?? 0} esta semana
-          </span>
+          <div className={styles.kpiBody}>
+            <span className={styles.kpiValue}>{summary?.appointments.thisMonth ?? 0}</span>
+            <span className={styles.kpiSubText}>
+              {summary?.appointments.today ?? 0} hoje • {summary?.appointments.thisWeek ?? 0} na semana
+            </span>
+          </div>
         </div>
 
-        <div className={styles.kpiCard}>
-          <div className={styles.kpiTop}>
+        <div 
+          className={styles.kpiCard}
+          onClick={() => router.push('/financeiro')}
+          title="Ver receitas"
+        >
+          <div className={styles.kpiHeader}>
             <span className={styles.kpiLabel}>FATURAMENTO MENSAL</span>
-            <div className={`${styles.iconCircle} ${styles.iconReceita}`}>
+            <div className={`${styles.kpiIconWrapper} ${styles.iconEmerald}`}>
               <DollarSign size={16} />
             </div>
           </div>
-          <span className={styles.kpiValue}>{formatCurrency(summary?.financial.monthRevenue)}</span>
-          <span className={styles.kpiTrendPositive}>
-            Hoje: {formatCurrency(summary?.financial.todayRevenue)}
-          </span>
+          <div className={styles.kpiBody}>
+            <span className={styles.kpiValue}>{formatCurrency(summary?.financial.monthRevenue)}</span>
+            <span className={styles.trendBadgeNeutral}>
+              Hoje: {formatCurrency(summary?.financial.todayRevenue)}
+            </span>
+          </div>
         </div>
 
-        <div className={styles.kpiCard}>
-          <div className={styles.kpiTop}>
+        <div 
+          className={styles.kpiCard}
+          onClick={() => router.push('/financeiro')}
+          title="Ver fluxo de caixa"
+        >
+          <div className={styles.kpiHeader}>
             <span className={styles.kpiLabel}>LUCRO LÍQUIDO</span>
-            <div className={`${styles.iconCircle} ${styles.iconLucro}`}>
+            <div className={`${styles.kpiIconWrapper} ${styles.iconGreen}`}>
               <TrendingUp size={16} />
             </div>
           </div>
-          <span className={`${styles.kpiValue} ${(summary?.financial.monthProfit ?? 0) >= 0 ? styles.profitGreen : styles.profitRed}`}>
-            {formatCurrency(summary?.financial.monthProfit)}
-          </span>
-          <span className={styles.kpiSub}>
-            Despesas: {formatCurrency(summary?.financial.monthExpenses)}
-          </span>
+          <div className={styles.kpiBody}>
+            <span className={`${styles.kpiValue} ${(summary?.financial.monthProfit ?? 0) >= 0 ? styles.profitPositive : styles.profitNegative}`}>
+              {formatCurrency(summary?.financial.monthProfit)}
+            </span>
+            <span className={styles.kpiSubText}>
+              Despesas: {formatCurrency(summary?.financial.monthExpenses)}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* ─── Grid Central: Gráfico de Receita & Cards Operacionais ─── */}
+      {/* ─── Grid Central ─── */}
       <div className={styles.middleGrid}>
-        {/* Curva de Receitas & Fluxo */}
+        {/* Gráfico Recharts com Margens Balanceadas */}
         <div className={styles.chartCard}>
           <div className={styles.cardHeader}>
             <div>
-              <span className={styles.cardTitle}>Fluxo de Receita Diária</span>
-              <p className={styles.cardSubtitle}>Evolução dos últimos 7 dias</p>
+              <div className={styles.titleRow}>
+                <h3 className={styles.cardTitle}>Fluxo de Receita Diária</h3>
+                <span className={styles.unitPill}>R$ Reais</span>
+              </div>
+              <p className={styles.cardSubtitle}>Evolução dos últimos 7 dias faturados</p>
             </div>
-            <span className={styles.cardBadge}>Tempo Real</span>
+            <button 
+              className={styles.actionPillButton}
+              onClick={() => router.push('/financeiro')}
+            >
+              Relatório Completo <ArrowRight size={12} />
+            </button>
           </div>
 
-          <div className={styles.chartWrapper}>
-            <svg viewBox="0 0 500 130" className={styles.svgChart} preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="adminChartGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.35" />
-                  <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-
-              {/* Gridlines horizontais sutis */}
-              <line x1="0" y1="20" x2="500" y2="20" stroke="#f1f5f9" strokeDasharray="3 3" />
-              <line x1="0" y1="65" x2="500" y2="65" stroke="#f1f5f9" strokeDasharray="3 3" />
-              <line x1="0" y1="110" x2="500" y2="110" stroke="#f1f5f9" strokeDasharray="3 3" />
-
-              {svgArea && <path d={svgArea} fill="url(#adminChartGradient)" />}
-              {svgPath && <path d={svgPath} fill="none" stroke="#06b6d4" strokeWidth="2.5" strokeLinecap="round" />}
-            </svg>
-          </div>
-
-          <div className={styles.chartFooter}>
-            {normalizedChartData.map((item, idx) => {
-              const [y, m, d] = item.date.split('-')
-              return (
-                <div key={idx} className={styles.chartColLabel}>
-                  <span className={styles.chartDateLabel}>{`${d}/${m}`}</span>
-                </div>
-              )
-            })}
+          <div className={styles.chartContainer}>
+            <ResponsiveContainer width="100%" height={170}>
+              <AreaChart data={normalizedChartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.28} />
+                    <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="formattedDate" 
+                  axisLine={{ stroke: '#f1f5f9' }}
+                  tickLine={false} 
+                  tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 500 }}
+                  dy={6}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  tickFormatter={(val) => `${val >= 1000 ? `${(val / 1000).toFixed(1)}k` : val}`}
+                  width={42}
+                />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload
+                      return (
+                        <div className={styles.chartTooltip}>
+                          <span className={styles.tooltipHeader}>{data.formattedDate}</span>
+                          <span className={styles.tooltipAmount}>{formatCurrency(data.receitas)}</span>
+                        </div>
+                      )
+                    }
+                    return null
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="receitas"
+                  stroke="#06b6d4"
+                  strokeWidth={2.5}
+                  fillOpacity={1}
+                  fill="url(#revenueGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Status de Estoque & Produtividade */}
-        <div className={styles.cardsPairColumn}>
+        {/* Coluna Operacional Lateral */}
+        <div className={styles.sideCardsColumn}>
+          {/* Card: Estoque */}
           <div 
-            className={`${styles.miniCard} ${(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.miniCardAlert : ''}`}
+            className={`${styles.statusCard} ${(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.statusCardAlert : ''}`}
             onClick={() => router.push('/estoque')}
           >
-            <div className={styles.miniCardHeader}>
-              <div className={styles.headerLeft}>
-                <div className={`${styles.unitDot} ${(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.unitDotRed : styles.unitDotGreen}`} />
-                <span className={styles.unitTitle}>Status de Estoque Clínico</span>
+            <div className={styles.statusCardHeader}>
+              <div className={styles.statusTitleGroup}>
+                {/* 👈 Troque <PackageAlert ... /> por <Package ... /> */}
+                <Package size={16} className={(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.textRed : styles.textCyan} />
+                <span className={styles.statusCardTitle}>Estoque Clínico</span>
               </div>
-              <ArrowRight size={14} className={styles.miniCardArrow} />
+              <ArrowRight size={14} className={styles.arrowIcon} />
             </div>
-            
-            <div className={styles.unitMetrics}>
-              <div>
-                <span className={styles.unitLabel}>Insumos Críticos</span>
-                <span className={`${styles.unitValue} ${(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.alertRed : ''}`}>
-                  {summary?.inventory.lowStockCount ?? 0} {summary?.inventory.lowStockCount === 1 ? 'item' : 'itens'}
+
+            <div className={styles.statusMetricsGrid}>
+              <div className={styles.metricBlock}>
+                <span className={styles.metricLabel}>Insumos Críticos</span>
+                <span className={`${styles.metricValue} ${(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.textRed : styles.textSlate}`}>
+                  {summary?.inventory.lowStockCount ?? 0} itens
                 </span>
               </div>
-              <div>
-                <span className={styles.unitLabel}>A Vencer (30d)</span>
-                <span className={styles.unitValue}>{summary?.inventory.expiringCount ?? 0} itens</span>
+              <div className={styles.metricDivider} />
+              <div className={styles.metricBlock}>
+                <span className={styles.metricLabel}>A Vencer (30d)</span>
+                <span className={styles.metricValue}>{summary?.inventory.expiringCount ?? 0} itens</span>
               </div>
             </div>
           </div>
 
-          <div className={styles.miniCard}>
-            <div className={styles.miniCardHeader}>
-              <div className={styles.headerLeft}>
-                <Activity size={14} className={styles.unitIconBlue} />
-                <span className={styles.unitTitle}>Produtividade Clínica</span>
+          {/* Card: Produtividade */}
+          <div 
+            className={styles.statusCard}
+            onClick={() => router.push('/agenda')}
+          >
+            <div className={styles.statusCardHeader}>
+              <div className={styles.statusTitleGroup}>
+                <Activity size={16} className={styles.textSky} />
+                <span className={styles.statusCardTitle}>Produtividade Clínica</span>
               </div>
+              <ArrowRight size={14} className={styles.arrowIcon} />
             </div>
-            
-            <div className={styles.unitMetrics}>
-              <div>
-                <span className={styles.unitLabel}>Média Diária</span>
-                <span className={styles.unitValue}>
+
+            <div className={styles.statusMetricsGrid}>
+              <div className={styles.metricBlock}>
+                <span className={styles.metricLabel}>Média Diária</span>
+                <span className={styles.metricValue}>
                   {summary?.appointments.thisMonth ? (summary.appointments.thisMonth / 22).toFixed(1) : '0.0'} pac/dia
                 </span>
               </div>
-              <div>
-                <span className={styles.unitLabel}>Taxa de Ocupação</span>
-                <span className={styles.unitValue}>88%</span>
+              <div className={styles.metricDivider} />
+              <div className={styles.metricBlock}>
+                <span className={styles.metricLabel}>Ocupação Estimada</span>
+                <span className={styles.metricValueHighlight}>88%</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ─── Grid Inferior: Próximos Atendimentos & Ranking de Dentistas ─── */}
+      {/* ─── Grid Inferior ─── */}
       <div className={styles.bottomGrid}>
-        {/* Próximos Atendimentos Confirmados */}
+        {/* Próximos Atendimentos */}
         <div className={styles.tableCard}>
           <div className={styles.cardHeader}>
-            <span className={styles.cardTitle}>Próximos Atendimentos Confirmados</span>
+            <div>
+              <h3 className={styles.cardTitle}>Próximos Atendimentos Confirmados</h3>
+              <p className={styles.cardSubtitle}>Fila de recepção e atendimentos imediatos</p>
+            </div>
+            <button 
+              className={styles.textLinkButton}
+              onClick={() => router.push('/agenda')}
+            >
+              Abrir Agenda Completa
+            </button>
           </div>
 
           {upcoming.length === 0 ? (
-            <div className={styles.emptyTableState}>
-              <CalendarX2 size={32} className={styles.emptyTableIcon} />
-              <p className={styles.emptyTableText}>Nenhum agendamento pendente para as próximas horas.</p>
+            <div className={styles.emptyContainer}>
+              <div className={styles.emptyIconCircle}>
+                <CalendarX2 size={24} />
+              </div>
+              <span className={styles.emptyTitle}>Nenhum atendimento agendado para hoje</span>
+              <p className={styles.emptySubtitle}>Agende novas consultas diretamente pela tela de agenda.</p>
+              <button 
+                className={styles.emptyActionButton}
+                onClick={() => router.push('/agenda')}
+              >
+                <PlusCircle size={14} /> Novo Agendamento
+              </button>
             </div>
           ) : (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>HORÁRIO</th>
-                  <th>PACIENTE</th>
-                  <th>DENTISTA</th>
-                  <th>SALA</th>
-                  <th>TIPO</th>
-                </tr>
-              </thead>
-              <tbody>
-                {upcoming.slice(0, 5).map((appt) => (
-                  <tr key={appt.id}>
-                    <td className={styles.timeCell}>{formatTime(appt.dateTime)}</td>
-                    <td className={styles.boldCell}>{appt.patient?.name ?? 'Paciente'}</td>
-                    <td>{appt.dentist?.name ?? 'Dentista'}</td>
-                    <td>{appt.room?.replace('_', ' ') ?? 'Sala 1'}</td>
-                    <td>
-                      <span className={styles.pillBadge}>{appt.type}</span>
-                    </td>
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>HORÁRIO</th>
+                    <th>PACIENTE</th>
+                    <th>DENTISTA</th>
+                    <th>SALA</th>
+                    <th>TIPO</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {upcoming.slice(0, 5).map((appt) => (
+                    <tr 
+                      key={appt.id}
+                      className={styles.tableRow}
+                      onClick={() => router.push('/agenda')}
+                    >
+                      <td className={styles.timeText}>{formatTime(appt.dateTime)}</td>
+                      <td className={styles.patientName}>{appt.patient?.name ?? 'Paciente'}</td>
+                      <td className={styles.dentistText}>{appt.dentist?.name ?? 'Dentista'}</td>
+                      <td>{appt.room?.replace('_', ' ') ?? 'Sala 1'}</td>
+                      <td>
+                        <span className={styles.typeBadge}>{appt.type}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
-        {/* Ranking de Dentistas com Barras de Progresso */}
-        <div className={styles.dentistRankingCard}>
+        {/* Ranking de Dentistas */}
+        <div className={styles.tableCard}>
           <div className={styles.cardHeader}>
-            <span className={styles.cardTitle}>Top Dentistas do Mês</span>
+            <div>
+              <h3 className={styles.cardTitle}>Top Dentistas do Mês</h3>
+              <p className={styles.cardSubtitle}>Produtividade por atendimentos concluídos</p>
+            </div>
           </div>
 
-          <div className={styles.rankingList}>
-            {topDentists.length === 0 ? (
-              <div className={styles.emptyTableState}>
-                <p className={styles.emptyTableText}>Nenhum atendimento finalizado registrado neste mês.</p>
+          {topDentists.length === 0 ? (
+            <div className={styles.emptyContainer}>
+              <div className={styles.emptyIconCircle}>
+                <Award size={24} />
               </div>
-            ) : (
-              topDentists.map((d, index) => {
+              <span className={styles.emptyTitle}>Sem histórico de atendimentos</span>
+              <p className={styles.emptySubtitle}>Os profissionais com procedimentos finalizados aparecerão listados aqui.</p>
+            </div>
+          ) : (
+            <div className={styles.rankingList}>
+              {topDentists.map((d, index) => {
                 const percentage = Math.round((d.appointmentsCount / maxDentistAppointments) * 100)
                 return (
-                  <div key={d.dentistId} className={styles.rankingRow}>
-                    <div className={styles.rankTop}>
-                      <div className={styles.rankBadge}>#{index + 1}</div>
-                      <div className={styles.dentistInfo}>
-                        <span className={styles.dentistName}>{d.name}</span>
-                        {d.cro && <span className={styles.dentistCro}>CRO: {d.cro}</span>}
+                  <div key={d.dentistId} className={styles.rankingItem}>
+                    <div className={styles.rankingTopRow}>
+                      <span className={styles.rankingNumber}>#{index + 1}</span>
+                      <div className={styles.rankingDoctorDetails}>
+                        <span className={styles.rankingDoctorName}>{d.name}</span>
+                        {d.cro && <span className={styles.rankingDoctorCro}>CRO: {d.cro}</span>}
                       </div>
-                      <div className={styles.dentistScore}>
-                        <strong>{d.appointmentsCount}</strong>
-                        <span>{d.appointmentsCount === 1 ? 'consulta' : 'consultas'}</span>
-                      </div>
+                      <span className={styles.rankingCount}>
+                        <strong>{d.appointmentsCount}</strong> consultas
+                      </span>
                     </div>
 
-                    {/* Barra de Progresso Relativa */}
-                    <div className={styles.progressTrack}>
+                    <div className={styles.progressBarBg}>
                       <div 
-                        className={styles.progressBar} 
+                        className={styles.progressBarFill} 
                         style={{ width: `${percentage}%` }} 
                       />
                     </div>
                   </div>
                 )
-              })
-            )}
-          </div>
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
