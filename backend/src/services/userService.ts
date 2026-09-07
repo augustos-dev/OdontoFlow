@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { Prisma, UserRole } from '@prisma/client'
+import { Prisma, UserRole, SystemModule } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
 import { auditLogService } from './auditLog.service'
@@ -11,6 +11,7 @@ import type {
   ChangePasswordDTO,
   UserFiltersDTO,
 } from '../types/user.types'
+import type { BulkUpdateRolePermissionsDTO } from '../types/permission.types'
 
 const USER_SAFE_SELECT = {
   id: true,
@@ -50,6 +51,9 @@ export async function createUser(
     data: { tenantId, clinicId, name, email, passwordHash, role, phone, cro },
     select: USER_SAFE_SELECT,
   })
+
+  // 🟢 Inicializa permissões padrões da role se ainda não existirem para o tenant
+  await ensureDefaultRolePermissions(tenantId, role)
 
   // 🟢 Log de Auditoria
   await auditLogService.createLog({
@@ -132,7 +136,6 @@ export async function updateUser(
     select: USER_SAFE_SELECT,
   })
 
-  // 🟢 Log de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -173,7 +176,6 @@ export async function updateUserRole(
     select: USER_SAFE_SELECT,
   })
 
-  // 🟢 Log de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -214,7 +216,6 @@ export async function updateUserStatus(
     select: USER_SAFE_SELECT,
   })
 
-  // 🟢 Log de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -258,7 +259,6 @@ export async function changePassword(
     data: { passwordHash: newPasswordHash },
   })
 
-  // 🟢 Log de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -303,7 +303,6 @@ export async function deleteUser(
 
   await prisma.user.delete({ where: { id: userId } })
 
-  // 🟢 Log de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -314,5 +313,113 @@ export async function deleteUser(
     entity: 'USER',
     entityId: userId,
     details: `Excluiu permanentemente a conta do usuário: ${user.name} (${user.email})`,
+  })
+}
+
+// ─── RBAC: Permissões por Role (Novo) ─────────────────────────────────────────
+
+export async function getRolePermissions(tenantId: string, role: UserRole) {
+  await ensureDefaultRolePermissions(tenantId, role)
+
+  return prisma.rolePermission.findMany({
+    where: { tenantId, role },
+    orderBy: { module: 'asc' },
+  })
+}
+
+export async function updateRolePermissions(
+  tenantId: string,
+  clinicId: string,
+  data: BulkUpdateRolePermissionsDTO,
+  actor: ActorContext
+) {
+  const { role, permissions } = data
+
+  if (role === 'ADMIN') {
+    throw new AppError('As permissões do perfil ADMINISTRADOR são fixas e irrestritas.', 400)
+  }
+
+  const operations = permissions.map((perm) =>
+    prisma.rolePermission.upsert({
+      where: {
+        tenantId_role_module: {
+          tenantId,
+          role,
+          module: perm.module,
+        },
+      },
+      update: {
+        canRead: perm.canRead ?? true,
+        canCreate: perm.canCreate ?? false,
+        canUpdate: perm.canUpdate ?? false,
+        canDelete: perm.canDelete ?? false,
+      },
+      create: {
+        tenantId,
+        role,
+        module: perm.module,
+        canRead: perm.canRead ?? true,
+        canCreate: perm.canCreate ?? false,
+        canUpdate: perm.canUpdate ?? false,
+        canDelete: perm.canDelete ?? false,
+      },
+    })
+  )
+
+  const updatedPermissions = await prisma.$transaction(operations)
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'ADMIN',
+    action: 'UPDATE',
+    entity: 'ROLE_PERMISSION',
+    details: `Permissões de acesso granulares atualizadas para o perfil: ${role}`,
+  })
+
+  return updatedPermissions
+}
+
+// Auxiliar para criar o mapa padrão de permissões caso o tenant não tenha inicializado
+async function ensureDefaultRolePermissions(tenantId: string, role: UserRole) {
+  const existingCount = await prisma.rolePermission.count({
+    where: { tenantId, role },
+  })
+
+  if (existingCount > 0) return
+
+  const allModules: SystemModule[] = [
+    'DASHBOARD',
+    'AGENDA',
+    'PATIENTS',
+    'RECORDS',
+    'STOCK',
+    'FINANCIAL',
+    'PROCEDURES',
+    'SUPPLIERS',
+    'SETTINGS',
+    'REPORTS',
+  ]
+
+  const defaults = allModules.map((module) => {
+    const isSecretaryRestricted =
+      role === 'SECRETARY' && ['FINANCIAL', 'SETTINGS', 'REPORTS'].includes(module)
+
+    return {
+      tenantId,
+      role,
+      module,
+      canRead: role === 'ADMIN' ? true : !isSecretaryRestricted,
+      canCreate: role === 'ADMIN' ? true : role === 'SECRETARY' ? ['AGENDA', 'PATIENTS'].includes(module) : true,
+      canUpdate: role === 'ADMIN' ? true : role === 'SECRETARY' ? ['AGENDA', 'PATIENTS'].includes(module) : true,
+      canDelete: role === 'ADMIN',
+    }
+  })
+
+  await prisma.rolePermission.createMany({
+    data: defaults,
+    skipDuplicates: true,
   })
 }

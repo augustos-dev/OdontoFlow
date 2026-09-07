@@ -19,6 +19,37 @@ router.use(authenticate)
 
 /**
  * @openapi
+ * /transactions/report:
+ *   get:
+ *     summary: Relatório financeiro consolidado por período (apenas ADMIN)
+ *     tags: [Transactions]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema: { type: string, format: date }
+ *     responses:
+ *       200:
+ *         description: Relatório com receitas, despesas e lucro do período
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/FinancialReport'
+ *       400:
+ *         description: startDate e endDate são obrigatórios
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ */
+router.get('/report', authorize('ADMIN'), getFinancialReportController)
+
+/**
+ * @openapi
  * /transactions:
  *   get:
  *     summary: Lista transações financeiras com filtros e paginação
@@ -33,6 +64,9 @@ router.use(authenticate)
  *       - in: query
  *         name: category
  *         schema: { type: string }
+ *       - in: query
+ *         name: supplierId
+ *         schema: { type: string, format: uuid }
  *       - in: query
  *         name: startDate
  *         schema: { type: string, format: date }
@@ -64,35 +98,6 @@ router.get('/', listTransactionsController)
 
 /**
  * @openapi
- * /transactions/report:
- *   get:
- *     summary: Relatório financeiro consolidado por período (apenas ADMIN)
- *     tags: [Transactions]
- *     parameters:
- *       - in: query
- *         name: startDate
- *         required: true
- *         schema: { type: string, format: date }
- *       - in: query
- *         name: endDate
- *         required: true
- *         schema: { type: string, format: date }
- *     responses:
- *       200:
- *         description: Relatório com receitas, despesas e lucro do período
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/FinancialReport'
- *       400:
- *         description: startDate e endDate são obrigatórios
- *       403:
- *         $ref: '#/components/responses/Forbidden'
- */
-router.get('/report', authorize('ADMIN'), getFinancialReportController)
-
-/**
- * @openapi
  * /transactions/{id}:
  *   get:
  *     summary: Busca uma transação por ID
@@ -109,6 +114,8 @@ router.get('/report', authorize('ADMIN'), getFinancialReportController)
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Transaction'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
@@ -118,14 +125,41 @@ router.get('/:id', getTransactionByIdController)
  * @openapi
  * /transactions:
  *   post:
- *     summary: Cria uma transação (finaliza agendamento automaticamente se vinculado)
+ *     summary: Cria uma transação financeira (receita de atendimento ou despesa de fornecedor)
  *     tags: [Transactions]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/CreateTransactionDTO'
+ *             type: object
+ *             required: [type, amount, paymentMethod]
+ *             properties:
+ *               type:
+ *                 type: string
+ *                 enum: [RECEITA, DESPESA]
+ *               amount:
+ *                 type: number
+ *                 example: 150.00
+ *               paymentMethod:
+ *                 type: string
+ *                 enum: [PIX, CREDITO, DEBITO, DINHEIRO, CONVENIO]
+ *               description:
+ *                 type: string
+ *               category:
+ *                 type: string
+ *               appointmentId:
+ *                 type: string
+ *                 format: uuid
+ *               treatmentPlanId:
+ *                 type: string
+ *                 format: uuid
+ *               supplierId:
+ *                 type: string
+ *                 format: uuid
+ *               paidAt:
+ *                 type: string
+ *                 format: date-time
  *     responses:
  *       201:
  *         description: Transação criada com sucesso
@@ -133,6 +167,8 @@ router.get('/:id', getTransactionByIdController)
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Transaction'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
@@ -158,12 +194,30 @@ router.post('/', authorize('ADMIN', 'SECRETARY'), createTransactionController)
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/CreateTransactionDTO'
+ *             type: object
+ *             properties:
+ *               amount:
+ *                 type: number
+ *               paymentMethod:
+ *                 type: string
+ *                 enum: [PIX, CREDITO, DEBITO, DINHEIRO, CONVENIO]
+ *               description:
+ *                 type: string
+ *               category:
+ *                 type: string
+ *               supplierId:
+ *                 type: string
+ *                 format: uuid
+ *               paidAt:
+ *                 type: string
+ *                 format: date-time
  *     responses:
  *       200:
  *         description: Transação atualizada com sucesso
  *       400:
  *         description: Valor não pode ser alterado em transação vinculada a agendamento
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
@@ -187,6 +241,8 @@ router.put('/:id', authorize('ADMIN', 'SECRETARY'), updateTransactionController)
  *         description: Transação removida com sucesso
  *       400:
  *         description: Transação vinculada a agendamento não pode ser deletada
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:

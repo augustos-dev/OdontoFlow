@@ -10,6 +10,8 @@ import {
   updateUserStatusController,
   changePasswordController,
   deleteUserController,
+  getRolePermissionsController,
+  updateRolePermissionsController,
 } from '../../controllers/userController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
 
@@ -42,6 +44,67 @@ router.use(authenticate)
  *         description: Senha atual incorreta
  */
 router.patch('/me/change-password', changePasswordController)
+
+/**
+ * @openapi
+ * /users/permissions/{role}:
+ *   get:
+ *     summary: Lista permissões granulares de acesso para um determinado papel (apenas ADMIN)
+ *     tags: [Users - RBAC]
+ *     parameters:
+ *       - in: path
+ *         name: role
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [ADMIN, DENTIST, SECRETARY]
+ *     responses:
+ *       200:
+ *         description: Lista de módulos e permissões da role
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ */
+router.get('/permissions/:role', authorize('ADMIN'), getRolePermissionsController)
+
+/**
+ * @openapi
+ * /users/permissions:
+ *   put:
+ *     summary: Atualiza permissões de acesso em lote para um papel do sistema (apenas ADMIN)
+ *     tags: [Users - RBAC]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [role, permissions]
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [DENTIST, SECRETARY]
+ *               permissions:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required: [module]
+ *                   properties:
+ *                     module:
+ *                       type: string
+ *                       enum: [DASHBOARD, AGENDA, PATIENTS, RECORDS, STOCK, FINANCIAL, PROCEDURES, SUPPLIERS, SETTINGS, REPORTS]
+ *                     canRead: { type: boolean }
+ *                     canCreate: { type: boolean }
+ *                     canUpdate: { type: boolean }
+ *                     canDelete: { type: boolean }
+ *     responses:
+ *       200:
+ *         description: Permissões atualizadas com sucesso
+ *       400:
+ *         description: Não é permitido alterar permissões de ADMIN ou dados inválidos
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ */
+router.put('/permissions', authorize('ADMIN'), updateRolePermissionsController)
 
 /**
  * @openapi

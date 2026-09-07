@@ -1,5 +1,5 @@
 // =============================================================================
-// OdontoFlow - Schema Prisma Refatorado (Sprint 13 + Exit Inteligente + Fracionamento + Saas)
+// OdontoFlow - Schema Prisma Refatorado (Sprint 14 + Enterprise RBAC + White-label)
 // Multi-tenant SaaS de Gerenciamento Clínico Odontológico
 // =============================================================================
 
@@ -9,7 +9,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-
+ 
 }
 
 // =============================================================================
@@ -48,6 +48,19 @@ enum UserRole {
   ADMIN
   DENTIST
   SECRETARY
+}
+
+enum SystemModule {
+  DASHBOARD
+  AGENDA
+  PATIENTS
+  RECORDS
+  STOCK
+  FINANCIAL
+  PROCEDURES
+  SUPPLIERS
+  SETTINGS
+  REPORTS
 }
 
 enum AppointmentStatus {
@@ -122,23 +135,24 @@ model Tenant {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  clinics           Clinic[]
-  users             User[]
-  patients          Patient[]
-  appointments      Appointment[]
-  products          Product[]
-  suppliers         Supplier[]
-  transactions      Transaction[]
-  medicalRecords    MedicalRecord[]
-  evolutions        Evolution[]
-  toothConditions   ToothCondition[]
-  treatmentPlans    TreatmentPlan[]
-  procedures        Procedure[]
-  planProcedures    PlanProcedure[]
-  procedureProducts ProcedureProduct[]
-  medicalFiles      MedicalFile[]
-  auditLogs         AuditLog[]
-  subscription      Subscription?
+  clinics            Clinic[]
+  users              User[]
+  patients           Patient[]
+  appointments       Appointment[]
+  products           Product[]
+  suppliers          Supplier[]
+  transactions       Transaction[]
+  medicalRecords     MedicalRecord[]
+  evolutions         Evolution[]
+  toothConditions    ToothCondition[]
+  treatmentPlans     TreatmentPlan[]
+  procedures         Procedure[]
+  planProcedures     PlanProcedure[]
+  procedureProducts  ProcedureProduct[]
+  medicalFiles       MedicalFile[]
+  auditLogs          AuditLog[]
+  subscription       Subscription?
+  rolePermissions    RolePermission[]
 
   @@map("tenants")
 }
@@ -174,7 +188,8 @@ model Clinic {
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  customization  ClinicCustomization?
   users          User[]
   patients       Patient[]
   appointments   Appointment[]
@@ -188,6 +203,48 @@ model Clinic {
 
   @@index([tenantId])
   @@map("clinics")
+}
+
+model ClinicCustomization {
+  id              String   @id @default(uuid())
+  clinicId        String   @unique
+  clinicName      String?
+  primaryColor    String   @default("#06b6d4") // Azul ciano default do OdontoFlow
+  accentColor     String   @default("#0891b2") // Cor de hover/destaque
+  secondaryColor  String?  @default("#0f172a") // Cor escura base para contrastes
+  fontFamily      String   @default("Inter")   // Suporte a Inter, Roboto, Poppins, Montserrat
+  darkModeDefault Boolean  @default(false)
+  
+  // Customização visual da clínica sem apagar o branding da Omnia
+  customLogoUrl   String?
+  customFavicon   String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@map("clinic_customizations")
+}
+
+model RolePermission {
+  id        String       @id @default(uuid())
+  tenantId  String
+  role      UserRole
+  module    SystemModule
+  canRead   Boolean      @default(true)
+  canCreate Boolean      @default(false)
+  canUpdate Boolean      @default(false)
+  canDelete Boolean      @default(false)
+
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, role, module])
+  @@index([tenantId, role])
+  @@map("role_permissions")
 }
 
 model User {
@@ -422,11 +479,11 @@ model Appointment {
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  clinic      Clinic       @relation(fields: [clinicId], references: [id])
-  patient     Patient      @relation(fields: [patientId], references: [id])
-  dentist     User         @relation("DentistAppointments", fields: [dentistId], references: [id])
-  procedure   Procedure?   @relation(fields: [procedureId], references: [id], onDelete: SetNull)
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic      Clinic        @relation(fields: [clinicId], references: [id])
+  patient     Patient       @relation(fields: [patientId], references: [id])
+  dentist     User          @relation("DentistAppointments", fields: [dentistId], references: [id])
+  procedure   Procedure?    @relation(fields: [procedureId], references: [id], onDelete: SetNull)
   transaction Transaction?
 
   @@index([tenantId])
@@ -449,7 +506,7 @@ model Product {
   minQuantity       Float     @default(1)
   unit              UnitType  @default(UN)
   costPrice         Decimal?  @db.Decimal(10, 2)
-  itemsPerPackage   Int?      @default(1) // 🟢 NOVO: Unidades por caixa ou rendimento total em g/ml por embalagem
+  itemsPerPackage   Int?      @default(1)
   lotNumber         String?
   manufacturingDate DateTime?
   expiryDate        DateTime?
@@ -489,21 +546,27 @@ model ProcedureProduct {
 }
 
 model StockMovement {
-  id        String            @id @default(uuid())
-  tenantId  String
-  clinicId  String
-  productId String
-  userId    String?
-  type      StockMovementType
-  quantity  Float
-  reason    String?
-  createdAt DateTime          @default(now())
+  id            String            @id @default(uuid())
+  tenantId      String
+  clinicId      String
+  productId     String
+  userId        String?
+  type          StockMovementType
+  quantity      Float
+  reason        String?
+
+  // 🔹 Chaves para controle de concorrência e idempotência do Exit Inteligente
+  appointmentId String?
+  procedureId   String?
+
+  createdAt     DateTime          @default(now())
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, clinicId])
   @@index([productId, createdAt])
+  @@index([tenantId, appointmentId, type]) // 🚀 Validação instantânea de idempotência
   @@map("stock_movements")
 }
 
@@ -519,9 +582,10 @@ model Supplier {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  clinic   Clinic    @relation(fields: [clinicId], references: [id])
-  products Product[]
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic       Clinic        @relation(fields: [clinicId], references: [id])
+  products     Product[]
+  transactions Transaction[] // 🚀 Relação reversa adicionada
 
   @@index([tenantId])
   @@index([clinicId])
@@ -535,6 +599,7 @@ model Transaction {
   clinicId        String
   appointmentId   String?         @unique
   treatmentPlanId String?
+  supplierId      String?         // 🚀 Campo que faltava para despesas com fornecedores
   amount          Decimal         @db.Decimal(10, 2)
   type            TransactionType @default(RECEITA)
   paymentMethod   PaymentMethod
@@ -548,11 +613,13 @@ model Transaction {
   clinic        Clinic         @relation(fields: [clinicId], references: [id])
   appointment   Appointment?   @relation(fields: [appointmentId], references: [id])
   treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id])
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull) // 🚀 Vínculo de fornecedor
 
   @@index([tenantId, createdAt])
   @@index([tenantId, clinicId])
   @@index([clinicId, type, paidAt])
   @@index([clinicId, paymentMethod])
+  @@index([supplierId])
   @@map("transactions")
 }
 

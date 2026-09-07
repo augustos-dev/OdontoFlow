@@ -1,10 +1,12 @@
+// backend/src/types/user.types.ts
 
+export type UserRole = 'ADMIN' | 'DENTIST' | 'SECRETARY'
 
 export interface CreateUserDTO {
   name: string
   email: string
   password: string
-  role: 'ADMIN' | 'DENTIST' | 'SECRETARY'
+  role: UserRole
   phone?: string
   cro?: string
 }
@@ -17,7 +19,7 @@ export interface UpdateUserDTO {
 }
 
 export interface UpdateUserRoleDTO {
-  role: 'ADMIN' | 'DENTIST' | 'SECRETARY'
+  role: UserRole
 }
 
 export interface UpdateUserStatusDTO {
@@ -31,7 +33,7 @@ export interface ChangePasswordDTO {
 
 export interface UserFiltersDTO {
   name?: string
-  role?: 'ADMIN' | 'DENTIST' | 'SECRETARY'
+  role?: UserRole
   isActive?: boolean
   page?: number
   limit?: number

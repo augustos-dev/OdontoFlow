@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import * as transactionService from '../services/transactionService'
-import type { UserRole } from '@prisma/client'
+import type { UserRole, TransactionType, PaymentMethod } from '@prisma/client'
 import type {
   CreateTransactionDTO,
   UpdateTransactionDTO,
@@ -29,9 +29,10 @@ export async function listTransactionsController(req: Request, res: Response, ne
   try {
     const { tenantId, clinicId } = req.user!
     const filters: TransactionFiltersDTO = {
-      type: req.query.type as 'RECEITA' | 'DESPESA',
-      paymentMethod: req.query.paymentMethod as string,
+      type: req.query.type as TransactionType,
+      paymentMethod: req.query.paymentMethod as PaymentMethod,
       category: req.query.category as string,
+      supplierId: req.query.supplierId as string,
       startDate: req.query.startDate as string,
       endDate: req.query.endDate as string,
       page: req.query.page ? Number(req.query.page) : undefined,
