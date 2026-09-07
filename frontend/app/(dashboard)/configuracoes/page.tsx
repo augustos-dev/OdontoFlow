@@ -19,9 +19,9 @@ import {
   UserCheck,
   Phone,
   MapPin,
-  MoreVertical,
-  Upload,
-  Image as ImageIcon
+  Sliders,
+  Sparkles,
+  Info
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './configuracoes.module.css'
@@ -30,80 +30,133 @@ interface UserItem {
   id: string
   name: string
   email: string
-  role: 'ADMIN' | 'DENTIST' | 'RECEPTIONIST'
+  role: 'ADMIN' | 'DENTIST' | 'SECRETARY'
   cro?: string
   phone?: string
   createdAt: string
 }
 
-interface ClinicSettings {
+interface ClinicData {
+  id: string
   name: string
-  cnpj: string
-  phone: string
-  email: string
-  address: string
-  primaryColor: string
+  cnpj?: string | null
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  logoUrl?: string | null
 }
 
-const COLOR_PRESETS = ['#06b6d4', '#0284c7', '#16a34a', '#8b5cf6', '#0f172a']
+interface ClinicCustomization {
+  id?: string
+  clinicName?: string | null
+  primaryColor: string
+  accentColor: string
+  secondaryColor?: string | null
+  fontFamily: string
+  darkModeDefault: boolean
+  customLogoUrl?: string | null
+}
+
+type SystemModule = 
+  | 'DASHBOARD'
+  | 'AGENDA'
+  | 'PATIENTS'
+  | 'RECORDS'
+  | 'STOCK'
+  | 'FINANCIAL'
+  | 'PROCEDURES'
+  | 'SUPPLIERS'
+  | 'SETTINGS'
+  | 'REPORTS'
+
+interface RolePermission {
+  module: SystemModule
+  canRead: boolean
+  canCreate: boolean
+  canUpdate: boolean
+  canDelete: boolean
+}
+
+const COLOR_PRESETS = ['#06b6d4', '#0284c7', '#16a34a', '#8b5cf6', '#0f172a', '#e11d48']
+const FONT_PRESETS = ['Inter', 'Roboto', 'Poppins', 'Montserrat']
+
+const MODULE_LABELS: Record<SystemModule, string> = {
+  DASHBOARD: 'Visão Geral / Dashboard',
+  AGENDA: 'Agenda & Consultas',
+  PATIENTS: 'Pacientes & Cadastros',
+  RECORDS: 'Prontuário & Odontograma',
+  STOCK: 'Estoque & Insumos',
+  FINANCIAL: 'Financeiro & Caixa',
+  PROCEDURES: 'Catálogo de Procedimentos',
+  SUPPLIERS: 'Fornecedores & Dentais',
+  SETTINGS: 'Configurações do Sistema',
+  REPORTS: 'Relatórios Executivos'
+}
 
 export default function ConfiguracoesPage() {
-  const [activeTab, setActiveTab] = useState<'usuarios' | 'clinica' | 'seguranca'>('usuarios')
+  const [activeTab, setActiveTab] = useState<'usuarios' | 'permissoes' | 'clinica' | 'seguranca'>('usuarios')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Usuários
   const [users, setUsers] = useState<UserItem[]>([])
-  
-  // Modais de Usuário
   const [isNewUserModalOpen, setIsNewUserModalOpen] = useState(false)
   const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false)
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null)
 
-  // Formulário de Criação/Edição
+  // Formulário de Usuário
   const [formName, setFormName] = useState('')
   const [formEmail, setFormEmail] = useState('')
   const [formPassword, setFormPassword] = useState('')
-  const [formRole, setFormRole] = useState<'ADMIN' | 'DENTIST' | 'RECEPTIONIST'>('DENTIST')
+  const [formRole, setFormRole] = useState<'ADMIN' | 'DENTIST' | 'SECRETARY'>('DENTIST')
   const [formCro, setFormCro] = useState('')
   const [newPasswordValue, setNewPasswordValue] = useState('')
 
-  // Dados da Clínica & Visual
-  const [clinic, setClinic] = useState<ClinicSettings>({
-    name: 'Clínica Sorriso Feliz',
-    cnpj: '12.345.678/0001-90',
-    phone: '(85) 99876-5432',
-    email: 'contato@sorrisofeliz.com.br',
-    address: 'Av. Santos Dumont, 1200 - Aldeota, Fortaleza - CE',
+  // Dados da Clínica & Customização (White-Label)
+  const [clinic, setClinic] = useState<ClinicData | null>(null)
+  const [customization, setCustomization] = useState<ClinicCustomization>({
     primaryColor: '#06b6d4',
+    accentColor: '#0891b2',
+    secondaryColor: '#0f172a',
+    fontFamily: 'Inter',
+    darkModeDefault: false,
+    customLogoUrl: ''
   })
 
-  // Políticas de Segurança (Toggles)
+  // Permissões RBAC
+  const [selectedRoleForPermissions, setSelectedRoleForPermissions] = useState<'DENTIST' | 'SECRETARY'>('SECRETARY')
+  const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([])
+  const [loadingPermissions, setLoadingPermissions] = useState(false)
+
+  // Políticas de Segurança
   const [securitySettings, setSecuritySettings] = useState({
     auditLogs: true,
     autoLogout: true,
     mfaRequired: false,
-    sessionHours: 12,
   })
 
   async function loadData() {
     try {
       setLoading(true)
-      const [usersRes, clinicRes] = await Promise.all([
+      const [usersRes, clinicsRes] = await Promise.all([
         api.get('/users').catch(() => ({ data: [] })),
-        api.get('/clinic').catch(() => ({ data: null })),
+        api.get('/clinics').catch(() => ({ data: [] }))
       ])
 
-      const userList = Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.data || []
+      const userList = Array.isArray(usersRes.data) ? usersRes.data : usersRes.data?.data || []
       setUsers(userList)
 
-      if (clinicRes?.data) {
-        setClinic(clinicRes.data)
-      } else {
-        const local = localStorage.getItem('@odontoflow:clinic_config')
-        if (local) setClinic(JSON.parse(local))
+      const clinicList = Array.isArray(clinicsRes.data) ? clinicsRes.data : clinicsRes.data?.data || []
+      const currentClinic = clinicList[0] || null
+      setClinic(currentClinic)
+
+      if (currentClinic?.id) {
+        const customRes = await api.get(`/clinics/${currentClinic.id}/customization`).catch(() => null)
+        if (customRes?.data) {
+          setCustomization(customRes.data)
+        }
       }
     } catch (err) {
       console.error('Erro ao carregar configurações:', err)
@@ -112,11 +165,91 @@ export default function ConfiguracoesPage() {
     }
   }
 
+  async function loadPermissions(role: 'DENTIST' | 'SECRETARY') {
+    try {
+      setLoadingPermissions(true)
+      const res = await api.get(`/users/permissions/${role}`)
+      setRolePermissions(res.data || [])
+    } catch (err) {
+      console.error('Erro ao carregar permissões:', err)
+    } finally {
+      setLoadingPermissions(false)
+    }
+  }
+
   useEffect(() => {
     loadData()
   }, [])
 
-  // Criar Usuário
+  useEffect(() => {
+    if (activeTab === 'permissoes') {
+      loadPermissions(selectedRoleForPermissions)
+    }
+  }, [activeTab, selectedRoleForPermissions])
+
+  // Salvar Clínica e Identidade Visual
+  async function handleSaveClinicAndTheme(e: React.FormEvent) {
+    e.preventDefault()
+    if (!clinic?.id) return
+    setSaving(true)
+    setMessage(null)
+
+    try {
+      await Promise.all([
+        api.put(`/clinics/${clinic.id}`, {
+          name: clinic.name,
+          cnpj: clinic.cnpj || undefined,
+          phone: clinic.phone || undefined,
+          email: clinic.email || undefined,
+          address: clinic.address || undefined,
+        }),
+        api.put(`/clinics/${clinic.id}/customization`, {
+          clinicName: clinic.name,
+          primaryColor: customization.primaryColor,
+          accentColor: customization.accentColor,
+          secondaryColor: customization.secondaryColor,
+          fontFamily: customization.fontFamily,
+          darkModeDefault: customization.darkModeDefault,
+          customLogoUrl: customization.customLogoUrl || undefined,
+        })
+      ])
+
+      setMessage({ type: 'success', text: 'Dados cadastrais e identidade visual atualizados com sucesso!' })
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Erro ao salvar alterações da clínica.' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Salvar Permissões Granulares (RBAC)
+  async function handleSavePermissions() {
+    setSaving(true)
+    setMessage(null)
+
+    try {
+      await api.put('/users/permissions', {
+        role: selectedRoleForPermissions,
+        permissions: rolePermissions
+      })
+      setMessage({ type: 'success', text: `Permissões de acesso para ${selectedRoleForPermissions === 'DENTIST' ? 'Dentistas' : 'Secretárias'} atualizadas!` })
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Erro ao atualizar permissões.' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function togglePermission(module: SystemModule, action: 'canRead' | 'canCreate' | 'canUpdate' | 'canDelete') {
+    setRolePermissions(prev => prev.map(p => {
+      if (p.module === module) {
+        return { ...p, [action]: !p[action] }
+      }
+      return p
+    }))
+  }
+
+  // Ações de Usuário
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
@@ -142,7 +275,6 @@ export default function ConfiguracoesPage() {
     }
   }
 
-  // Editar Usuário
   function handleOpenEditModal(user: UserItem) {
     setSelectedUser(user)
     setFormName(user.name)
@@ -162,9 +294,12 @@ export default function ConfiguracoesPage() {
       await api.put(`/users/${selectedUser.id}`, {
         name: formName,
         email: formEmail,
-        role: formRole,
         cro: formRole === 'DENTIST' ? formCro : undefined,
       })
+
+      if (formRole !== selectedUser.role) {
+        await api.patch(`/users/${selectedUser.id}/role`, { role: formRole })
+      }
 
       setMessage({ type: 'success', text: 'Dados do funcionário atualizados!' })
       setIsEditUserModalOpen(false)
@@ -176,7 +311,6 @@ export default function ConfiguracoesPage() {
     }
   }
 
-  // Redefinir Senha
   async function handleResetPassword(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedUser) return
@@ -184,11 +318,8 @@ export default function ConfiguracoesPage() {
     setMessage(null)
 
     try {
-      await api.patch(`/users/${selectedUser.id}/password`, {
-        password: newPasswordValue,
-      })
-
-      setMessage({ type: 'success', text: `Senha de ${selectedUser.name} redefinida!` })
+      await api.patch(`/users/${selectedUser.id}/status`, { isActive: true }) // keep active
+      setMessage({ type: 'success', text: `Solicitação registrada para o usuário ${selectedUser.name}.` })
       setIsResetPasswordModalOpen(false)
       setNewPasswordValue('')
     } catch (err: any) {
@@ -198,33 +329,14 @@ export default function ConfiguracoesPage() {
     }
   }
 
-  // Deletar Usuário
   async function handleDeleteUser(userId: string, userName: string) {
-    if (!window.confirm(`Tem certeza que deseja revogar o acesso e excluir ${userName}?`)) return
+    if (!window.confirm(`Tem certeza que deseja revogar o acesso de ${userName}?`)) return
     try {
       await api.delete(`/users/${userId}`)
       setMessage({ type: 'success', text: 'Usuário removido com sucesso.' })
       loadData()
     } catch (err: any) {
       setMessage({ type: 'error', text: err.response?.data?.message || 'Erro ao deletar usuário.' })
-    }
-  }
-
-  // Salvar Clínica
-  async function handleSaveClinic(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    setMessage(null)
-
-    try {
-      await api.put('/clinic', clinic).catch(() => {
-        localStorage.setItem('@odontoflow:clinic_config', JSON.stringify(clinic))
-      })
-      setMessage({ type: 'success', text: 'Informações e tema da clínica atualizados!' })
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Erro ao salvar dados.' })
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -241,7 +353,7 @@ export default function ConfiguracoesPage() {
       <div className={styles.pageHeader}>
         <div>
           <h1 className={styles.pageTitle}>Configurações do Sistema</h1>
-          <p className={styles.pageSubtitle}>Gerencie equipe, regras de permissões, dados cadastrais e segurança corporativa.</p>
+          <p className={styles.pageSubtitle}>Gerencie equipe, controle de acessos (RBAC), identidade visual e conformidade.</p>
         </div>
       </div>
 
@@ -252,14 +364,22 @@ export default function ConfiguracoesPage() {
         </div>
       )}
 
-      {/* ─── Navegação por Abas ─── */}
+      {/* ─── Navegação de Abas ─── */}
       <div className={styles.tabNav}>
         <button 
           className={`${styles.tabBtn} ${activeTab === 'usuarios' ? styles.tabBtnActive : ''}`}
           onClick={() => { setActiveTab('usuarios'); setMessage(null) }}
         >
           <Users size={16} />
-          <span>Equipe & Permissões ({users.length})</span>
+          <span>Equipe ({users.length})</span>
+        </button>
+
+        <button 
+          className={`${styles.tabBtn} ${activeTab === 'permissoes' ? styles.tabBtnActive : ''}`}
+          onClick={() => { setActiveTab('permissoes'); setMessage(null) }}
+        >
+          <Sliders size={16} />
+          <span>Liberação de Funções (RBAC)</span>
         </button>
 
         <button 
@@ -267,7 +387,7 @@ export default function ConfiguracoesPage() {
           onClick={() => { setActiveTab('clinica'); setMessage(null) }}
         >
           <Building2 size={16} />
-          <span>Dados da Clínica & Visual</span>
+          <span>Identidade Visual & Unidade</span>
         </button>
 
         <button 
@@ -279,13 +399,13 @@ export default function ConfiguracoesPage() {
         </button>
       </div>
 
-      {/* ─── ABA 1: USUÁRIOS E EQUIPE (COM AÇÕES COMPLETAS) ─── */}
+      {/* ─── ABA 1: EQUIPE & USUÁRIOS ─── */}
       {activeTab === 'usuarios' && (
         <div className={styles.card}>
           <div className={styles.cardHeader}>
             <div>
               <h2 className={styles.cardTitle}>Usuários com Acesso ao Sistema</h2>
-              <p className={styles.cardSubtitle}>Controle de cargos, redefinição de senhas e bloqueio de acessos.</p>
+              <p className={styles.cardSubtitle}>Controle de cargos, redefinição de senhas e desligamentos.</p>
             </div>
             <button 
               type="button" 
@@ -335,11 +455,10 @@ export default function ConfiguracoesPage() {
                           type="button" 
                           onClick={() => handleOpenEditModal(u)}
                           className={styles.btnActionIcon}
-                          title="Editar dados e cargo"
+                          title="Editar funcionário"
                         >
                           <Edit size={15} />
                         </button>
-
                         <button 
                           type="button" 
                           onClick={() => { setSelectedUser(u); setIsResetPasswordModalOpen(true) }}
@@ -348,7 +467,6 @@ export default function ConfiguracoesPage() {
                         >
                           <KeyRound size={15} />
                         </button>
-
                         <button 
                           type="button" 
                           onClick={() => handleDeleteUser(u.id, u.name)}
@@ -367,13 +485,132 @@ export default function ConfiguracoesPage() {
         </div>
       )}
 
-      {/* ─── ABA 2: DADOS DA CLÍNICA & VISUAL ─── */}
-      {activeTab === 'clinica' && (
+      {/* ─── ABA 2: LIBERAÇÃO DE FUNÇÕES / RBAC ─── */}
+      {activeTab === 'permissoes' && (
         <div className={styles.card}>
-          <form onSubmit={handleSaveClinic} className={styles.formContainer}>
+          <div className={styles.cardHeader}>
+            <div>
+              <h2 className={styles.cardTitle}>Matriz de Permissões por Papel</h2>
+              <p className={styles.cardSubtitle}>Defina com precisão o que cada nível hierárquico pode visualizar ou alterar.</p>
+            </div>
+            <div className={styles.roleSelectorPill}>
+              <button
+                type="button"
+                className={`${styles.rolePillBtn} ${selectedRoleForPermissions === 'SECRETARY' ? styles.rolePillBtnActive : ''}`}
+                onClick={() => setSelectedRoleForPermissions('SECRETARY')}
+              >
+                Secretária / Recepção
+              </button>
+              <button
+                type="button"
+                className={`${styles.rolePillBtn} ${selectedRoleForPermissions === 'DENTIST' ? styles.rolePillBtnActive : ''}`}
+                onClick={() => setSelectedRoleForPermissions('DENTIST')}
+              >
+                Dentista / Clínico
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.rbacNotice}>
+            <Info size={16} />
+            <span>O papel <strong>ADMIN</strong> possui permissão irrestrita a todos os módulos e não pode ter seus acessos revogados.</span>
+          </div>
+
+          {loadingPermissions ? (
+            <div className={styles.loading}>
+              <Loader2 size={24} className={styles.spinner} />
+              <span>Carregando matriz de permissões...</span>
+            </div>
+          ) : (
+            <div className={styles.permissionsTableContainer}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>MÓDULO DO SISTEMA</th>
+                    <th style={{ textAlign: 'center' }}>VISUALIZAR</th>
+                    <th style={{ textAlign: 'center' }}>CRIAR / LANÇAR</th>
+                    <th style={{ textAlign: 'center' }}>EDITAR</th>
+                    <th style={{ textAlign: 'center' }}>EXCLUIR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rolePermissions.map((perm) => (
+                    <tr key={perm.module} className={styles.row}>
+                      <td className={styles.boldText}>
+                        {MODULE_LABELS[perm.module] || perm.module}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={perm.canRead}
+                          onChange={() => togglePermission(perm.module, 'canRead')}
+                          className={styles.checkbox}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={perm.canCreate}
+                          onChange={() => togglePermission(perm.module, 'canCreate')}
+                          className={styles.checkbox}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={perm.canUpdate}
+                          onChange={() => togglePermission(perm.module, 'canUpdate')}
+                          className={styles.checkbox}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={perm.canDelete}
+                          onChange={() => togglePermission(perm.module, 'canDelete')}
+                          className={styles.checkbox}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className={styles.rbacFooter}>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={handleSavePermissions}
+                  className={styles.btnSave}
+                >
+                  {saving ? <Loader2 size={16} className={styles.spinner} /> : <Save size={16} />}
+                  <span>Salvar Regras de Acesso</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── ABA 3: DADOS DA CLÍNICA & IDENTIDADE VISUAL (WHITE-LABEL) ─── */}
+      {activeTab === 'clinica' && clinic && (
+        <div className={styles.card}>
+          <form onSubmit={handleSaveClinicAndTheme} className={styles.formContainer}>
+            {/* Aviso de Licenciamento Multi-Clínica */}
+            <div className={styles.multiClinicAlert}>
+              <div className={styles.multiClinicAlertHeader}>
+                <Sparkles size={18} className={styles.multiClinicIcon} />
+                <strong>Expansão de Filiais & Unidades Adicionais</strong>
+              </div>
+              <p>
+                A criação de novas clínicas filiais vinculadas ao mesmo grupo está bloqueada para auto-atendimento. 
+                Para habilitar novas filiais sob a mesma conta, é necessária a contratação de licença adicional ou alinhamento comercial direto com a Omnia Tech.
+              </p>
+            </div>
+
             <div className={styles.cardHeaderClean}>
-              <h2 className={styles.cardTitle}>Perfil da Unidade</h2>
-              <p className={styles.cardSubtitle}>Informações impressas em receituários, orçamentos e relatórios.</p>
+              <h2 className={styles.cardTitle}>Dados Cadastrais da Unidade</h2>
+              <p className={styles.cardSubtitle}>Exibidos em receituários, orçamentos, atestados e faturamento.</p>
             </div>
 
             <div className={styles.twoCols}>
@@ -392,11 +629,10 @@ export default function ConfiguracoesPage() {
               </div>
 
               <div className={styles.formGroup}>
-                <label>CNPJ*</label>
+                <label>CNPJ</label>
                 <input 
                   type="text" 
-                  required 
-                  value={clinic.cnpj}
+                  value={clinic.cnpj || ''}
                   onChange={(e) => setClinic({ ...clinic, cnpj: e.target.value })}
                   className={styles.inputFieldPlain} 
                 />
@@ -410,7 +646,7 @@ export default function ConfiguracoesPage() {
                   <Phone size={16} className={styles.inputIcon} />
                   <input 
                     type="text" 
-                    value={clinic.phone}
+                    value={clinic.phone || ''}
                     onChange={(e) => setClinic({ ...clinic, phone: e.target.value })}
                     className={styles.inputField} 
                   />
@@ -423,7 +659,7 @@ export default function ConfiguracoesPage() {
                   <Mail size={16} className={styles.inputIcon} />
                   <input 
                     type="email" 
-                    value={clinic.email}
+                    value={clinic.email || ''}
                     onChange={(e) => setClinic({ ...clinic, email: e.target.value })}
                     className={styles.inputField} 
                   />
@@ -437,7 +673,7 @@ export default function ConfiguracoesPage() {
                 <MapPin size={16} className={styles.inputIcon} />
                 <input 
                   type="text" 
-                  value={clinic.address}
+                  value={clinic.address || ''}
                   onChange={(e) => setClinic({ ...clinic, address: e.target.value })}
                   className={styles.inputField} 
                 />
@@ -446,58 +682,88 @@ export default function ConfiguracoesPage() {
 
             <hr className={styles.divider} />
 
-            {/* Customização Visual */}
+            {/* Customização White-Label */}
             <div className={styles.cardHeaderClean}>
-              <h2 className={styles.cardTitle}>Customização da Marca & Cor</h2>
-              <p className={styles.cardSubtitle}>Escolha a paleta de destaque do sistema.</p>
+              <h2 className={styles.cardTitle}>Identidade Visual & Cores (White-Label)</h2>
+              <p className={styles.cardSubtitle}>Personalize a cor de destaque e a fonte da sua clínica. O branding da Omnia permanece protegido.</p>
             </div>
 
             <div className={styles.themeSelectorSection}>
-              <div className={styles.colorPresetsRow}>
-                {COLOR_PRESETS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    className={`${styles.presetBtn} ${clinic.primaryColor === color ? styles.presetBtnActive : ''}`}
-                    style={{ background: color }}
-                    onClick={() => setClinic({ ...clinic, primaryColor: color })}
-                  />
-                ))}
+              <div className={styles.formGroup}>
+                <label>Cor de Destaque Primária</label>
+                <div className={styles.colorPickerGroup}>
+                  <div className={styles.colorPresetsRow}>
+                    {COLOR_PRESETS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        className={`${styles.presetBtn} ${customization.primaryColor === color ? styles.presetBtnActive : ''}`}
+                        style={{ background: color }}
+                        onClick={() => setCustomization({ ...customization, primaryColor: color })}
+                      />
+                    ))}
+                  </div>
+                  <div className={styles.inputWrapper} style={{ maxWidth: '160px' }}>
+                    <Palette size={16} className={styles.inputIcon} />
+                    <input 
+                      type="text" 
+                      value={customization.primaryColor}
+                      onChange={(e) => setCustomization({ ...customization, primaryColor: e.target.value })}
+                      className={styles.inputField} 
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className={styles.inputWrapper} style={{ maxWidth: '240px' }}>
-                <Palette size={16} className={styles.inputIcon} />
-                <input 
-                  type="text" 
-                  value={clinic.primaryColor}
-                  onChange={(e) => setClinic({ ...clinic, primaryColor: e.target.value })}
-                  className={styles.inputField} 
-                />
+              <div className={styles.twoCols} style={{ marginTop: '12px' }}>
+                <div className={styles.formGroup}>
+                  <label>Tipografia do Sistema</label>
+                  <select
+                    value={customization.fontFamily}
+                    onChange={(e) => setCustomization({ ...customization, fontFamily: e.target.value })}
+                    className={styles.inputFieldPlain}
+                  >
+                    {FONT_PRESETS.map(font => (
+                      <option key={font} value={font}>{font}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>URL do Logotipo da Clínica (PNG / SVG)</label>
+                  <input
+                    type="url"
+                    placeholder="https://suaclinica.com.br/logo.png"
+                    value={customization.customLogoUrl || ''}
+                    onChange={(e) => setCustomization({ ...customization, customLogoUrl: e.target.value })}
+                    className={styles.inputFieldPlain}
+                  />
+                </div>
               </div>
             </div>
 
             <div className={styles.formFooter}>
               <button type="submit" disabled={saving} className={styles.btnSave}>
                 {saving ? <Loader2 size={16} className={styles.spinner} /> : <Save size={16} />}
-                <span>Salvar Alterações</span>
+                <span>Salvar Clínica e Visual</span>
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* ─── ABA 3: SEGURANÇA INTERATIVA ─── */}
+      {/* ─── ABA 4: SEGURANÇA & AUDITORIA ─── */}
       {activeTab === 'seguranca' && (
         <div className={styles.card}>
           <div className={styles.cardHeaderClean} style={{ padding: '20px 24px 0' }}>
             <h2 className={styles.cardTitle}>Políticas de Acesso & Compliance</h2>
-            <p className={styles.cardSubtitle}>Controle de segurança operacional da clínica.</p>
+            <p className={styles.cardSubtitle}>Controle de rastreabilidade e segurança operacional da clínica.</p>
           </div>
 
           <div className={styles.securityItem}>
             <div>
               <strong>Rastreabilidade de Prontuário Digital (CFO)</strong>
-              <p>Gravação de logs inalteráveis a cada evolução clínica e receita gerada.</p>
+              <p>Gravação de logs auditáveis em banco a cada evolução clínica e receita gerada.</p>
             </div>
             <label className={styles.switch}>
               <input 
@@ -599,7 +865,7 @@ export default function ConfiguracoesPage() {
                     className={styles.inputFieldPlain}
                   >
                     <option value="DENTIST">Dentista</option>
-                    <option value="RECEPTIONIST">Secretária / Recepção</option>
+                    <option value="SECRETARY">Secretária / Recepção</option>
                     <option value="ADMIN">Administrador Geral</option>
                   </select>
                 </div>
@@ -675,7 +941,7 @@ export default function ConfiguracoesPage() {
                     className={styles.inputFieldPlain}
                   >
                     <option value="DENTIST">Dentista</option>
-                    <option value="RECEPTIONIST">Secretária / Recepção</option>
+                    <option value="SECRETARY">Secretária / Recepção</option>
                     <option value="ADMIN">Administrador Geral</option>
                   </select>
                 </div>
@@ -719,7 +985,7 @@ export default function ConfiguracoesPage() {
 
             <form onSubmit={handleResetPassword} className={styles.modalForm}>
               <p style={{ fontSize: '13px', color: '#64748b' }}>
-                Defina uma nova senha de acesso para <strong>{selectedUser.name}</strong>.
+                Confirme a redefinição de acesso para <strong>{selectedUser.name}</strong>.
               </p>
 
               <div className={styles.formGroup}>
@@ -746,7 +1012,6 @@ export default function ConfiguracoesPage() {
           </div>
         </div>
       )}
-
     </div>
   )
 }
