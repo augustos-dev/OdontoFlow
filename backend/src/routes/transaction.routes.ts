@@ -1,4 +1,3 @@
-
 import { Router } from 'express'
 import {
   createTransactionController,
@@ -12,23 +11,21 @@ import { authenticate, authorize } from '../middlewares/authMiddlewares'
 
 const transactionRoute = Router()
 
-// ─── Todas as rotas de transações são privadas ────────────────────────────────
-
+// Todas as rotas de transações são privadas
 transactionRoute.use(authenticate)
 
-// ─── Rotas Privadas — Leitura ─────────────────────────────────────────────────
-
-transactionRoute.get('/', listTransactionsController)
+// Rotas estáticas antes dos parâmetros dinâmicos (evita que /report caia em /:id)
 transactionRoute.get('/report', authorize('ADMIN'), getFinancialReportController)
+
+// Leitura
+transactionRoute.get('/', listTransactionsController)
 transactionRoute.get('/:id', getTransactionByIdController)
 
-// ─── Rotas Privadas — Escrita (ADMIN, SECRETARY) ──────────────────────────────
-
+// Escrita (ADMIN, SECRETARY)
 transactionRoute.post('/', authorize('ADMIN', 'SECRETARY'), createTransactionController)
 transactionRoute.put('/:id', authorize('ADMIN', 'SECRETARY'), updateTransactionController)
 
-// ─── Rotas Privadas — Exclusão (apenas ADMIN) ────────────────────────────────
-
+// Exclusão (apenas ADMIN)
 transactionRoute.delete('/:id', authorize('ADMIN'), deleteTransactionController)
 
 export default transactionRoute

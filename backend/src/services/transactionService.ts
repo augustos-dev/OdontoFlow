@@ -15,6 +15,30 @@ interface ActorContext {
   userRole?: UserRole
 }
 
+const TRANSACTION_INCLUDES = {
+  appointment: {
+    select: {
+      id: true,
+      dateTime: true,
+      patient: { select: { id: true, name: true } },
+      dentist: { select: { id: true, name: true } },
+    },
+  },
+  supplier: {
+    select: {
+      id: true,
+      name: true,
+      cnpj: true,
+    },
+  },
+  treatmentPlan: {
+    select: {
+      id: true,
+      title: true,
+    },
+  },
+} satisfies Prisma.TransactionInclude
+
 // ─── Create ──────────────────────────────────────────────────────────────────
 
 export async function createTransaction(
@@ -23,8 +47,19 @@ export async function createTransaction(
   data: CreateTransactionDTO,
   actor: ActorContext
 ) {
-  const { type, amount, paymentMethod, description, category, appointmentId, paidAt } = data
+  const {
+    type,
+    amount,
+    paymentMethod,
+    description,
+    category,
+    appointmentId,
+    treatmentPlanId,
+    supplierId,
+    paidAt,
+  } = data
 
+  // Validação de vínculo com Agendamento
   if (appointmentId) {
     const appointment = await prisma.appointment.findFirst({
       where: { id: appointmentId, tenantId, clinicId },
@@ -42,6 +77,22 @@ export async function createTransaction(
     }
   }
 
+  // Validação de vínculo com Fornecedor (comum em Despesas)
+  if (supplierId) {
+    const supplier = await prisma.supplier.findFirst({
+      where: { id: supplierId, tenantId, clinicId },
+    })
+    if (!supplier) throw new AppError('Fornecedor não encontrado nesta unidade.', 404)
+  }
+
+  // Validação de vínculo com Plano de Tratamento
+  if (treatmentPlanId) {
+    const plan = await prisma.treatmentPlan.findFirst({
+      where: { id: treatmentPlanId, tenantId, clinicId },
+    })
+    if (!plan) throw new AppError('Plano de tratamento não encontrado.', 404)
+  }
+
   const transaction = await prisma.transaction.create({
     data: {
       tenantId,
@@ -51,18 +102,12 @@ export async function createTransaction(
       paymentMethod,
       description,
       category,
-      appointmentId: appointmentId ?? null,
+      appointmentId: appointmentId || null,
+      treatmentPlanId: treatmentPlanId || null,
+      supplierId: supplierId || null,
       paidAt: paidAt ? new Date(paidAt) : new Date(),
     },
-    include: {
-      appointment: {
-        select: {
-          id: true,
-          dateTime: true,
-          patient: { select: { id: true, name: true } },
-        },
-      },
-    },
+    include: TRANSACTION_INCLUDES,
   })
 
   // 🟢 Log de Auditoria
@@ -75,7 +120,7 @@ export async function createTransaction(
     action: 'CREATE',
     entity: 'TRANSACTION',
     entityId: transaction.id,
-    details: `Registrou ${type}: R$ ${Number(amount).toFixed(2)} (${paymentMethod}) - ${description || category}`,
+    details: `Registrou ${type}: R$ ${Number(amount).toFixed(2)} (${paymentMethod}) - ${description || category || 'Sem categoria'}${transaction.supplier ? ` | Fornecedor: ${transaction.supplier.name}` : ''}`,
   })
 
   return transaction
@@ -88,7 +133,7 @@ export async function listTransactions(
   clinicId: string,
   filters: TransactionFiltersDTO
 ) {
-  const { type, paymentMethod, category, startDate, endDate, page = 1, limit = 20 } = filters
+  const { type, paymentMethod, category, supplierId, startDate, endDate, page = 1, limit = 20 } = filters
   const skip = (page - 1) * limit
 
   let dateFilter: Prisma.TransactionWhereInput = {}
@@ -108,6 +153,7 @@ export async function listTransactions(
     ...(type && { type: type as $Enums.TransactionType }),
     ...(paymentMethod && { paymentMethod: paymentMethod as $Enums.PaymentMethod }),
     ...(category && { category: { contains: category, mode: 'insensitive' } }),
+    ...(supplierId && { supplierId }),
   }
 
   const [transactions, total] = await Promise.all([
@@ -116,15 +162,7 @@ export async function listTransactions(
       skip,
       take: limit,
       orderBy: { paidAt: 'desc' },
-      include: {
-        appointment: {
-          select: {
-            id: true,
-            dateTime: true,
-            patient: { select: { id: true, name: true } },
-          },
-        },
-      },
+      include: TRANSACTION_INCLUDES,
     }),
     prisma.transaction.count({ where }),
   ])
@@ -144,17 +182,7 @@ export async function getTransactionById(
 ) {
   const transaction = await prisma.transaction.findFirst({
     where: { id: transactionId, tenantId, clinicId },
-    include: {
-      appointment: {
-        select: {
-          id: true,
-          dateTime: true,
-          type: true,
-          dentist: { select: { id: true, name: true } },
-          patient: { select: { id: true, name: true } },
-        },
-      },
-    },
+    include: TRANSACTION_INCLUDES,
   })
 
   if (!transaction) throw new AppError('Transação não encontrada.', 404)
@@ -177,8 +205,15 @@ export async function updateTransaction(
 
   if (!transaction) throw new AppError('Transação não encontrada.', 404)
 
-  if (transaction.appointmentId && data.amount) {
+  if (transaction.appointmentId && data.amount !== undefined && Number(data.amount) !== Number(transaction.amount)) {
     throw new AppError('Não é possível alterar o valor de uma transação vinculada a um agendamento.', 400)
+  }
+
+  if (data.supplierId) {
+    const supplier = await prisma.supplier.findFirst({
+      where: { id: data.supplierId, tenantId, clinicId },
+    })
+    if (!supplier) throw new AppError('Fornecedor não encontrado.', 404)
   }
 
   const updatedTransaction = await prisma.transaction.update({
@@ -187,6 +222,7 @@ export async function updateTransaction(
       ...data,
       paidAt: data.paidAt ? new Date(data.paidAt) : undefined,
     },
+    include: TRANSACTION_INCLUDES,
   })
 
   // 🟢 Log de Auditoria

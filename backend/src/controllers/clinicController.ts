@@ -1,7 +1,12 @@
 import type { Request, Response, NextFunction } from 'express'
 import * as clinicService from '../services/clinicService'
 import type { UserRole } from '@prisma/client'
-import type { CreateClinicDTO, UpdateClinicDTO, ClinicFiltersDTO } from '../types/clinics.types'
+import type {
+  CreateClinicDTO,
+  UpdateClinicDTO,
+  ClinicFiltersDTO,
+  UpdateClinicCustomizationDTO,
+} from '../types/clinics.types'
 
 export async function createClinicController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -76,6 +81,38 @@ export async function reactivateClinicController(req: Request, res: Response, ne
 
     const clinic = await clinicService.reactivateClinic(tenantId, id as string, actor)
     res.status(200).json(clinic)
+  } catch (error) {
+    next(error)
+  }
+}
+
+// ─── Customização de Identidade Visual (White-Label) ──────────────────────────
+
+export async function getClinicCustomizationController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, clinicId } = req.user!
+    const targetClinicId = (req.params.id as string) || clinicId
+
+    const customization = await clinicService.getClinicCustomization(tenantId, targetClinicId)
+    res.status(200).json(customization)
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function updateClinicCustomizationController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const targetClinicId = (req.params.id as string) || clinicId
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const updated = await clinicService.updateClinicCustomization(
+      tenantId,
+      targetClinicId,
+      req.body as UpdateClinicCustomizationDTO,
+      actor
+    )
+    res.status(200).json(updated)
   } catch (error) {
     next(error)
   }

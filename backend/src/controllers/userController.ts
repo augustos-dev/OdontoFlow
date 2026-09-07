@@ -9,6 +9,7 @@ import type {
   ChangePasswordDTO,
   UserFiltersDTO,
 } from '../types/user.types'
+import type { BulkUpdateRolePermissionsDTO } from '../types/permission.types'
 
 export async function createUserController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -27,7 +28,7 @@ export async function listUsersController(req: Request, res: Response, next: Nex
     const { tenantId, clinicId } = req.user!
     const filters: UserFiltersDTO = {
       name: req.query.name as string,
-      role: req.query.role as 'ADMIN' | 'DENTIST' | 'SECRETARY',
+      role: req.query.role as UserRole,
       isActive: req.query.isActive ? req.query.isActive === 'true' : undefined,
       page: req.query.page ? Number(req.query.page) : undefined,
       limit: req.query.limit ? Number(req.query.limit) : undefined,
@@ -125,6 +126,37 @@ export async function deleteUserController(req: Request, res: Response, next: Ne
 
     await userService.deleteUser(tenantId, clinicId, id as string, actor)
     res.status(204).send()
+  } catch (error) {
+    next(error)
+  }
+}
+
+// ─── Permissões de Perfis (RBAC Granular) ───────────────────────────────────
+
+export async function getRolePermissionsController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId } = req.user!
+    const { role } = req.params
+
+    const permissions = await userService.getRolePermissions(tenantId, role as UserRole)
+    res.status(200).json(permissions)
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function updateRolePermissionsController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const updated = await userService.updateRolePermissions(
+      tenantId,
+      clinicId,
+      req.body as BulkUpdateRolePermissionsDTO,
+      actor
+    )
+    res.status(200).json(updated)
   } catch (error) {
     next(error)
   }
