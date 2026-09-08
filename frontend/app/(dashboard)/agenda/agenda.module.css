@@ -11,6 +11,11 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
+  background: #ffffff;
+  border: 1px solid #eef2f6;
+  border-radius: 12px;
+  padding: 12px 18px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
 }
 
 .dateNav {
@@ -20,33 +25,90 @@
 }
 
 .dateBtn {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   width: 32px;
   height: 32px;
-  font-size: 18px;
-  color: var(--text-secondary);
+  font-size: 16px;
+  color: #64748b;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .dateBtn:hover {
-  border-color: var(--primary);
-  color: var(--primary);
+  border-color: var(--primary-color, #06b6d4);
+  color: var(--primary-color, #06b6d4);
 }
 
 .dateInput {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 6px 10px;
-  font-size: 14px;
-  color: var(--text-primary);
-  background: var(--bg-card);
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #0f172a;
+  background: #ffffff;
   outline: none;
+}
+
+.dateInput:focus {
+  border-color: var(--primary-color, #06b6d4);
+}
+
+.filterGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.roomsSelector {
+  display: flex;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 8px;
+  gap: 2px;
+}
+
+.roomCountBtn {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+
+.roomCountBtnActive {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.crownIcon {
+  color: var(--primary-color, #0891b2);
+}
+
+.roomSelect {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  background: #ffffff;
+  outline: none;
+  cursor: pointer;
 }
 
 .legend {
@@ -61,29 +123,14 @@
   gap: 6px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: #64748b;
 }
 
-.dotConfirmado {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--status-confirmado-border, #16a34a);
-}
-
-.dotEmAtendimento {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--status-em-atendimento-border, #9333ea);
-}
-
-.dotFinalizado {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--status-finalizado-border, #52525b);
-}
+/* Dots da Legenda */
+.dotAgendado { width: 8px; height: 8px; border-radius: 50%; background: #0284c7; }
+.dotConfirmado { width: 8px; height: 8px; border-radius: 50%; background: #1d4ed8; }
+.dotEmAtendimento { width: 8px; height: 8px; border-radius: 50%; background: #10b981; }
+.dotFinalizado { width: 8px; height: 8px; border-radius: 50%; background: #64748b; }
 
 /* ─── LAYOUT PRINCIPAL ─── */
 .mainLayout {
@@ -100,42 +147,50 @@
 }
 
 .card {
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #eef2f6;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
   overflow: hidden;
 }
 
 .cardHeader {
   padding: 18px 22px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #eef2f6;
 }
 
 .cardTitle {
   font-size: 16px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #0f172a;
 }
 
 .cardSub {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: #64748b;
   margin-top: 2px;
 }
 
 .loading {
-  padding: 48px;
-  text-align: center;
-  color: var(--text-muted);
+  padding: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #64748b;
+  font-size: 13px;
 }
 
-/* ─── GRID DA AGENDA ─── */
+.spinner {
+  animation: spin 1s linear infinite;
+  color: var(--primary-color, #06b6d4);
+}
+
+/* ─── GRADE DA AGENDA ─── */
 .gridContainer {
   width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 4px;
 }
 
 .grid {
@@ -144,46 +199,42 @@
 }
 
 .timeCol {
-  width: 70px;
-  min-width: 70px;
+  width: 65px;
+  min-width: 65px;
   flex-shrink: 0;
   position: sticky;
   left: 0;
-  background: var(--bg-card);
+  background: #ffffff;
   z-index: 12;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid #eef2f6;
 }
 
 .timeColHeader {
   height: 42px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-page);
-  box-sizing: border-box;
+  border-bottom: 1px solid #eef2f6;
+  background: #f8fafc;
 }
 
-/* 11 horas (08:00 às 18:00 inclusive) x 160px/hora = 1760px */
 .timeColBody {
   position: relative;
   height: 1760px;
-  box-sizing: border-box;
 }
 
 .timeSlot {
-  height: 160px; /* 4 slots de 15 min * 40px */
-  box-sizing: border-box;
+  height: 160px;
   display: flex;
   align-items: flex-start;
   padding-top: 4px;
   padding-left: 8px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: #94a3b8;
 }
 
 .roomCol {
   flex: 1;
   min-width: 250px;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid #eef2f6;
 }
 
 .roomCol:last-child {
@@ -192,39 +243,32 @@
 
 .roomHeader {
   height: 42px;
-  background: var(--bg-page);
-  border-bottom: 1px solid var(--border);
+  background: #f8fafc;
+  border-bottom: 1px solid #eef2f6;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 12px;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: #475569;
   letter-spacing: 0.05em;
-  box-sizing: border-box;
 }
 
-/* Container do corpo da sala estendido para 1760px */
 .roomBody {
   position: relative;
   height: 1760px;
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
 }
 
-/* Cada hora inteira possui 160px, dividida visualmente a cada 40px */
 .hourSlot {
   height: 160px;
   border-bottom: 1px solid #cbd5e1;
   position: relative;
-  background-image: linear-gradient(to bottom, #f1f5f9 1px, transparent 1px);
-  background-size: 100% 40px; /* Divisão visual perfeita de 15 min (40px) */
-  box-sizing: border-box;
+  background-image: linear-gradient(to bottom, #f8fafc 1px, transparent 1px);
+  background-size: 100% 40px;
 }
 
 .hourSlot:hover {
-  background-color: rgba(241, 245, 249, 0.5);
+  background-color: rgba(241, 245, 249, 0.4);
 }
 
 .vagoContent {
@@ -241,27 +285,26 @@
 }
 
 .btnAddVago {
-  background: #0284c7;
+  background: var(--primary-color, #06b6d4);
   color: #ffffff;
   border: none;
   border-radius: 50%;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   font-size: 14px;
-  font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 5px rgba(6, 182, 212, 0.3);
   transition: transform 0.15s ease;
 }
 
 .btnAddVago:hover {
-  transform: scale(1.1);
+  transform: scale(1.15);
 }
 
-/* ─── LINHA DO TEMPO REAL ─── */
+/* Linha do Tempo Real */
 .realTimeLine {
   position: absolute;
   left: 0;
@@ -286,27 +329,27 @@
   pointer-events: none;
 }
 
-/* ─── CARDS DE AGENDAMENTO ─── */
+/* ─── CARDS DE AGENDAMENTO (CORES SISTÊMICAS) ─── */
 .apptCard {
   position: absolute;
   left: 6px;
   right: 6px;
-  padding: 0 8px; /* Mantém zerado nas extremidades verticais */
+  padding: 0 8px;
   border-radius: 6px;
   border-left: 4px solid;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
   cursor: grab;
   z-index: 10;
-  transition: transform 0.1s ease, box-shadow 0.1s ease, z-index 0.1s;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
   display: flex;
-  align-items: center; /* Centralização vertical precisa do conteúdo no card */
+  align-items: center;
   box-sizing: border-box;
 }
 
 .apptCard:hover {
   z-index: 25;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
 }
 
 .apptHeaderRow {
@@ -317,7 +360,6 @@
   gap: 6px;
 }
 
-/* Agrupa Horário + Nome na mesma linha */
 .apptMainInfo {
   display: flex;
   align-items: center;
@@ -330,7 +372,6 @@
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
-  line-height: 1;
 }
 
 .apptName {
@@ -340,92 +381,111 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1;
 }
 
 .apptBadge {
   font-size: 9px;
-  font-weight: 600;
-  padding: 2px 5px;
+  font-weight: 700;
+  padding: 2px 6px;
   border-radius: 4px;
   white-space: nowrap;
   flex-shrink: 0;
-  line-height: 1;
 }
 
-/* Cores por Status */
-.confirmado {
-  background: #f0fdf4;
-  border-color: #16a34a;
-  color: #15803d;
+/* Agendado (Azul Claro) */
+.agendado { 
+  background: #eff6ff; 
+  border-color: #0284c7; 
+  color: #0369a1; 
 }
-.confirmado .apptBadge {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.emAtendimento {
-  background: #faf5ff;
-  border-color: #9333ea;
-  color: #7e22ce;
-}
-.emAtendimento .apptBadge {
-  background: #f3e8ff;
-  color: #7e22ce;
+.agendado .apptBadge { 
+  background: #e0f2fe; 
+  color: #0369a1; 
 }
 
-.finalizado {
-  background: #f8fafc;
-  border-color: #64748b;
-  color: #475569;
+/* Confirmado (Azul Royal) */
+.confirmado { 
+  background: #e0f2fe; 
+  border-color: #1d4ed8; 
+  color: #1e40af; 
 }
-.finalizado .apptBadge {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.agendado {
-  background: #eff6ff;
-  border-color: #2563eb;
-  color: #1d4ed8;
-}
-.agendado .apptBadge {
-  background: #dbeafe;
-  color: #1d4ed8;
+.confirmado .apptBadge { 
+  background: #dbeafe; 
+  color: #1e40af; 
 }
 
-.cancelado {
-  background: #fef2f2;
-  border-color: #dc2626;
-  color: #b91c1c;
+/* Em Atendimento (Verde Esmeralda) */
+.emAtendimento { 
+  background: #ecfdf5; 
+  border-color: #10b981; 
+  color: #047857; 
 }
-.cancelado .apptBadge {
-  background: #fee2e2;
-  color: #b91c1c;
+.emAtendimento .apptBadge { 
+  background: #d1fae5; 
+  color: #047857; 
 }
 
-.espera {
-  background: #fdf4ff;
-  border-color: #a855f7;
-  color: #7c3aed;
+/* Finalizado (Cinza Neutro) */
+.finalizado { 
+  background: #f8fafc; 
+  border-color: #64748b; 
+  color: #475569; 
+}
+.finalizado .apptBadge { 
+  background: #f1f5f9; 
+  color: #475569; 
+}
+
+/* Cancelado / Faltou (Vermelho) */
+.cancelado { 
+  background: #fef2f2; 
+  border-color: #ef4444; 
+  color: #b91c1c; 
+}
+.cancelado .apptBadge { 
+  background: #fee2e2; 
+  color: #b91c1c; 
+}
+
+/* Espera */
+.espera { 
+  background: #fdf4ff; 
+  border-color: #c084fc; 
+  color: #7e22ce; 
 }
 
 /* ─── SIDEBAR DA RECEPÇÃO ─── */
 .sidePanel {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: #ffffff;
+  border: 1px solid #eef2f6;
+  border-radius: 12px;
   padding: 18px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+}
+
+.sideHeaderContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
 }
 
 .sideTitle {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 12px;
+  color: #0f172a;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.todayIndicator {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary-color, #0891b2);
+  background: #ecfeff;
+  padding: 2px 8px;
+  border-radius: 6px;
 }
 
 .waitingSection {
@@ -435,50 +495,79 @@
 }
 
 .sectionLabel {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.03em;
+}
+
+.emptySidebarState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 8px;
+  text-align: center;
+}
+
+.emptyIcon {
+  color: #cbd5e1;
   margin-bottom: 4px;
 }
 
 .emptyText {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-style: italic;
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 0;
 }
 
 .miniCard {
-  background: var(--bg-page);
-  border: 1px solid var(--border-light);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   padding: 10px 12px;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .miniCard:hover {
-  border-color: var(--primary);
-  background: var(--bg-card);
+  border-color: var(--primary-color, #06b6d4);
+  background: #ffffff;
   transform: translateX(2px);
 }
 
-.miniCard strong {
-  display: block;
-  font-size: 13px;
-  color: var(--text-primary);
+.miniCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.miniCard span {
+.miniCardTop strong {
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.miniCardBadge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+.miniCardSub {
   font-size: 11px;
-  color: var(--text-secondary);
-  margin-top: 2px;
-  display: block;
+  color: #64748b;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .sideSection {
   margin-top: 20px;
   padding-top: 16px;
-  border-top: 1px dashed var(--border);
+  border-top: 1px dashed #e2e8f0;
 }
 
 .sideHeaderRow {
@@ -488,42 +577,79 @@
   margin-bottom: 10px;
 }
 
+.btnAddWaiting {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #ecfeff;
+  border: 1px solid #cffafe;
+  color: var(--primary-color, #0891b2);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btnAddWaiting:hover {
+  background: #cffafe;
+}
+
 .waitingCard {
   background: #fefce8;
   border: 1px solid #fef08a;
   border-left: 3px solid #eab308;
-  padding: 10px;
-  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  border-radius: 8px;
   margin-bottom: 8px;
   cursor: grab;
-  transition: all 0.2s;
+  transition: all 0.15s;
 }
 
 .waitingCard:hover {
   transform: translateX(2px);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
-.waitingCard strong {
-  display: block;
-  font-size: 13px;
-  color: #713f12;
+.waitingCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.waitingCardHeader strong {
+  font-size: 12.5px;
+  color: #854d0e;
+}
+
+.dragPill {
+  font-size: 9px;
+  font-weight: 700;
+  background: #fef08a;
+  color: #a16207;
+  padding: 1px 4px;
+  border-radius: 4px;
+  text-transform: uppercase;
 }
 
 .waitingCard span {
   font-size: 11px;
   color: #a16207;
+  display: block;
+  margin-top: 3px;
 }
 
-/* ─── OVERLAYS ─── */
+/* ─── MODAIS & OVERLAYS ─── */
 .confirmOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 999;
+  z-index: 9999;
 }
 
 .confirmBox {
@@ -532,68 +658,88 @@
   border-radius: 12px;
   max-width: 400px;
   width: 90%;
-  text-align: center;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
 .confirmIcon, .errorIcon {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: bold;
-  margin: 0 auto 16px;
+  margin: 0 auto 12px;
 }
 
-.confirmIcon {
-  background: #fef3c7;
-  color: #d97706;
-}
-
-.errorIcon {
-  background: #fee2e2;
-  color: #dc2626;
-}
+.confirmIcon { background: #fef3c7; color: #d97706; }
+.errorIcon { background: #fee2e2; color: #dc2626; }
 
 .confirmTitle {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   color: #0f172a;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .confirmText {
-  font-size: 14px;
+  font-size: 13px;
   color: #64748b;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
   line-height: 1.4;
 }
 
 .confirmActions {
   display: flex;
   gap: 10px;
-  justify-content: center;
 }
 
 .btnCancel {
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid #cbd5e1;
-  background: #fff;
-  color: #334155;
+  background: #ffffff;
+  color: #475569;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
 
-.btnConfirm {
+.btnPrimaryModal {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: 8px;
   border: none;
-  background: #c2410c;
-  color: #fff;
+  background: var(--primary-color, #06b6d4);
+  color: #ffffff;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.btnPrimaryModal:hover {
+  opacity: 0.9;
+}
+
+.modalSelect, .modalInput {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: #0f172a;
+  outline: none;
+  background: #ffffff;
+}
+
+.modalSelect:focus, .modalInput:focus {
+  border-color: var(--primary-color, #06b6d4);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

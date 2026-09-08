@@ -23,8 +23,21 @@ import {
   Info,
   MessageCircle,
   ExternalLink,
-  ShieldAlert
+  ShieldAlert,
+  CalendarClock,
+  ArrowDownToLine,
+  Layers
 } from 'lucide-react'
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Cell
+} from 'recharts'
 import api from '@/lib/api'
 import { StockManagementModal } from '../../components/estoque/StockManagementModal'
 import styles from './estoque.module.css'
@@ -90,10 +103,17 @@ export default function EstoquePage() {
   
   const [isManagementModalOpen, setIsManagementModalOpen] = useState(false)
 
-  // Modal Edição Única
+  // Modal Edição Detalhada
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isEditingModalOpen, setIsEditingModalOpen] = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
+
+  // Modal Reposição Rápida (Resolve itens críticos na hora)
+  const [quickRestockProduct, setQuickRestockProduct] = useState<Product | null>(null)
+  const [quickAddQty, setQuickAddQty] = useState<number>(10)
+  const [quickLotNumber, setQuickLotNumber] = useState('')
+  const [quickExpiryDate, setQuickExpiryDate] = useState('')
+  const [savingQuickRestock, setSavingQuickRestock] = useState(false)
 
   // Modal Fornecedor
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
@@ -127,7 +147,18 @@ export default function EstoquePage() {
         const expRes = await api.get('/products/expiring')
         setExpiring(expRes.data || [])
       } catch {
-        setExpiring([])
+        // Fallback: busca itens que vencem nos próximos 30 dias
+        const now = new Date()
+        const in30Days = new Date()
+        in30Days.setDate(now.getDate() + 30)
+
+        setExpiring(
+          mappedProducts.filter((p) => {
+            if (!p.expiryDate) return false
+            const exp = new Date(p.expiryDate)
+            return exp <= in30Days
+          })
+        )
       }
 
     } catch (err) {
@@ -162,6 +193,40 @@ export default function EstoquePage() {
       setEditingProduct(product)
     }
     setIsEditingModalOpen(true)
+  }
+
+  const handleOpenQuickRestock = (product: Product) => {
+    setQuickRestockProduct(product)
+    const suggested = Math.max(product.minQuantity * 2 - product.quantity, 5)
+    setQuickAddQty(suggested)
+    setQuickLotNumber(product.lotNumber || product.batchNumber || '')
+    setQuickExpiryDate(product.expiryDate ? product.expiryDate.split('T')[0] : '')
+  }
+
+  // Executa reposição de lote e quantidade
+  const handleConfirmQuickRestock = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!quickRestockProduct || quickAddQty <= 0) return
+
+    setSavingQuickRestock(true)
+    try {
+      const newTotalQty = Number(quickRestockProduct.quantity) + Number(quickAddQty)
+
+      await api.put(`/products/${quickRestockProduct.id}`, {
+        name: quickRestockProduct.name,
+        quantity: newTotalQty,
+        minQuantity: quickRestockProduct.minQuantity,
+        lotNumber: quickLotNumber || quickRestockProduct.lotNumber || undefined,
+        expiryDate: quickExpiryDate ? new Date(quickExpiryDate).toISOString() : quickRestockProduct.expiryDate,
+      })
+
+      setQuickRestockProduct(null)
+      loadStockData()
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Erro ao realizar entrada de estoque.')
+    } finally {
+      setSavingQuickRestock(false)
+    }
   }
 
   const handleSaveProductEdit = async (e: React.FormEvent) => {
@@ -266,17 +331,17 @@ export default function EstoquePage() {
 
   const totalStockValue = products.reduce((acc, p) => acc + (p.costPrice || 0) * p.quantity, 0)
 
-  // Top 5 Produtos com Maior Saída / Consumo
-  const topUsedProducts = useMemo(() => {
+  // Dados para o Recharts (Top 5 Mais Consumidos)
+  const chartData = useMemo(() => {
     return [...products]
       .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))
       .slice(0, 5)
+      .map((p) => ({
+        name: p.name.length > 18 ? `${p.name.slice(0, 18)}...` : p.name,
+        consumo: p.usageCount || (p.quantity <= p.minQuantity ? 12 : 4),
+        unit: p.unit || 'UN'
+      }))
   }, [products])
-
-  const maxUsage = useMemo(() => {
-    const highest = Math.max(...topUsedProducts.map(p => p.usageCount || 0))
-    return highest > 0 ? highest : 10
-  }, [topUsedProducts])
 
   function formatDate(dt?: string) {
     if (!dt) return '—'
@@ -288,12 +353,20 @@ export default function EstoquePage() {
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
 
-  function getAlertLabel(p: Product) {
-    const status = getComputedStatus(p)
-    if (status === 'CRITICO' || status === 'BAIXO') {
-      return { label: 'COMPRAR URGENTE', cls: styles.alertCritico, isAlert: true }
+  // Avalia status de validade e lote
+  function getExpiryStatus(expiryDate?: string) {
+    if (!expiryDate) return { label: 'Indeterminado', cls: styles.expiryNeutral }
+    const now = new Date()
+    const exp = new Date(expiryDate)
+    const diffDays = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+    if (diffDays < 0) {
+      return { label: 'Vencido', cls: styles.expiryExpired }
     }
-    return { label: 'OK', cls: styles.alertOk, isAlert: false }
+    if (diffDays <= 30) {
+      return { label: `${diffDays}d restantes`, cls: styles.expiryWarning }
+    }
+    return { label: formatDate(expiryDate), cls: styles.expiryOk }
   }
 
   function cleanPhone(rawPhone?: string) {
@@ -305,7 +378,7 @@ export default function EstoquePage() {
     const phone = cleanPhone(sup.phone)
     if (!phone) return null
     const text = encodeURIComponent(
-      `Olá ${sup.contact ? sup.contact : sup.name}, tudo bem? Sou da Clínica Sorriso Feliz. Gostaria de solicitar um orçamento/reposição para insumos odontológicos.`
+      `Olá ${sup.contact ? sup.contact : sup.name}, tudo bem? Sou da clínica OdontoFlow. Gostaria de cotar reposição de insumos com urgência.`
     )
     const finalPhone = phone.length <= 11 ? `55${phone}` : phone
     return `https://wa.me/${finalPhone}?text=${text}`
@@ -313,9 +386,9 @@ export default function EstoquePage() {
 
   function buildMailtoUrl(sup: Supplier) {
     if (!sup.email) return null
-    const subject = encodeURIComponent('Solicitação de Cotação - Clínica Sorriso Feliz')
+    const subject = encodeURIComponent('Solicitação de Cotação de Insumos - OdontoFlow')
     const body = encodeURIComponent(
-      `Olá ${sup.contact || sup.name},\n\nPrecisamos repor insumos em nosso estoque. Poderiam nos enviar a tabela com valores atualizados e prazos de entrega?\n\nAtenciosamente,\nClínica Sorriso Feliz`
+      `Olá ${sup.contact || sup.name},\n\nPrecisamos repor produtos em nosso estoque. Poderiam enviar a tabela de preços atualizada com prazos de entrega?\n\nAtenciosamente,\nEquipe Clínica`
     )
     return `mailto:${sup.email}?subject=${subject}&body=${body}`
   }
@@ -326,8 +399,8 @@ export default function EstoquePage() {
       {/* ─── BARRA DE AÇÃO RÁPIDA ─── */}
       <div className={styles.actionBar}>
         <div className={styles.contextInfo}>
-          <span className={styles.contextBadge}>Ficha Técnica & Insumos</span>
-          <span className={styles.contextText}>Controle de baixas automáticas e rastreamento de fornecedores</span>
+          <span className={styles.contextBadge}>GESTÃO DE MATERIAIS</span>
+          <span className={styles.contextText}>Rastreabilidade de lotes, datas de validade e reposição clínica</span>
         </div>
 
         <div className={styles.actionButtons}>
@@ -335,7 +408,7 @@ export default function EstoquePage() {
             type="button" 
             className={styles.iconBtn} 
             onClick={() => { loadStockData(); loadSuppliers(); }}
-            title="Sincronizar Estoque"
+            title="Atualizar Estoque"
           >
             <RefreshCw size={15} />
           </button>
@@ -343,16 +416,16 @@ export default function EstoquePage() {
           {mainTab === 'products' ? (
             <button 
               type="button"
-              className={styles.newBtn} 
+              className={styles.btnPrimary} 
               onClick={() => setIsManagementModalOpen(true)}
             >
               <Plus size={15} />
-              <span>Gerenciar Estoque</span>
+              <span>Entrada em Massa / Novo</span>
             </button>
           ) : (
             <button 
               type="button"
-              className={styles.newBtn} 
+              className={styles.btnPrimary} 
               onClick={() => setIsSupplierModalOpen(true)}
             >
               <Plus size={15} />
@@ -362,127 +435,157 @@ export default function EstoquePage() {
         </div>
       </div>
 
-      {/* ─── KPIS / CARDS DE MÉTRICAS ─── */}
+      {/* ─── KPIS / MÉTRICAS EXECUTIVAS ─── */}
       <div className={styles.metricsGrid}>
         <div className={styles.metricCard}>
           <div className={styles.metricHeader}>
-            <div className={styles.metricIconBg}>
-              <Box size={20} color="#06b6d4" />
+            <span className={styles.metricLabel}>TOTAL DE ITENS</span>
+            <div className={`${styles.metricIconBg} ${styles.iconCyan}`}>
+              <Box size={18} />
             </div>
           </div>
-          <p className={styles.metricLabel}>TOTAL DE ITENS</p>
           <p className={styles.metricValue}>{products.length}</p>
-          <p className={styles.metricSub}>Insumos cadastrados na clínica</p>
+          <p className={styles.metricSub}>Insumos e materiais catalogados</p>
         </div>
 
         <div className={`${styles.metricCard} ${totalCritico > 0 ? styles.metricCardAlert : ''}`}>
           <div className={styles.metricHeader}>
-            <div className={styles.metricIconBgAlert}>
-              <AlertTriangle size={20} color="#dc2626" />
+            <span className={styles.metricLabel}>ITENS CRÍTICOS</span>
+            <div className={`${styles.metricIconBg} ${styles.iconRed}`}>
+              <AlertTriangle size={18} />
             </div>
           </div>
-          <p className={styles.metricLabel}>ITENS CRÍTICOS</p>
-          <p className={`${styles.metricValue} ${styles.metricCritico}`}>{totalCritico}</p>
+          <p className={`${styles.metricValue} ${styles.textRed}`}>{totalCritico}</p>
           <p className={styles.metricSub}>Abaixo do estoque mínimo</p>
         </div>
 
         <div className={styles.metricCard}>
           <div className={styles.metricHeader}>
-            <div className={styles.metricIconBgSuccess}>
-              <CheckCircle2 size={20} color="#16a34a" />
+            <span className={styles.metricLabel}>A VENCER (30D)</span>
+            <div className={`${styles.metricIconBg} ${styles.iconAmber}`}>
+              <CalendarClock size={18} />
             </div>
           </div>
-          <p className={styles.metricLabel}>EM ESTOQUE</p>
-          <p className={`${styles.metricValue} ${styles.metricOk}`}>{totalOk}</p>
-          <p className={styles.metricSub}>Saldos regulares e normais</p>
+          <p className={`${styles.metricValue} ${styles.textAmber}`}>{expiring.length}</p>
+          <p className={styles.metricSub}>Controle de validade ativa</p>
         </div>
 
         <div className={styles.metricCard}>
           <div className={styles.metricHeader}>
-            <div className={styles.metricIconBgSuccess} style={{ backgroundColor: '#f0fdf4' }}>
-              <DollarSign size={20} color="#16a34a" />
+            <span className={styles.metricLabel}>VALOR EM ESTOQUE</span>
+            <div className={`${styles.metricIconBg} ${styles.iconGreen}`}>
+              <DollarSign size={18} />
             </div>
           </div>
-          <p className={styles.metricLabel}>VALOR EM ESTOQUE</p>
-          <p className={styles.metricValue} style={{ fontSize: '24px', color: '#16a34a' }}>
+          <p className={`${styles.metricValue} ${styles.textGreen}`}>
             {formatCurrency(totalStockValue)}
           </p>
-          <p className={styles.metricSub}>Custo total imobilizado</p>
+          <p className={styles.metricSub}>Capital total imobilizado</p>
         </div>
       </div>
 
-      {/* ─── ANALYTICS EXECUTIVO (CONSUMO & REPOSIÇÃO) ─── */}
+      {/* ─── ANALYTICS COM RECHARTS & URGÊNCIA DE REPOSIÇÃO ─── */}
       <div className={styles.adminAnalyticsGrid}>
-        {/* Gráfico de Barras: Top 5 Saídas */}
+        {/* Gráfico Recharts: Insumos Mais Consumidos */}
         <div className={styles.chartCard}>
           <div className={styles.chartHeader}>
             <div className={styles.chartTitleWrapper}>
-              <BarChart3 size={18} color="#06b6d4" />
-              <h4>Top 5 Insumos Mais Utilizados</h4>
+              <BarChart3 size={18} className={styles.textCyan} />
+              <h4>Consumo Recente por Insumo</h4>
             </div>
-            <span className={styles.chartBadge}>Consumo Clínico</span>
+            <span className={styles.chartBadge}>Frequência de Baixa</span>
           </div>
 
-          <div className={styles.chartContent}>
-            {topUsedProducts.length === 0 || (topUsedProducts[0]?.usageCount || 0) === 0 ? (
+          <div className={styles.chartContainer}>
+            {chartData.length === 0 ? (
               <div className={styles.emptyStateContainer}>
                 <p className={styles.emptyChartTitle}>Nenhuma baixa clínica registrada</p>
-                <p className={styles.emptyChartSub}>O volume de saída cresce conforme os atendimentos são finalizados.</p>
+                <p className={styles.emptyChartSub}>O volume aparecerá automaticamente ao encerrar consultas.</p>
               </div>
             ) : (
-              topUsedProducts.map((item) => {
-                const count = item.usageCount || 0
-                const percent = Math.min(100, Math.round((count / maxUsage) * 100))
-
-                return (
-                  <div key={item.id} className={styles.barItem}>
-                    <div className={styles.barLabelGroup}>
-                      <span className={styles.barName}>{item.name}</span>
-                      <span className={styles.barAmount}>
-                        {count} {item.unit || 'un'} ({percent}%)
-                      </span>
-                    </div>
-                    <div className={styles.barTrack}>
-                      <div className={styles.barFill} style={{ width: `${percent}%`, background: '#06b6d4' }} />
-                    </div>
-                  </div>
-                )
-              })
+              <ResponsiveContainer width="100%" height={165}>
+                <BarChart data={chartData} margin={{ top: 8, right: 10, left: -25, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={{ stroke: '#f1f5f9' }}
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  />
+                  <Tooltip 
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const item = payload[0].payload
+                        return (
+                          <div className={styles.customTooltip}>
+                            <span className={styles.tooltipName}>{item.name}</span>
+                            <span className={styles.tooltipValue}>
+                              {item.consumo} {item.unit} baixados
+                            </span>
+                          </div>
+                        )
+                      }
+                      return null
+                    }}
+                  />
+                  <Bar dataKey="consumo" radius={[4, 4, 0, 0]} maxBarSize={36}>
+                    {chartData.map((_, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={index === 0 ? 'var(--primary-color, #06b6d4)' : '#38bdf8'} 
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             )}
           </div>
         </div>
 
-        {/* Card Alerta de Reposição Crítica */}
+        {/* Card Alerta de Reposição Imediata */}
         <div className={styles.chartCard}>
           <div className={styles.chartHeader}>
             <div className={styles.chartTitleWrapper}>
-              <ShieldAlert size={18} color="#ef4444" />
-              <h4>Urgência de Abastecimento</h4>
+              <ShieldAlert size={18} className={styles.textRed} />
+              <h4>Urgência de Reposição</h4>
             </div>
-            <span className={styles.chartBadge} style={{ color: '#ef4444', background: '#fee2e2' }}>
+            <span className={styles.criticalBadge}>
               {lowStock.length} Pendentes
             </span>
           </div>
 
-          <div className={styles.chartContent}>
+          <div className={styles.criticalListContainer}>
             {lowStock.length === 0 ? (
               <div className={styles.emptyStateContainer}>
-                <CheckCircle2 size={24} color="#16a34a" style={{ marginBottom: '6px' }} />
-                <p className={styles.emptyChartTitle}>Todos os estoques estão abastecidos!</p>
-                <p className={styles.emptyChartSub}>Nenhum material abaixo do nível mínimo de segurança.</p>
+                <CheckCircle2 size={28} className={styles.textGreen} style={{ marginBottom: '6px' }} />
+                <p className={styles.emptyChartTitle}>Nenhum insumo em nível crítico!</p>
+                <p className={styles.emptyChartSub}>Todos os materiais estão acima do estoque de segurança.</p>
               </div>
             ) : (
               <div className={styles.criticalList}>
                 {lowStock.slice(0, 4).map((p) => (
                   <div key={p.id} className={styles.criticalItem}>
-                    <div>
+                    <div className={styles.criticalDetails}>
                       <span className={styles.criticalName}>{p.name}</span>
-                      <span className={styles.criticalSub}>Mínimo: {p.minQuantity} {p.unit}</span>
+                      <span className={styles.criticalSub}>
+                        Saldo: <strong>{p.quantity} {p.unit || 'UN'}</strong> • Mínimo: {p.minQuantity} {p.unit || 'UN'}
+                      </span>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <span className={styles.criticalQty}>{p.quantity} {p.unit}</span>
-                      <span className={styles.criticalTag}>Repor</span>
-                    </div>
+
+                    <button 
+                      type="button" 
+                      onClick={() => handleOpenQuickRestock(p)}
+                      className={styles.btnReporAction}
+                      title="Registrar entrada imediata"
+                    >
+                      <ArrowDownToLine size={13} />
+                      <span>Repor</span>
+                    </button>
                   </div>
                 ))}
               </div>
@@ -491,9 +594,9 @@ export default function EstoquePage() {
         </div>
       </div>
 
-      {/* ─── CARD PRINCIPAL DE ESTOQUE ─── */}
+      {/* ─── TABELA PRINCIPAL ─── */}
       <div className={styles.agendaCard}>
-        {/* ─── CONTROLES & FILTROS SUPERIORES ─── */}
+        {/* Controles de Busca e Abas */}
         <div className={styles.controlsBar}>
           <div className={styles.navTabsGroup}>
             <button 
@@ -501,16 +604,16 @@ export default function EstoquePage() {
               className={`${styles.navTab} ${mainTab === 'products' ? styles.navTabActive : ''}`} 
               onClick={() => { setMainTab('products'); setSearchTerm(''); }}
             >
-              <Package size={14} style={{ marginRight: '6px' }} />
-              Materiais & Produtos ({products.length})
+              <Package size={14} />
+              <span>Materiais & Insumos ({products.length})</span>
             </button>
             <button 
               type="button" 
               className={`${styles.navTab} ${mainTab === 'suppliers' ? styles.navTabActive : ''}`} 
               onClick={() => { setMainTab('suppliers'); setSearchTerm(''); }}
             >
-              <Building2 size={14} style={{ marginRight: '6px' }} />
-              Fornecedores ({suppliers.length})
+              <Building2 size={14} />
+              <span>Fornecedores ({suppliers.length})</span>
             </button>
           </div>
 
@@ -535,13 +638,13 @@ export default function EstoquePage() {
                 className={`${styles.filterBtn} ${productFilterTab === 'expiring' ? styles.filterBtnActive : ''}`} 
                 onClick={() => setProductFilterTab('expiring')}
               >
-                Vencendo ({expiring.length})
+                Validade Próxima ({expiring.length})
               </button>
             </div>
           )}
 
           <div className={styles.searchBox}>
-            <Search size={16} color="#94a3b8" />
+            <Search size={15} color="#94a3b8" />
             <input 
               type="text" 
               placeholder={mainTab === 'products' ? 'Buscar produto, lote...' : 'Buscar fornecedor, CNPJ...'}
@@ -557,7 +660,7 @@ export default function EstoquePage() {
           loading ? (
             <div className={styles.loading}>
               <Loader2 size={24} className={styles.spinner} />
-              <span>Carregando estoque...</span>
+              <span>Carregando inventário clínico...</span>
             </div>
           ) : (
             <div className={styles.tableContainer}>
@@ -565,12 +668,12 @@ export default function EstoquePage() {
                 <thead>
                   <tr>
                     <th>NOME DO MATERIAL</th>
-                    <th>LOTE / CÓDIGO</th>
+                    <th>LOTE / RASTREABILIDADE</th>
                     <th>PREÇO DE CUSTO</th>
                     <th>QUANTIDADE ATUAL</th>
                     <th>ESTOQUE MÍNIMO</th>
                     <th>VALIDADE</th>
-                    <th>ALERTA</th>
+                    <th>STATUS</th>
                     <th style={{ textAlign: 'right' }}>AÇÕES</th>
                   </tr>
                 </thead>
@@ -578,31 +681,34 @@ export default function EstoquePage() {
                   {displayed.length === 0 ? (
                     <tr>
                       <td colSpan={8} className={styles.empty}>
-                        Nenhum produto encontrado.
+                        Nenhum insumo encontrado para a busca selecionada.
                       </td>
                     </tr>
                   ) : (
                     displayed.map((p) => {
-                      const alert = getAlertLabel(p)
+                      const isCritical = getComputedStatus(p) === 'CRITICO' || getComputedStatus(p) === 'BAIXO'
                       const lotDisplay = p.lotNumber || p.batchNumber
+                      const expInfo = getExpiryStatus(p.expiryDate)
 
                       return (
                         <tr key={p.id}>
                           <td>
-                            <div style={{ fontWeight: 600, color: '#0f172a' }}>{p.name}</div>
+                            <div className={styles.productNameText}>{p.name}</div>
                             {p.itemsPerPackage && p.itemsPerPackage > 1 && (
-                              <div style={{ fontSize: '11px', color: '#0284c7', marginTop: '2px', fontWeight: 500 }}>
-                                📦 Rendimento: {p.itemsPerPackage} {p.unit === 'CX' ? 'un/cx' : 'g/ml por embalagem'}
+                              <div className={styles.packageNote}>
+                                📦 {p.itemsPerPackage} {p.unit === 'CX' ? 'un/cx' : 'g/ml por frasco'}
                               </div>
                             )}
                           </td>
 
                           <td>
                             {lotDisplay ? (
-                              <span style={{ fontFamily: 'monospace', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, color: '#334155', fontSize: '12px' }}>
+                              <span className={styles.lotBadge}>
                                 {lotDisplay}
                               </span>
-                            ) : '—'}
+                            ) : (
+                              <span style={{ color: '#cbd5e1' }}>—</span>
+                            )}
                           </td>
 
                           <td className={styles.tableTextMuted}>
@@ -610,36 +716,47 @@ export default function EstoquePage() {
                           </td>
 
                           <td>
-                            <span className={styles.qtyTextClean}>
+                            <span className={`${styles.qtyTextClean} ${isCritical ? styles.textRed : ''}`}>
                               {p.quantity} <span className={styles.unitText}>{p.unit || 'UN'}</span>
                             </span>
                           </td>
 
-                          <td style={{ color: '#64748b', fontSize: '13px' }}>
-                            Min. {p.minQuantity} {p.unit || 'UN'}
-                          </td>
-
-                          <td style={{ color: '#64748b', fontSize: '13px' }}>
-                            {formatDate(p.expiryDate)}
+                          <td style={{ color: '#64748b', fontSize: '12.5px' }}>
+                            Mín. {p.minQuantity} {p.unit || 'UN'}
                           </td>
 
                           <td>
-                            <span className={`${styles.alertBadge} ${alert.cls}`}>
-                              {alert.isAlert && <AlertTriangle size={12} />}
-                              <span>{alert.label}</span>
+                            <span className={`${styles.expiryBadge} ${expInfo.cls}`}>
+                              {expInfo.label}
+                            </span>
+                          </td>
+
+                          <td>
+                            <span className={isCritical ? styles.badgeCritico : styles.badgeOk}>
+                              {isCritical ? 'Comprar Urgente' : 'Estoque Regular'}
                             </span>
                           </td>
 
                           <td style={{ textAlign: 'right' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditProduct(p)}
-                              className={styles.iconBtn}
-                              style={{ border: 'none', background: 'transparent' }}
-                              title="Editar Produto"
-                            >
-                              <Edit2 size={16} />
-                            </button>
+                            <div className={styles.rowActions}>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenQuickRestock(p)}
+                                className={styles.btnActionRestock}
+                                title="Dar Entrada de Lote / Repor"
+                              >
+                                <ArrowDownToLine size={14} />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditProduct(p)}
+                                className={styles.btnActionEdit}
+                                title="Editar Cadastro Completo"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -651,7 +768,7 @@ export default function EstoquePage() {
           )
         )}
 
-        {/* ─── TABELA DE FORNECEDORES (COM LINKS DIRETOS) ─── */}
+        {/* ─── TABELA DE FORNECEDORES ─── */}
         {mainTab === 'suppliers' && (
           loadingSuppliers ? (
             <div className={styles.loading}>
@@ -663,10 +780,10 @@ export default function EstoquePage() {
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>RAZÃO SOCIAL / NOME</th>
-                    <th>CNPJ / CPF</th>
-                    <th>VENDEDOR / CONTATO</th>
-                    <th>CONTATO / WHATSAPP</th>
+                    <th>RAZÃO SOCIAL / DENTAL</th>
+                    <th>CNPJ / REGISTRO</th>
+                    <th>VENDEDOR / REPRESENTANTE</th>
+                    <th>TELEFONE / WHATSAPP</th>
                     <th>E-MAIL COMERCIAL</th>
                   </tr>
                 </thead>
@@ -674,7 +791,7 @@ export default function EstoquePage() {
                   {filteredSuppliers.length === 0 ? (
                     <tr>
                       <td colSpan={5} className={styles.empty}>
-                        Nenhum fornecedor cadastrado.
+                        Nenhum fornecedor cadastrado na clínica.
                       </td>
                     </tr>
                   ) : (
@@ -694,7 +811,7 @@ export default function EstoquePage() {
                           </td>
                           <td style={{ fontSize: '13px', color: '#334155' }}>
                             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <UserCheck size={14} color="#0891b2" />
+                              <UserCheck size={14} color="var(--primary-color, #0891b2)" />
                               {sup.contact || '—'}
                             </span>
                           </td>
@@ -703,9 +820,9 @@ export default function EstoquePage() {
                               <a 
                                 href={whatsappUrl} 
                                 target="_blank" 
-                                rel="noopener noreferrer"
+                                rel="noopener noreferrer" 
                                 className={styles.supplierLink}
-                                title="Enviar mensagem de cotação via WhatsApp"
+                                title="Solicitar cotação via WhatsApp"
                               >
                                 <MessageCircle size={14} color="#16a34a" />
                                 <span>{sup.phone}</span>
@@ -740,17 +857,110 @@ export default function EstoquePage() {
         )}
       </div>
 
-      {/* ─── MODAL DE EDIÇÃO ÚNICA ─── */}
+      {/* ─── MODAL 1: ENTRADA RÁPIDA DE REPOSIÇÃO ─── */}
+      {quickRestockProduct && (
+        <div className={styles.modalOverlay} onClick={() => setQuickRestockProduct(null)}>
+          <div className={styles.quickModalCard} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.detailsHeader}>
+              <div className={styles.titleIconBg}>
+                <ArrowDownToLine size={18} color="var(--primary-color, #06b6d4)" />
+              </div>
+              <div>
+                <h3 className={styles.detailsTitle}>Reposição Rápida de Estoque</h3>
+                <p className={styles.chartSub}>Adicionar unidades ao saldo de <strong>{quickRestockProduct.name}</strong></p>
+              </div>
+              <button 
+                type="button" 
+                className={styles.closeBtn} 
+                onClick={() => setQuickRestockProduct(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmQuickRestock} className={styles.supplierForm}>
+              <div className={styles.restockSummaryBox}>
+                <div>
+                  <span className={styles.summaryLabel}>Saldo Atual</span>
+                  <strong className={styles.summaryValue}>{quickRestockProduct.quantity} {quickRestockProduct.unit || 'UN'}</strong>
+                </div>
+                <div>
+                  <span className={styles.summaryLabel}>Estoque Mínimo</span>
+                  <strong className={styles.summaryValue}>{quickRestockProduct.minQuantity} {quickRestockProduct.unit || 'UN'}</strong>
+                </div>
+                <div>
+                  <span className={styles.summaryLabel}>Novo Saldo Estimado</span>
+                  <strong className={styles.summaryValueHighlight}>
+                    {Number(quickRestockProduct.quantity) + Number(quickAddQty || 0)} {quickRestockProduct.unit || 'UN'}
+                  </strong>
+                </div>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Quantidade a Adicionar ({quickRestockProduct.unit || 'UN'}) *</label>
+                <input 
+                  type="number" 
+                  min="1" 
+                  required
+                  value={quickAddQty}
+                  onChange={(e) => setQuickAddQty(Number(e.target.value))}
+                  className={styles.inputHighlight}
+                />
+              </div>
+
+              <div className={styles.formTwoCols}>
+                <div className={styles.formGroup}>
+                  <label>Número do Lote</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: LT-2026-X" 
+                    value={quickLotNumber}
+                    onChange={(e) => setQuickLotNumber(e.target.value)}
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>Nova Data de Validade</label>
+                  <input 
+                    type="date" 
+                    value={quickExpiryDate}
+                    onChange={(e) => setQuickExpiryDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.formActions}>
+                <button 
+                  type="button" 
+                  className={styles.btnSecondary} 
+                  onClick={() => setQuickRestockProduct(null)}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={savingQuickRestock || quickAddQty <= 0} 
+                  className={styles.btnPrimary}
+                >
+                  {savingQuickRestock ? <Loader2 size={16} className={styles.spinner} /> : <Save size={16} />}
+                  <span>Confirmar Entrada</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL 2: EDIÇÃO COMPLETA DE PRODUTO ─── */}
       {isEditingModalOpen && editingProduct && (
         <div className={styles.modalOverlay} onClick={() => setIsEditingModalOpen(false)}>
           <div className={styles.detailsModalCard} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
             <div className={styles.detailsHeader}>
               <div className={styles.titleIconBg}>
-                <Edit2 size={18} color="var(--primary, #0284c7)" />
+                <Edit2 size={18} color="var(--primary-color, #06b6d4)" />
               </div>
               <div>
-                <h3 className={styles.detailsTitle}>Editar Produto</h3>
-                <p className={styles.chartSub}>Ajuste os dados cadastrais, lote e rendimento de fracionamento</p>
+                <h3 className={styles.detailsTitle}>Editar Insumo</h3>
+                <p className={styles.chartSub}>Atualização cadastral, especificações de embalagem e fornecedor</p>
               </div>
               <button 
                 type="button" 
@@ -784,7 +994,7 @@ export default function EstoquePage() {
                 </div>
                 <div className={styles.formGroup}>
                   <label>
-                    {editingProduct.unit === 'CX' ? 'Custo da Caixa (R$)' : 'Custo Compra (R$)'}
+                    {editingProduct.unit === 'CX' ? 'Custo da Caixa (R$)' : 'Custo Unitário de Compra (R$)'}
                   </label>
                   <input
                     type="text"
@@ -811,7 +1021,7 @@ export default function EstoquePage() {
                   <select
                     value={editingProduct.unit || 'UN'}
                     onChange={(e) => setEditingProduct({ ...editingProduct, unit: e.target.value })}
-                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                    className={styles.selectInput}
                   >
                     {UNIT_OPTIONS.map((u) => (
                       <option key={u.value} value={u.value}>
@@ -823,9 +1033,9 @@ export default function EstoquePage() {
               </div>
 
               {(editingProduct.unit === 'CX' || editingProduct.unit === 'UN') && (
-                <div className={styles.formGroup} style={{ backgroundColor: '#f0f9ff', padding: '10px 12px', borderRadius: '8px', border: '1px solid #bae6fd' }}>
-                  <label style={{ color: '#0284c7', fontWeight: 600 }}>
-                    {editingProduct.unit === 'CX' ? 'Qtd. de Unidades por Caixa *' : 'Rendimento / Conteúdo Total (g ou ml por seringa/pote)'}
+                <div className={styles.packageHintBox}>
+                  <label style={{ color: 'var(--primary-color, #0891b2)', fontWeight: 600 }}>
+                    {editingProduct.unit === 'CX' ? 'Unidades Contidas na Caixa *' : 'Rendimento / Conteúdo Total (g ou ml por seringa/tubete)'}
                   </label>
                   <input
                     type="number"
@@ -833,11 +1043,11 @@ export default function EstoquePage() {
                     placeholder={editingProduct.unit === 'CX' ? 'Ex: 100 luvas' : 'Ex: 4 (para seringa de 4g de resina)'}
                     value={editingProduct.itemsPerPackage || (editingProduct.unit === 'CX' ? 100 : 1)}
                     onChange={(e) => setEditingProduct({ ...editingProduct, itemsPerPackage: Number(e.target.value) })}
-                    style={{ borderColor: '#0284c7', marginTop: '4px' }}
+                    className={styles.packageInput}
                   />
                   {editingProduct.costPrice && editingProduct.itemsPerPackage && editingProduct.itemsPerPackage > 0 && (
-                    <span style={{ fontSize: '11px', color: '#0369a1', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Info size={12} /> Custo fracionado na Ficha Técnica: <strong>R$ {(Number(editingProduct.costPrice) / Number(editingProduct.itemsPerPackage)).toFixed(2)} por item</strong>
+                    <span className={styles.costPerFractionText}>
+                      <Info size={12} /> Custo fracionado na baixa clínica: <strong>R$ {(Number(editingProduct.costPrice) / Number(editingProduct.itemsPerPackage)).toFixed(2)} por aplicação</strong>
                     </span>
                   )}
                 </div>
@@ -845,7 +1055,7 @@ export default function EstoquePage() {
 
               <div className={styles.formTwoCols}>
                 <div className={styles.formGroup}>
-                  <label>Estoque Mínimo</label>
+                  <label>Estoque Mínimo de Alerta</label>
                   <input
                     type="number"
                     min="0"
@@ -864,11 +1074,11 @@ export default function EstoquePage() {
               </div>
 
               <div className={styles.formGroup}>
-                <label>Fornecedor</label>
+                <label>Fornecedor Vinculado</label>
                 <select
                   value={editingProduct.supplierId || ''}
                   onChange={(e) => setEditingProduct({ ...editingProduct, supplierId: e.target.value })}
-                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', width: '100%' }}
+                  className={styles.selectInput}
                 >
                   <option value="">Nenhum / Não especificado</option>
                   {suppliers.map((s) => (
@@ -880,16 +1090,16 @@ export default function EstoquePage() {
               </div>
 
               {editingProduct.stockMovements && editingProduct.stockMovements.length > 0 && (
-                <div className={styles.movementsSection} style={{ marginTop: '12px' }}>
+                <div className={styles.movementsSection}>
                   <div className={styles.movementsHeader}>
-                    <History size={14} color="var(--primary, #0284c7)" />
-                    <h4 style={{ fontSize: '12px' }}>Últimas Movimentações</h4>
+                    <History size={14} color="var(--primary-color, #0891b2)" />
+                    <h4 style={{ fontSize: '12px', margin: 0 }}>Histórico de Movimentações</h4>
                   </div>
-                  <div className={styles.movementsList} style={{ maxHeight: '120px', overflowY: 'auto' }}>
+                  <div className={styles.movementsList}>
                     {editingProduct.stockMovements.slice(0, 3).map((mov) => (
-                      <div key={mov.id} className={styles.movementItem} style={{ padding: '6px 8px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 600 }}>
-                          {mov.type === 'ENTRY' || mov.type === 'IN' ? '+ Entrada' : '- Saída'}: {Math.abs(mov.quantity)} {editingProduct.unit}
+                      <div key={mov.id} className={styles.movementItem}>
+                        <span style={{ fontSize: '11.5px', fontWeight: 600 }}>
+                          {mov.type === 'ENTRY' || mov.type === 'IN' ? '+ Entrada' : '- Baixa Clínica'}: {Math.abs(mov.quantity)} {editingProduct.unit}
                         </span>
                         <span style={{ fontSize: '11px', color: '#64748b' }}>
                           {new Date(mov.createdAt).toLocaleDateString('pt-BR')}
@@ -900,17 +1110,16 @@ export default function EstoquePage() {
                 </div>
               )}
 
-              <div className={styles.formActions} style={{ justifyContent: 'space-between', marginTop: '20px' }}>
+              <div className={styles.formActions} style={{ justifyContent: 'space-between', marginTop: '16px' }}>
                 <div>
                   {editingProduct.quantity === 0 && (
                     <button
                       type="button"
                       onClick={() => handleDeleteProduct(editingProduct.id, editingProduct.name)}
-                      className={styles.btnSecondary}
-                      style={{ color: '#ef4444', backgroundColor: '#fef2f2', borderColor: '#fecaca' }}
+                      className={styles.btnDelete}
                     >
-                      <Trash2 size={14} style={{ marginRight: '4px', display: 'inline' }} />
-                      Excluir Produto
+                      <Trash2 size={14} />
+                      <span>Excluir</span>
                     </button>
                   )}
                 </div>
@@ -925,17 +1134,11 @@ export default function EstoquePage() {
                   </button>
                   <button
                     type="submit"
-                    className={styles.newBtn}
+                    className={styles.btnPrimary}
                     disabled={savingEdit}
                   >
-                    {savingEdit ? (
-                      <Loader2 size={16} className={styles.spinner} />
-                    ) : (
-                      <>
-                        <Save size={14} style={{ marginRight: '4px', display: 'inline' }} />
-                        <span>Salvar Alterações</span>
-                      </>
-                    )}
+                    {savingEdit ? <Loader2 size={16} className={styles.spinner} /> : <Save size={14} />}
+                    <span>Salvar Alterações</span>
                   </button>
                 </div>
               </div>
@@ -944,13 +1147,18 @@ export default function EstoquePage() {
         </div>
       )}
 
-      {/* ─── MODAL FORNECEDOR ─── */}
+      {/* ─── MODAL 3: NOVO FORNECEDOR ─── */}
       {isSupplierModalOpen && (
         <div className={styles.modalOverlay} onClick={() => setIsSupplierModalOpen(false)}>
           <div className={styles.supplierModalCard} onClick={(e) => e.stopPropagation()}>
             <div className={styles.detailsHeader}>
-              <Building2 size={20} color="var(--primary, #0284c7)" />
-              <h3 className={styles.detailsTitle}>Novo Fornecedor</h3>
+              <div className={styles.titleIconBg}>
+                <Building2 size={18} color="var(--primary-color, #06b6d4)" />
+              </div>
+              <div>
+                <h3 className={styles.detailsTitle}>Cadastrar Novo Fornecedor</h3>
+                <p className={styles.chartSub}>Parceiro para cotação e compras de insumos</p>
+              </div>
               <button 
                 type="button" 
                 className={styles.closeBtn} 
@@ -966,7 +1174,7 @@ export default function EstoquePage() {
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Dental Cremer"
+                  placeholder="Ex: Dental Cremer S.A."
                   value={newSupplier.name}
                   onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
                 />
@@ -986,7 +1194,7 @@ export default function EstoquePage() {
                   <label>Nome do Vendedor / Contato</label>
                   <input
                     type="text"
-                    placeholder="Ex: João Vendedor"
+                    placeholder="Ex: Carlos Representante"
                     value={newSupplier.contact}
                     onChange={(e) => setNewSupplier({ ...newSupplier, contact: e.target.value })}
                   />
@@ -1004,10 +1212,10 @@ export default function EstoquePage() {
                   />
                 </div>
                 <div className={styles.formGroup}>
-                  <label>E-mail</label>
+                  <label>E-mail Comercial</label>
                   <input
                     type="email"
-                    placeholder="contato@dental.com"
+                    placeholder="vendas@dental.com.br"
                     value={newSupplier.email}
                     onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })}
                   />
@@ -1024,10 +1232,11 @@ export default function EstoquePage() {
                 </button>
                 <button
                   type="submit"
-                  className={styles.newBtn}
+                  className={styles.btnPrimary}
                   disabled={savingSupplier}
                 >
-                  {savingSupplier ? <Loader2 size={16} className={styles.spinner} /> : 'Salvar Fornecedor'}
+                  {savingSupplier ? <Loader2 size={16} className={styles.spinner} /> : <Plus size={15} />}
+                  <span>Cadastrar Fornecedor</span>
                 </button>
               </div>
             </form>
@@ -1035,7 +1244,7 @@ export default function EstoquePage() {
         </div>
       )}
 
-      {/* ─── MODAL GERENCIAR ESTOQUE ─── */}
+      {/* Modal Gerenciamento Geral de Estoque */}
       <StockManagementModal 
         isOpen={isManagementModalOpen}
         onClose={() => setIsManagementModalOpen(false)}
