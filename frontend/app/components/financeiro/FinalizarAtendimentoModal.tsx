@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   X, 
   CreditCard, 
@@ -8,7 +8,8 @@ import {
   Building2, 
   CheckCircle2, 
   Loader2, 
-  AlertCircle 
+  AlertCircle,
+  Stethoscope
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './FinalizarAtendimentoModal.module.css'
@@ -20,7 +21,14 @@ interface FinalizarAtendimentoModalProps {
   appointment: {
     id: string
     dateTime: string
-    type: 'PARTICULAR' | 'CONVENIO'
+    type?: string
+    notes?: string
+    procedureId?: string
+    procedure?: {
+      id: string
+      name: string
+      basePrice?: number
+    } | null
     patient: {
       id: string
       name: string
@@ -40,21 +48,48 @@ export function FinalizarAtendimentoModal({
   const [error, setError] = useState<string | null>(null)
 
   // Estados do Formulário
-  const [billingType, setBillingType] = useState<'PARTICULAR' | 'CONVENIO'>(
-    appointment?.type || 'PARTICULAR'
-  )
+  const [billingType, setBillingType] = useState<'PARTICULAR' | 'CONVENIO'>('PARTICULAR')
   const [amount, setAmount] = useState<string>('')
   const [paymentMethod, setPaymentMethod] = useState<'PIX' | 'CREDITO' | 'DEBITO' | 'DINHEIRO'>('PIX')
   const [description, setDescription] = useState('')
 
-  // Dados do Convênio (caso não cadastrado previamente)
-  const [insuranceProvider, setInsuranceProvider] = useState(
-    appointment?.patient.insuranceProvider || ''
-  )
-  const [insuranceNumber, setInsuranceNumber] = useState(
-    appointment?.patient.insuranceNumber || ''
-  )
+  // Dados do Convênio
+  const [insuranceProvider, setInsuranceProvider] = useState('')
+  const [insuranceNumber, setInsuranceNumber] = useState('')
   const [authorizationCode, setAuthorizationCode] = useState('')
+
+  // Efeito para pré-carregar automaticamente o valor do procedimento e dados da consulta
+  useEffect(() => {
+    if (appointment && isOpen) {
+      setError(null)
+
+      // 1. Define tipo de faturamento (Particular ou Convênio)
+      const isConvenio = appointment.type === 'CONVENIO' || !!appointment.patient.insuranceProvider
+      setBillingType(isConvenio ? 'CONVENIO' : 'PARTICULAR')
+
+      // 2. Extrai o preço base do procedimento vinculado
+      const procedurePrice = Number(appointment.procedure?.basePrice || 0)
+      if (procedurePrice > 0) {
+        setAmount(procedurePrice.toFixed(2).replace('.', ','))
+      } else {
+        setAmount('')
+      }
+
+      // 3. Preenche a descrição padrão
+      if (appointment.procedure?.name) {
+        setDescription(`Procedimento: ${appointment.procedure.name}`)
+      } else if (appointment.notes) {
+        setDescription(appointment.notes)
+      } else {
+        setDescription(`Consulta clínica - ${appointment.patient.name}`)
+      }
+
+      // 4. Dados de Convênio pré-existentes no cadastro
+      setInsuranceProvider(appointment.patient.insuranceProvider || '')
+      setInsuranceNumber(appointment.patient.insuranceNumber || '')
+      setAuthorizationCode('')
+    }
+  }, [appointment, isOpen])
 
   if (!isOpen || !appointment) return null
 
@@ -65,28 +100,28 @@ export function FinalizarAtendimentoModal({
 
     try {
       if (billingType === 'PARTICULAR') {
-        const parsedAmount = Number(amount.replace(',', '.'))
-        if (!parsedAmount || parsedAmount <= 0) {
+        const parsedAmount = Number(amount.replace(/\./g, '').replace(',', '.'))
+        if (isNaN(parsedAmount) || parsedAmount <= 0) {
           throw new Error('Informe um valor válido para o procedimento.')
         }
 
-        // POST /transactions cria a receita e o backend finaliza o agendamento via appointmentId
+        // POST /transactions cria a receita e finaliza a consulta vinculada
         await api.post('/transactions', {
           type: 'RECEITA',
           amount: parsedAmount,
           paymentMethod,
-          category: 'Consulta / Procedimento',
+          category: appointment.procedure ? 'Procedimento Odontológico' : 'Consulta / Avaliação',
           description: description || `Atendimento finalizado - ${appointment.patient.name}`,
           appointmentId: appointment.id,
           paidAt: new Date().toISOString(),
         })
       } else {
-        // Validação de dados do convênio
+        // Validação de convênio
         if (!insuranceProvider.trim() || !insuranceNumber.trim()) {
-          throw new Error('Preencha o nome do convênio e o número da carteirinha.')
+          throw new Error('Preencha a operadora do convênio e o número da carteirinha.')
         }
 
-        // 1. Atualiza dados do convênio no cadastro do paciente se necessário
+        // 1. Atualiza dados do convênio no cadastro se estavam ausentes
         if (
           !appointment.patient.insuranceProvider ||
           !appointment.patient.insuranceNumber
@@ -97,15 +132,15 @@ export function FinalizarAtendimentoModal({
           })
         }
 
-        // 2. Registra a transação com método CONVENIO vinculando a guia/autorização
-        const parsedAmount = amount ? Number(amount.replace(',', '.')) : 0
+        // 2. Registra o faturamento vinculado ao convênio
+        const parsedAmount = amount ? Number(amount.replace(/\./g, '').replace(',', '.')) : 0
 
         await api.post('/transactions', {
           type: 'RECEITA',
-          amount: parsedAmount,
+          amount: isNaN(parsedAmount) ? 0 : parsedAmount,
           paymentMethod: 'CONVENIO',
           category: 'Guia Convênio',
-          description: `Convênio ${insuranceProvider} - Carteira: ${insuranceNumber} | Aut: ${authorizationCode || 'N/A'}`,
+          description: `Convênio ${insuranceProvider} - Matrícula: ${insuranceNumber}${authorizationCode ? ` | Guia: ${authorizationCode}` : ''}`,
           appointmentId: appointment.id,
           paidAt: new Date().toISOString(),
         })
@@ -130,14 +165,29 @@ export function FinalizarAtendimentoModal({
             <CheckCircle2 className={styles.headerIcon} size={20} />
             <h2>Finalizar Atendimento & Faturamento</h2>
           </div>
-          <button onClick={onClose} className={styles.btnClose}>
+          <button onClick={onClose} className={styles.btnClose} type="button">
             <X size={18} />
           </button>
         </div>
 
+        {/* Banner do Paciente & Procedimento */}
         <div className={styles.patientBanner}>
-          <span className={styles.patientLabel}>Paciente</span>
-          <span className={styles.patientName}>{appointment.patient.name}</span>
+          <div className={styles.patientInfoCol}>
+            <span className={styles.patientLabel}>Paciente</span>
+            <span className={styles.patientName}>{appointment.patient.name}</span>
+          </div>
+
+          {appointment.procedure && (
+            <div className={styles.procedureBadge}>
+              <Stethoscope size={14} className={styles.procedureIcon} />
+              <span>{appointment.procedure.name}</span>
+              {appointment.procedure.basePrice && (
+                <span className={styles.procedurePrice}>
+                  • R$ {Number(appointment.procedure.basePrice).toFixed(2)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {error && (
@@ -176,8 +226,7 @@ export function FinalizarAtendimentoModal({
                 <div className={styles.inputPrefixWrapper}>
                   <span>R$</span>
                   <input
-                    type="number"
-                    step="0.01"
+                    type="text"
                     placeholder="0,00"
                     required
                     value={amount}
@@ -213,7 +262,7 @@ export function FinalizarAtendimentoModal({
                   placeholder="Ex: Consulta clínica + Profilaxia"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className={styles.inputField}
+                  className={styles.inputFieldPlain}
                 />
               </div>
             </>
@@ -230,7 +279,7 @@ export function FinalizarAtendimentoModal({
                   required
                   value={insuranceProvider}
                   onChange={(e) => setInsuranceProvider(e.target.value)}
-                  className={styles.inputField}
+                  className={styles.inputFieldPlain}
                 />
               </div>
 
@@ -242,7 +291,7 @@ export function FinalizarAtendimentoModal({
                   required
                   value={insuranceNumber}
                   onChange={(e) => setInsuranceNumber(e.target.value)}
-                  className={styles.inputField}
+                  className={styles.inputFieldPlain}
                 />
               </div>
 
@@ -254,19 +303,21 @@ export function FinalizarAtendimentoModal({
                     placeholder="Código autorizador"
                     value={authorizationCode}
                     onChange={(e) => setAuthorizationCode(e.target.value)}
-                    className={styles.inputField}
+                    className={styles.inputFieldPlain}
                   />
                 </div>
                 <div className={styles.formGroup}>
                   <label>Valor de Repasse Previsto (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0,00"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className={styles.inputField}
-                  />
+                  <div className={styles.inputPrefixWrapper}>
+                    <span>R$</span>
+                    <input
+                      type="text"
+                      placeholder="0,00"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className={styles.inputField}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
