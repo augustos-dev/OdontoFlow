@@ -1,22 +1,21 @@
-
 <div align="center">
 
 # 🦷 OdontoFlow
 
-**Plataforma SaaS B2B Fullstack de Gestão Clínica & Comercial Odontológica**
+**Plataforma SaaS B2B Full-Stack de Gerenciamento Clínico Odontológico**
 
 *Multi-tenant · Next.js 15 · REST API · TypeScript · Prisma ORM · PostgreSQL*
 
-![Status](https://img.shields.io/badge/status-em%20produ%C3%A7%C3%A3o%20%2F%20beta-brightgreen?style=flat-square)
-![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square&logo=node.js)
+![Status](https://img.shields.io/badge/status-em%20desenvolvimento-yellow?style=flat-square)
 ![Next.js](https://img.shields.io/badge/next.js-15.x-black?style=flat-square&logo=next.js)
+![React](https://img.shields.io/badge/react-19.x-61DAFB?style=flat-square&logo=react)
 ![TypeScript](https://img.shields.io/badge/typescript-5.x-blue?style=flat-square&logo=typescript)
 ![Prisma](https://img.shields.io/badge/prisma-7.x-2D3748?style=flat-square&logo=prisma)
 ![Deploy](https://img.shields.io/badge/deploy-render-46E3B7?style=flat-square&logo=render)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 
 **🚀 API em produção:** [`https://odontoflow-bbcl.onrender.com`](https://odontoflow-bbcl.onrender.com)  
-**📖 Documentação Swagger:** [`https://odontoflow-bbcl.onrender.com/docs`](https://odontoflow-bbcl.onrender.com/docs)
+**📖 Swagger Docs:** [`https://odontoflow-bbcl.onrender.com/docs`](https://odontoflow-bbcl.onrender.com/docs)
 
 </div>
 
@@ -24,146 +23,173 @@
 
 ## 📌 Sobre o Projeto
 
-O **OdontoFlow** é um ecossistema SaaS multi-tenant desenvolvido especificamente para clínicas odontológicas que buscam precisão cirúrgica no controle clínico e lucratividade comercial. A plataforma integra o atendimento odontológico da recepção ao mocho do dentista, sincronizando prontuário visual, baixa automática de estoque por procedimento, fluxo de caixa e emissão de orçamentos.
+O **OdontoFlow** é uma solução SaaS completa (Web App + REST API) desenhada para a gestão de clínicas e consultórios odontológicos. Construído sob uma arquitetura multi-tenant escalável e modular, o sistema isola completamente dados de clínicas e filiais, combinando rigor clínico com inteligência financeira e operacional.
 
-> **Hierarquia Multi-Tenant Segura:** > `Tenant (Assinante SaaS)` → `Clinic (Filial)` → `Users / Patients / Appointments / Transactions / Inventory / Procedures`
-
----
-
-## 🖥️ Módulos & Recursos Implementados
-
-### 1. 📊 Dashboards Especializados (Role-Based Views)
-- **Visão Executiva (ADMIN):** Inspirada na linguagem visual executiva *Omnia Hub SaaS*, com KPIs consolidados (Faturamento Mensal, Lucro Líquido, Pacientes Ativos), gráfico SVG contínuo de fluxo diário de receita, monitor de insumos críticos e ranking de dentistas com barra de produtividade proporcional.
-- **Visão Operacional (RECEPTIONIST):** Grade da agenda do dia dividida por salas clínicas, controle de fila de espera e ocultação automática de relatórios e métricas financeiras confidenciais.
-
-### 2. 🩺 Prontuário Clínico & Odontograma Interativo
-- **Odontograma Visual Dente a Dente:** Marcação de faces dentárias com codificação visual padrão (Cárie, Restaurado, Canal, Prótese/Coroa, Ausente/Extraído, Limpeza).
-- **Galeria Radiográfica & Laudos:** Visualizador de exames de imagem e radiografias panorâmicas por paciente.
-- **Histórico de Evoluções Clínicas Inalteráveis:** Carimbo digital de data/hora e identificação do dentista responsável em conformidade com as diretrizes do CFO e LGPD.
-
-### 3. 💳 Gestão Financeira & Planos de Tratamento
-- **Pipeline de Orçamentos:** Criação de planos de tratamento com múltiplos procedimentos, descontos por item e controle de status (`ORCAMENTO`, `APROVADO`, `EM_ANDAMENTO`, `CONCLUIDO`, `RECUSADO`).
-- **Automação de Caixa:** Ao aprovar um plano de tratamento, o sistema gera instantaneamente o lançamento correspondente no fluxo de caixa (`POST /transactions`).
-- **Modal de Finalização Rápida (`Finalizar & Cobrar`):** Baixa de consulta com suporte a multimeios de pagamento (Pix, Crédito, Débito, Dinheiro) e integração de dados de operadoras de convênio.
-
-### 4. 📦 Ficha Técnica & Estoque Semáforo
-- **Exit Inteligente:** Vinculação de insumos consumidos diretamente na ficha técnica de cada procedimento clínico.
-- **Alertas Automatizados:** Classificação de insumos em nível normal, estoque crítico de reposição imediata e produtos a vencer em até 30 dias.
-
-### 5. ⚙️ Administração & Configurações da Unidade
-- Gestão completa de equipe com controle de acesso RBAC (`ADMIN`, `DENTIST`, `RECEPTIONIST`).
-- Edição cadastral de funcionários e redefinição de senhas com modal administrativo seguro.
-- Customização visual da unidade (paletas de cores e dados no cabeçalho de documentos).
-- Toggles de conformidade e regras de expiração de sessão.
+> **Hierarquia Central:** `Tenant → Clinic → Users / Patients / Appointments / Transactions / Products`
 
 ---
 
-## 🏗️ Arquitetura & Stack Tecnológica
+## 🌟 Destaques & Diferenciais do Sistema
 
-┌─────────────────────────────────────────────────────────────┐
-│                    ODONTOFLOW ECOSYSTEM                     │
-├──────────────────────────────┬──────────────────────────────┤
-│ FRONTEND (Next.js 15)        │ BACKEND (REST API Express)   │
-│ • React 19 + TypeScript      │ • Node.js 20+ + Express 5    │
-│ • CSS Modules + Lucide Icons │ • Prisma ORM v7 (pg adapter) │
-│ • App Router + Auth Context  │ • PostgreSQL (Supabase)      │
-│ • RBAC Dinâmico por Token    │ • JWT + bcryptjs (salt 12)   │
-└──────────────────────────────┴──────────────────────────────┘
-
-
-### Multi-tenancy & Segurança
-
-Todas as consultas e mutações ao banco de dados são isoladas estritamente por `tenantId + clinicId` validados criptograficamente pelo token JWT:
-
-Token JWT (Bearer)
-├── tenantId  ──► Injetado automaticamente no WHERE do Prisma
-├── clinicId  ──► Isolamento estrito por filial
-└── role      ──► Validação de permissões via middleware authorize()
-
+* **🎨 White-Label Nativo:** Customização dinâmica por CSS Variables (`--primary-color`, logo da clínica, fontes e naming da unidade).
+* **🔍 Busca Global Unificada:** Barra de pesquisa instantânea com debounce de 300ms indexando pacientes, procedimentos e planos de tratamento em paralelo.
+* **🔔 Central de Notificações em Tempo Real:** Monitoramento dinâmico alimentado por alertas de estoque crítico, consultas do dia e entradas financeiras (com persistência de leitura).
+* **📦 Exit Inteligente de Estoque:** Fichas técnicas com cálculo fracionado de insumos por procedimento (ex: g/ml por seringa, un por caixa), disparando baixas automáticas na finalização da consulta e alertas de validade de lotes.
+* **🩺 Prontuário Clínico Integrado:** Anamnese com auto-save em rascunhos locais, odontograma gráfico com snapshots versionados por evolução e visualizador embutido para exames/radiografias panorâmicas.
 
 ---
 
-## 📡 Endpoints em Produção (65 Endpoints Swagger)
+## ✅ Módulos Implementados
 
-| Módulo | Métodos | Principais Rotas | Descrição |
-|---|---|---|---|
-| 🔐 **Auth** | `POST`, `GET` | `/api/auth/register`, `/api/auth/login`, `/api/auth/me` | Autenticação e sessão JWT |
-| 👥 **Patients** | `GET`, `POST`, `PUT`, `DELETE` | `/api/patients`, `/api/patients/:id` | Gestão de pacientes e dados cadastrais |
-| 📅 **Appointments** | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` | `/api/appointments`, `/api/appointments/:id/status` | Grade de consultas e bloqueio de conflitos |
-| 💰 **Transactions** | `GET`, `POST`, `PUT`, `DELETE` | `/api/transactions`, `/api/transactions/report` | Livro caixa e relatório de conciliação |
-| 📋 **Treatment Plans** | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` | `/api/treatment-plans`, `/api/treatment-plans/:id/status` | Orçamentos e conversão em receita |
-| 🩺 **Medical Records** | `GET`, `PUT`, `POST`, `PATCH` | `/api/medical-records/:id/odontogram`, `/evolutions` | Prontuário, Odontograma e Laudos |
-| 💉 **Procedures** | `GET`, `POST`, `PUT`, `DELETE` | `/api/procedures`, `/api/procedures/:id` | Catálogo de serviços e ficha técnica |
-| 📦 **Products** | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` | `/api/products`, `/api/products/low-stock` | Controle de insumos e reposição |
-| 📊 **Dashboard** | `GET` | `/api/dashboard/summary`, `/revenue-chart`, `/top-dentists` | Visão executiva consolidada |
-| 👤 **Users** | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` | `/api/users`, `/api/users/:id/role`, `/change-password` | Gestão de usuários da clínica |
-| 🏥 **Clinics** | `GET`, `POST`, `PUT`, `PATCH` | `/api/clinics`, `/api/clinics/:id/deactivate` | Gestão multi-filiais |
+### 🖥️ Frontend (Next.js 15 App Router)
+
+| Módulo | Funcionalidades Principais | Status |
+|---|---|---|
+| 🧭 **Shell & Navegação** | Sidebar retrátil, busca global tripla, central de notificações e suporte a White-label | ✅ Concluído |
+| 📅 **Agenda Clínica** | Visão multi-salas, status visual em tempo real e modal de faturamento rápido | ✅ Concluído |
+| 📦 **Estoque & Insumos** | Controle de lotes/validade, reposição rápida (1 clique), métricas de capital imobilizado e Recharts | ✅ Concluído |
+| 📋 **Planos & Tratamentos** | Funil comercial, taxa de conversão em vendas, Donut Chart de planos mais aderidos e tabela com layout fixo | ✅ Concluído |
+| 💉 **Procedimentos** | Ficha técnica vinculada a insumos, análise de markup/margem de lucro e gráfico de representatividade | ✅ Concluído |
+| 👥 **Pacientes** | Listagem paginada, filtros rápidos, métricas cadastrais e gráfico de novos pacientes cadastrados | ✅ Concluído |
+| 🩺 **Prontuário do Paciente** | Histórico clínico, mapa bucal interativo (odontograma), visualizador de panorâmica e exportação de prontuário em PDF | ✅ Concluído |
+
+### ⚙️ Backend (REST API Express + Prisma)
+
+| Módulo | Endpoints | Status |
+|---|---|---|
+| 🔐 **Auth & RBAC** | Register, Login, Me (controle para ADMIN, DENTIST e SECRETARY) | ✅ Concluído |
+| 👥 **Patients** | CRUD completo, Soft Delete, paginação e busca por nome/CPF | ✅ Concluído |
+| 📅 **Appointments** | CRUD, validação de conflitos por sala/dentista e transição de status | ✅ Concluído |
+| 💰 **Transactions** | CRUD financeiro, conciliação e relatórios por período | ✅ Concluído |
+| 📦 **Products & Stock** | CRUD, semáforo de estoque (`/low-stock`), validade (`/expiring`) e histórico de movimentações | ✅ Concluído |
+| 🩺 **Medical Records** | Anamnese, snapshot de Odontograma dente a dente e evoluções clínicas | ✅ Concluído |
+| 💉 **Procedures** | Catálogo de procedimentos e relacionamento com insumos | ✅ Concluído |
+| 📋 **Treatment Plans** | Orçamentos odontológicos, vinculação de procedimentos e integração com caixa | ✅ Concluído |
+| 🏥 **Clinics & Users** | Gestão de filiais, ativação/desativação e controle de membros | ✅ Concluído |
+| 📊 **Dashboard** | Agregação executiva de receita, consultas futuras e dentistas mais produtivos | ✅ Concluído |
+
+**Total: 65 endpoints REST documentados e em produção.**
 
 ---
 
-## 🚀 Como Executar Localmente
+## 🏗️ Arquitetura e Tecnologias
+
+### Stack Tecnológica
+
+| Camada | Tecnologia |
+|---|---|
+| Frontend Framework | Next.js 15 (App Router, React 19) |
+| Estilização | CSS Modules + Variáveis Globais (White-label) |
+| Gráficos & Analytics | Recharts |
+| Ícones | Lucide React |
+| Exportação de Documentos | React-PDF (`@react-pdf/renderer`) |
+| Backend Runtime | Node.js 24 + TypeScript 5.x |
+| Framework Backend | Express 5 |
+| ORM & Database | Prisma 7 + PostgreSQL (Supabase) |
+| Segurança & Auth | JWT (JSON Web Token) + bcryptjs (Salt 12) + RBAC |
+| Containerização | Docker + Docker Compose |
+| Deploy | Render (API + Swagger) |
+
+### Estrutura de Pastas
+
+```
+OdontoFlow/
+├── backend/
+│   ├── prisma/
+│   │   ├── schema.prisma        # Schema multi-tenant completo
+│   │   ├── seed.ts              # Carga inicial para desenvolvimento
+│   │   └── migrations/          # Histórico de migrações
+│   └── src/
+│       ├── server.ts            # Entry point Express
+│       ├── controllers/         # Camada HTTP
+│       ├── services/            # Regras de negócio e Prisma queries
+│       ├── routes/              # Rotas da API com JSDoc OpenAPI
+│       ├── middlewares/         # JWT, RBAC e Error Handling
+│       └── lib/                 # PrismaClient singleton
+└── frontend/
+    └── app/
+        ├── (dashboard)/
+        │   ├── agenda/          # Agenda clínica multi-salas
+        │   ├── pacientes/       # Prontuário e odontograma
+        │   ├── tratamentos/     # Planos comerciais e orçamentos
+        │   ├── procedimentos/   # Fichas técnicas e custos
+        │   ├── estoque/         # Gestão de materiais e lotes
+        │   └── financeiro/      # Fluxo de caixa
+        └── components/          # Modais, Shell e Gráficos
+```
+
+
+## 🔐 Isolamento Multi-Tenancy & Segurança
+
+Todas as consultas ao banco de dados no backend aplicam filtros compostos com base no token JWT, sem depender de parâmetros do corpo da requisição:
+
+```
+Token JWT
+  ├── tenantId  ──► Cláusula WHERE mandatória em todas as queries
+  ├── clinicId  ──► Isolamento estrito por filial da clínica
+  └── role      ──► RBAC via middleware authorize('ADMIN', 'DENTIST', 'SECRETARY')
+```
+
+## 🚀 Como Rodar o Projeto
 
 ### Pré-requisitos
 - Node.js >= 20
-- Docker & Docker Compose
+- Docker e Docker Compose
 
-### 1. Clonar e Instalar o Backend
-
+### 1. Clonar o repositório
 ```bash
 git clone [https://github.com/augustos-dev/OdontoFlow.git](https://github.com/augustos-dev/OdontoFlow.git)
-cd OdontoFlow/backend
+cd OdontoFlow
 
-# Configuração de Ambiente
+2. Backend
+Bash
+cd backend
 cp .env.example .env
-
-# Subir Banco PostgreSQL via Docker
 docker compose up -d
-
-# Instalação e Migrações
 npm install
 npx prisma migrate dev --name init
 npm run seed
-
-# Executar Backend
 npm run dev
-API: http://localhost:3333 | Documentação: http://localhost:3333/docs
+API local: http://localhost:3333 | Documentação Swagger: http://localhost:3333/docs
 
-2. Executar o Frontend
+3. Frontend
 Bash
 cd ../frontend
 npm install
 npm run dev
-Acesso: http://localhost:3000
+Aplicação Web: http://localhost:3000
 
-🗺️ Roadmap & Status de Desenvolvimento
-🏁 Fase 13 — Módulo Financeiro, Funil de Orçamentos & Visão Executiva
-[x] Transações, fluxo de caixa e baixa de consultas (POST /transactions).
+🗺️ Roadmap de Evolução
+[x] Infraestrutura Docker, Prisma v7 e Express
 
-[x] Pipeline de Planos de Tratamento com sincronização contábil via PATCH /treatment-plans/:id/status.
+[x] Autenticação JWT com RBAC por filial
 
-[x] Modal de encerramento rápido multimeios (FinalizarAtendimentoModal).
+[x] Módulos core de backend (Pacientes, Agenda, Financeiro, Estoque, Prontuário, Planos)
 
-[x] Dashboard Executivo Hub SaaS (curva diária, KPIs e ranking de produtividade).
+[x] Documentação Swagger com 65 endpoints
 
-[x] Sidebar corporativa recolhível com categorização de módulos e RBAC integrado.
+[x] Deploy da API no Render com banco PostgreSQL Supabase
 
-[x] Painel de Configurações Administrativas com gestão completa de equipe e redefinição de senhas.
+[x] Frontend moderno em Next.js com DashboardShell modular
 
-🎯 Fase 14 — Go-To-Market, Beta Fechado & Idempotência (Em Andamento)
-[ ] Mecanismo de Idempotência no Estoque: Trava contra baixas duplicadas na finalização de consultas.
+[x] Módulo de Estoque com controle de lote, rendimento e reposição rápida
 
-[ ] Exportação de Documentos em PDF: Prontuário Odontológico compilado com Odontograma e termo de Orçamento assinado.
+[x] Módulo de Planos & Tratamentos com Donut Chart e funil de conversão
 
-[ ] Planos Recorrentes & Auto-Agendamento: Módulo de manutenção ortodôntica periódica (+30 dias).
+[x] Catálogo de Procedimentos com ficha técnica e análise de markup
 
-[ ] Onboarding dos parceiros clínicos em ambiente de homologação.
+[x] Prontuário com odontograma interativo e histórico paginado de evoluções
 
-💳 Fase 15 — Tabela Comercial, Billing & Expansão Multi-Clínicas
-[ ] Matriz de planos de assinatura SaaS (Básico, Premium e Enterprise).
+[x] Central de notificações dinâmica conectada ao banco
 
-[ ] Checkout atômico (prisma.$transaction) com webhooks de recorrência.
+[ ] Módulo Financeiro & Caixa (DRE simplificado e fluxo por método)
 
-[ ] Banco dedicado sob demanda (getTenantPrisma) para grandes redes/franquias.
+[ ] Configurações da Clínica com upload de logo e seletor de cores do tema
+
+[ ] Testes automatizados (Vitest + Supertest)
+
+[ ] CI/CD com GitHub Actions
+```
 
 👨‍💻 Autor
 Desenvolvido por Vicente Augusto — @augustos-dev
