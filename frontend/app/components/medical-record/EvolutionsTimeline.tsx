@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react'
+'use client'
+
+import React, { useEffect, useState, useMemo } from 'react'
 import api from '../../../lib/api'
 import { Stethoscope, ClipboardList, FileText, Paperclip, User } from 'lucide-react'
 import { EvolutionDetailsModal } from './EvolutionDetailsModal'
@@ -22,6 +24,7 @@ export interface Evolution {
 interface EvolutionsTimelineProps {
   patientId: string
   medicalRecordId?: string
+  limit?: number
   evolutions?: Evolution[]
 }
 
@@ -53,8 +56,15 @@ const getBadgeClass = (type: EvolutionType) => {
   }
 }
 
+// Remove tags HTML caso o texto venha com formatação bruta do editor
+function cleanHtmlText(text: string) {
+  if (!text) return ''
+  return text.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ')
+}
+
 export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
   patientId,
+  limit, // 👈 Recebendo o limit
   evolutions: initialEvolutions,
 }) => {
   const [evolutions, setEvolutions] = useState<Evolution[]>(initialEvolutions || [])
@@ -90,11 +100,17 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
     loadEvolutions()
   }, [patientId, initialEvolutions])
 
+  // 🎯 Aplica o limite se fornecido (ex: 5 na Visão Geral)
+  const displayedEvolutions = useMemo(() => {
+    if (!evolutions) return []
+    return limit && limit > 0 ? evolutions.slice(0, limit) : evolutions
+  }, [evolutions, limit])
+
   if (loading) {
     return <div className="timeline-empty">Carregando evoluções clínicas...</div>
   }
 
-  if (!evolutions || evolutions.length === 0) {
+  if (!displayedEvolutions || displayedEvolutions.length === 0) {
     return (
       <div className="timeline-empty">
         Nenhuma evolução clínica registrada até o momento.
@@ -105,7 +121,7 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
   return (
     <>
       <div className="timeline-container">
-        {evolutions.map((item) => {
+        {displayedEvolutions.map((item) => {
           const formattedDate = new Date(item.createdAt).toLocaleDateString('pt-BR', {
             day: '2-digit',
             month: 'short',
@@ -115,6 +131,7 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
           })
 
           const authorName = item.dentistName || item.dentist?.name || 'Profissional da Saúde'
+          const descriptionText = cleanHtmlText(item.description)
 
           return (
             <div key={item.id} className="timeline-item">
@@ -137,7 +154,7 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
                 </div>
 
                 <p className="timeline-description">
-                  {item.description}
+                  {descriptionText}
                 </p>
 
                 <div className="timeline-footer">

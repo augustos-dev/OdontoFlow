@@ -678,6 +678,17 @@
   margin: 3px 0 0;
   line-height: 1.4;
 }
+.searchItemIconPlan {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #f5f3ff;
+  color: #7c3aed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 
 @keyframes spin {
   from { transform: rotate(0deg); }

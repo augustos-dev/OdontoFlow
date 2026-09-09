@@ -24,7 +24,8 @@ import {
   AlertTriangle,
   Info,
   Loader2,
-  X
+  X,
+  FileText
 } from 'lucide-react'
 import styles from './layout.module.css'
 import { ModalProvider, useModal } from '@/app/components/ModalContext'
@@ -83,7 +84,7 @@ interface ClinicVisualState {
 
 interface SearchResultItem {
   id: string
-  type: 'PATIENT' | 'PROCEDURE' | 'APPOINTMENT'
+  type: 'PATIENT' | 'PROCEDURE' | 'PLAN'
   title: string
   subtitle: string
   link: string
@@ -96,6 +97,7 @@ interface NotificationItem {
   time: string
   type: 'warning' | 'info' | 'success'
   read: boolean
+  targetPath?: string
 }
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -121,37 +123,114 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
-  // ─── Notificações ───
+  // ─── Notificações Dinâmicas ───
   const [isNotifOpen, setIsNotifOpen] = useState(false)
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: '1',
-      title: 'Estoque Crítico',
-      description: 'Anestésico Lidocaína com apenas 2 frascos disponíveis.',
-      time: 'Há 15 min',
-      type: 'warning',
-      read: false,
-    },
-    {
-      id: '2',
-      title: 'Consulta Próxima',
-      description: 'Francisca Edileuza confirmada para as 17:00.',
-      time: 'Há 45 min',
-      type: 'info',
-      read: false,
-    },
-    {
-      id: '3',
-      title: 'Pagamento Recebido',
-      description: 'PIX de R$ 122,00 registrado com sucesso.',
-      time: 'Há 2 horas',
-      type: 'success',
-      read: true,
-    }
-  ])
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [loadingNotifs, setLoadingNotifs] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
 
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications])
+
+  // Função auxiliar para calcular tempo relativo legível
+  function getRelativeTime(dateStr: string) {
+    try {
+      const diffMs = new Date().getTime() - new Date(dateStr).getTime()
+      const diffMins = Math.floor(diffMs / (1000 * 60))
+      if (diffMins < 1) return 'Agora mesmo'
+      if (diffMins < 60) return `Há ${diffMins} min`
+      const diffHours = Math.floor(diffMins / 60)
+      if (diffHours < 24) return `Há ${diffHours} h`
+      return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    } catch {
+      return 'Recente'
+    }
+  }
+
+  // ─── Busca de Alertas Reais no Backend ───
+  const loadDynamicNotifications = useCallback(async () => {
+    try {
+      setLoadingNotifs(true)
+      const todayStr = new Date().toISOString().slice(0, 10)
+
+      const [stockRes, apptRes, transRes] = await Promise.allSettled([
+        api.get('/products/low-stock').catch(() => api.get('/products?limit=50')),
+        api.get(`/appointments?date=${todayStr}&limit=15`),
+        api.get('/transactions?type=RECEITA&limit=5'),
+      ])
+
+      const generatedNotifs: NotificationItem[] = []
+      const readNotifIds = JSON.parse(localStorage.getItem('odontoflow_read_notifs') || '[]')
+
+      // 1. Alertas de Estoque Crítico
+      if (stockRes.status === 'fulfilled') {
+        const rawStock = stockRes.value.data?.data || stockRes.value.data || []
+        const lowItems = Array.isArray(rawStock)
+          ? rawStock.filter((p: any) => p.quantity <= p.minQuantity).slice(0, 3)
+          : []
+
+        lowItems.forEach((p: any) => {
+          const id = `stock-${p.id}`
+          generatedNotifs.push({
+            id,
+            title: 'Estoque Crítico',
+            description: `${p.name} com apenas ${p.quantity} ${p.unit || 'un'} disponíveis (mín: ${p.minQuantity}).`,
+            time: 'Alerta Ativo',
+            type: 'warning',
+            read: readNotifIds.includes(id),
+            targetPath: '/estoque',
+          })
+        })
+      }
+
+      // 2. Consultas do Dia (Confirmadas ou Em Atendimento)
+      if (apptRes.status === 'fulfilled') {
+        const rawAppts = apptRes.value.data?.data || apptRes.value.data || []
+        const activeAppts = Array.isArray(rawAppts)
+          ? rawAppts.filter((a: any) => a.status === 'CONFIRMADO' || a.status === 'EM_ATENDIMENTO').slice(0, 2)
+          : []
+
+        activeAppts.forEach((a: any) => {
+          const id = `appt-${a.id}`
+          const timeFormatted = new Date(a.dateTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          generatedNotifs.push({
+            id,
+            title: a.status === 'CONFIRMADO' ? 'Consulta Confirmada' : 'Em Atendimento',
+            description: `${a.patient?.name || 'Paciente'} às ${timeFormatted} na ${a.room ? a.room.replace('_', ' ') : 'SALA 1'}.`,
+            time: getRelativeTime(a.dateTime),
+            type: 'info',
+            read: readNotifIds.includes(id),
+            targetPath: '/agenda',
+          })
+        })
+      }
+
+      // 3. Faturamentos / Transações Recebidas
+      if (transRes.status === 'fulfilled') {
+        const rawTrans = transRes.value.data?.data || transRes.value.data || []
+        const recentTrans = Array.isArray(rawTrans) ? rawTrans.slice(0, 2) : []
+
+        recentTrans.forEach((t: any) => {
+          const id = `trans-${t.id}`
+          const valFormatted = Number(t.amount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+          generatedNotifs.push({
+            id,
+            title: 'Faturamento Recebido',
+            description: `${valFormatted} registrado via ${t.paymentMethod || 'PIX'} (${t.description || 'Consulta'}).`,
+            time: getRelativeTime(t.createdAt || t.paidAt || new Date().toISOString()),
+            type: 'success',
+            read: readNotifIds.includes(id),
+            targetPath: '/financeiro',
+          })
+        })
+      }
+
+      setNotifications(generatedNotifs)
+    } catch (err) {
+      console.error('Erro ao buscar notificações dinâmicas:', err)
+    } finally {
+      setLoadingNotifs(false)
+    }
+  }, [])
 
   // Aplica variáveis CSS globais
   const applyThemeVariables = useCallback((theme: ClinicVisualState) => {
@@ -165,7 +244,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Sincroniza dados da clínica
+  // Sincroniza customizações da clínica
   const fetchClinicCustomization = useCallback(async () => {
     try {
       const res = await api.get('/clinics')
@@ -221,11 +300,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     if (savedCollapsed === 'true') setIsCollapsed(true)
 
     fetchClinicCustomization()
+    loadDynamicNotifications()
+
+    // Atualiza notificações a cada 2 minutos
+    const notifInterval = setInterval(loadDynamicNotifications, 120000)
 
     const handleThemeUpdate = () => fetchClinicCustomization()
     window.addEventListener('clinic_customization_updated', handleThemeUpdate)
 
-    // Listener para fechar dropdowns ao clicar fora
     function handleClickOutside(event: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setIsSearchOpen(false)
@@ -237,12 +319,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     document.addEventListener('mousedown', handleClickOutside)
 
     return () => {
+      clearInterval(notifInterval)
       window.removeEventListener('clinic_customization_updated', handleThemeUpdate)
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [router, fetchClinicCustomization])
+  }, [router, fetchClinicCustomization, loadDynamicNotifications])
 
-  // Busca global com Debounce de 300ms
+  // Busca global paralela com Pacientes, Procedimentos e Planos
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([])
@@ -255,29 +338,48 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         setIsSearching(true)
         setIsSearchOpen(true)
 
-        // Busca paralela em pacientes e procedimentos
-        const [patientsRes, proceduresRes] = await Promise.all([
-          api.get(`/patients?name=${encodeURIComponent(searchQuery)}&limit=4`).catch(() => ({ data: [] })),
-          api.get(`/procedures?name=${encodeURIComponent(searchQuery)}&limit=4`).catch(() => ({ data: [] })),
+        const [patientsRes, proceduresRes, plansRes] = await Promise.all([
+          api.get(`/patients?name=${encodeURIComponent(searchQuery)}&limit=3`).catch(() => ({ data: [] })),
+          api.get(`/procedures?name=${encodeURIComponent(searchQuery)}&limit=3`).catch(() => ({ data: [] })),
+          api.get(`/treatment-plans?limit=20`).catch(() => ({ data: [] })),
         ])
 
-        const patientItems = (patientsRes.data?.data || patientsRes.data || []).map((p: any) => ({
+        // 1. Pacientes
+        const patientItems: SearchResultItem[] = (patientsRes.data?.data || patientsRes.data || []).map((p: any) => ({
           id: p.id,
           type: 'PATIENT' as const,
           title: p.name,
-          subtitle: `CPF: ${p.cpf || 'Não informado'} • Tel: ${p.phone || 'S/ telefone'}`,
-          link: `/pacientes/${p.id}`,
+          subtitle: `Paciente • Tel: ${p.phone || 'S/ telefone'}`,
+          link: `/pacientes`,
         }))
 
-        const procedureItems = (proceduresRes.data?.data || proceduresRes.data || []).map((pr: any) => ({
+        // 2. Procedimentos
+        const procedureItems: SearchResultItem[] = (proceduresRes.data?.data || proceduresRes.data || []).map((pr: any) => ({
           id: pr.id,
           type: 'PROCEDURE' as const,
           title: pr.name,
-          subtitle: `Categoria: ${pr.category || 'Geral'} • R$ ${Number(pr.basePrice || 0).toFixed(2)}`,
+          subtitle: `Procedimento: ${pr.category || 'Geral'} • R$ ${Number(pr.basePrice || 0).toFixed(2)}`,
           link: `/procedimentos`,
         }))
 
-        setSearchResults([...patientItems, ...procedureItems])
+        // 3. Planos & Orçamentos
+        const planList = Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data || []
+        const queryLower = searchQuery.toLowerCase()
+        const planItems: SearchResultItem[] = planList
+          .filter((pl: any) => 
+            (pl.title && pl.title.toLowerCase().includes(queryLower)) ||
+            (pl.patient?.name && pl.patient.name.toLowerCase().includes(queryLower))
+          )
+          .slice(0, 3)
+          .map((pl: any) => ({
+            id: pl.id,
+            type: 'PLAN' as const,
+            title: pl.title,
+            subtitle: `Plano • ${pl.patient?.name || 'Paciente'} (R$ ${Number(pl.totalAmount || 0).toFixed(2)})`,
+            link: `/tratamentos`,
+          }))
+
+        setSearchResults([...patientItems, ...procedureItems, ...planItems])
       } catch (err) {
         console.error('Erro na pesquisa global:', err)
       } finally {
@@ -295,7 +397,23 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   function markAllNotificationsAsRead() {
+    const allIds = notifications.map(n => n.id)
+    localStorage.setItem('odontoflow_read_notifs', JSON.stringify(allIds))
     setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+  }
+
+  function handleNotificationClick(notif: NotificationItem) {
+    const readNotifIds = JSON.parse(localStorage.getItem('odontoflow_read_notifs') || '[]')
+    if (!readNotifIds.includes(notif.id)) {
+      readNotifIds.push(notif.id)
+      localStorage.setItem('odontoflow_read_notifs', JSON.stringify(readNotifIds))
+    }
+    setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n))
+    setIsNotifOpen(false)
+
+    if (notif.targetPath) {
+      router.push(notif.targetPath)
+    }
   }
 
   function toggleSidebar() {
@@ -428,7 +546,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <div className={styles.headerRight}>
             <span className={styles.headerDate}>{todayFormatted}</span>
             
-            {/* ─── Campo de Busca Global Funcional ─── */}
+            {/* ─── Campo de Busca Global ─── */}
             <div className={styles.searchWrapper} ref={searchRef}>
               <div className={styles.headerSearch}>
                 {isSearching ? (
@@ -441,7 +559,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => { if (searchQuery.trim()) setIsSearchOpen(true) }}
-                  placeholder="Buscar paciente, procedimento..." 
+                  placeholder="Buscar paciente, procedimento, plano..." 
                   className={styles.searchInput} 
                 />
                 {searchQuery && (
@@ -455,7 +573,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 )}
               </div>
 
-              {/* Dropdown de Resultados da Busca */}
+              {/* Dropdown de Resultados */}
               {isSearchOpen && (
                 <div className={styles.searchDropdown}>
                   {searchResults.length === 0 ? (
@@ -470,8 +588,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                           onClick={() => handleSelectSearchResult(item.link)}
                           className={styles.searchItem}
                         >
-                          <div className={item.type === 'PATIENT' ? styles.searchItemIconPatient : styles.searchItemIconProc}>
-                            {item.type === 'PATIENT' ? <User size={15} /> : <Stethoscope size={15} />}
+                          <div className={
+                            item.type === 'PATIENT' 
+                              ? styles.searchItemIconPatient 
+                              : item.type === 'PLAN' 
+                              ? styles.searchItemIconPlan 
+                              : styles.searchItemIconProc
+                          }>
+                            {item.type === 'PATIENT' && <User size={15} />}
+                            {item.type === 'PROCEDURE' && <Stethoscope size={15} />}
+                            {item.type === 'PLAN' && <ClipboardList size={15} />}
                           </div>
                           <div className={styles.searchItemInfo}>
                             <span className={styles.searchItemTitle}>{item.title}</span>
@@ -485,11 +611,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               )}
             </div>
             
-            {/* ─── Central de Notificações Funcional ─── */}
+            {/* ─── Central de Notificações Dinâmica ─── */}
             <div className={styles.notifWrapper} ref={notifRef}>
               <button 
                 className={`${styles.notifBtn} ${isNotifOpen ? styles.notifBtnActive : ''}`} 
-                onClick={() => setIsNotifOpen(!isNotifOpen)}
+                onClick={() => {
+                  setIsNotifOpen(!isNotifOpen)
+                  if (!isNotifOpen) loadDynamicNotifications()
+                }}
                 aria-label="Notificações"
               >
                 <Bell size={18} />
@@ -509,7 +638,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     </div>
                     {unreadCount > 0 && (
                       <button 
-                        type="button"
+                        type="button" 
                         onClick={markAllNotificationsAsRead}
                         className={styles.btnMarkRead}
                       >
@@ -519,15 +648,22 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   </div>
 
                   <div className={styles.notifList}>
-                    {notifications.length === 0 ? (
+                    {loadingNotifs && notifications.length === 0 ? (
                       <div className={styles.emptyNotif}>
-                        <span>Nenhuma notificação recente.</span>
+                        <Loader2 size={16} className={styles.searchSpinner} />
+                        <span>Carregando notificações...</span>
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className={styles.emptyNotif}>
+                        <span>Nenhuma notificação recente no momento.</span>
                       </div>
                     ) : (
                       notifications.map((n) => (
                         <div 
                           key={n.id} 
+                          onClick={() => handleNotificationClick(n)}
                           className={`${styles.notifItem} ${!n.read ? styles.notifItemUnread : ''}`}
+                          style={{ cursor: 'pointer' }}
                         >
                           <div className={`${styles.notifIcon} ${styles[`notif_${n.type}`]}`}>
                             {n.type === 'warning' && <AlertTriangle size={14} />}
@@ -549,7 +685,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               )}
             </div>
             
-            {/* Botão de Agendamento */}
+            {/* Botão Novo Agendamento */}
             <button className={styles.newAppointmentBtn} onClick={openNovoAgendamento}>
               <Plus size={16} />
               <span>Novo Agendamento</span>

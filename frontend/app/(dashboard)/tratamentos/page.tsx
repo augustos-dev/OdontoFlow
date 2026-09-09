@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { 
-  ClipboardList, 
   Search, 
   Plus, 
   CheckCircle2, 
@@ -10,12 +9,20 @@ import {
   XCircle, 
   DollarSign, 
   Loader2, 
-  FileText,
-  User,
-  Trash2,
-  TrendingUp,
-  AlertCircle
+  FileText, 
+  User, 
+  Trash2, 
+  TrendingUp, 
+  PieChart as PieChartIcon, 
+  Sparkles 
 } from 'lucide-react'
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip
+} from 'recharts'
 import api from '@/lib/api'
 import styles from './planos.module.css'
 import { CriarPlanoModal } from '../../components/financeiro/CriarPlanoModal'
@@ -41,6 +48,8 @@ const STATUS_CONFIG: Record<string, { label: string; class: string; icon: any }>
   RECUSADO: { label: 'Recusado', class: styles.statusRecusado, icon: XCircle },
 }
 
+const PIE_COLORS = ['#06b6d4', '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899']
+
 export default function PlanosTratamentoPage() {
   const [plans, setPlans] = useState<TreatmentPlan[]>([])
   const [loading, setLoading] = useState(true)
@@ -53,7 +62,7 @@ export default function PlanosTratamentoPage() {
     try {
       setLoading(true)
       const res = await api.get('/treatment-plans?limit=100')
-      const data = Array.isArray(res.data) ? res.data : res.data.data || []
+      const data = Array.isArray(res.data) ? res.data : res.data?.data || []
       setPlans(data)
     } catch (err) {
       console.error('Erro ao carregar planos de tratamento:', err)
@@ -80,7 +89,34 @@ export default function PlanosTratamentoPage() {
     return { total, orcamentosCount: orcamentos.length, aprovadosCount: aprovados.length, totalAprovado, taxaConversao }
   }, [plans])
 
-  // Filtros de busca e status
+  // Agrupamento para o Donut
+  const pieData = useMemo(() => {
+    const counts: Record<string, { count: number; totalVal: number }> = {}
+
+    plans.forEach((p) => {
+      const cleanTitle = p.title.trim() || 'Tratamento Geral'
+      if (!counts[cleanTitle]) {
+        counts[cleanTitle] = { count: 0, totalVal: 0 }
+      }
+      counts[cleanTitle].count += 1
+      counts[cleanTitle].totalVal += Number(p.totalAmount || 0)
+    })
+
+    return Object.entries(counts)
+      .map(([name, data]) => ({
+        name,
+        value: data.count,
+        totalVal: data.totalVal
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5)
+  }, [plans])
+
+  const totalPlansCount = useMemo(() => {
+    return pieData.reduce((acc, curr) => acc + curr.value, 0)
+  }, [pieData])
+
+  // Filtros
   const filteredPlans = useMemo(() => {
     return plans.filter((p) => {
       const matchName = (p.patient?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -90,13 +126,11 @@ export default function PlanosTratamentoPage() {
     })
   }, [plans, searchTerm, statusFilter])
 
-  // Atualização rápida de status via PATCH
   async function handleUpdateStatus(planId: string, newStatus: string) {
     try {
       setUpdatingId(planId)
       await api.patch(`/treatment-plans/${planId}/status`, { status: newStatus })
       
-      // Se aprovou, pergunta se quer lançar no caixa
       if (newStatus === 'APROVADO') {
         const plan = plans.find((p) => p.id === planId)
         if (plan && window.confirm(`Deseja lançar a receita de ${formatCurrency(plan.totalAmount)} no financeiro agora?`)) {
@@ -140,11 +174,13 @@ export default function PlanosTratamentoPage() {
 
   return (
     <div className={styles.page}>
-      {/* ─── Header da Página ─── */}
+      {/* ─── Header da Página (Subtítulo e Ação) ─── */}
       <div className={styles.pageHeader}>
-        <div>
-          <h1 className={styles.pageTitle}>Planos & Orçamentos</h1>
-          <p className={styles.pageSubtitle}>Gerencie propostas comerciais, tratamentos em andamento e conversão clínica.</p>
+        <div className={styles.pageHeaderInfo}>
+          <span className={styles.headerTag}>ODONTOFLOW • GESTÃO COMERCIAL</span>
+          <p className={styles.pageSubtitle}>
+            Controle de propostas comerciais, tratamentos ativos e taxa de conversão da clínica.
+          </p>
         </div>
         <button 
           type="button" 
@@ -156,12 +192,12 @@ export default function PlanosTratamentoPage() {
         </button>
       </div>
 
-      {/* ─── Cards de Indicadores (Funil) ─── */}
+      {/* ─── Cards de Indicadores (KPIs) ─── */}
       <div className={styles.metricsGrid}>
         <div className={styles.metricCard}>
           <div className={styles.metricHeader}>
             <span className={styles.metricLabel}>EM ABERTO (ORÇAMENTOS)</span>
-            <div className={styles.metricIconBg} style={{ background: '#fef3c7', color: '#b45309' }}>
+            <div className={`${styles.metricIconBg} ${styles.iconAmber}`}>
               <Clock size={18} />
             </div>
           </div>
@@ -172,34 +208,153 @@ export default function PlanosTratamentoPage() {
         <div className={styles.metricCard}>
           <div className={styles.metricHeader}>
             <span className={styles.metricLabel}>PLANOS APROVADOS</span>
-            <div className={styles.metricIconBg} style={{ background: '#dcfce7', color: '#16a34a' }}>
+            <div className={`${styles.metricIconBg} ${styles.iconGreen}`}>
               <CheckCircle2 size={18} />
             </div>
           </div>
-          <span className={styles.metricValue}>{metrics.aprovadosCount}</span>
+          <span className={`${styles.metricValue} ${styles.textGreen}`}>{metrics.aprovadosCount}</span>
           <span className={styles.metricSub}>Em execução ou concluídos</span>
         </div>
 
         <div className={styles.metricCard}>
           <div className={styles.metricHeader}>
             <span className={styles.metricLabel}>FATURAMENTO APROVADO</span>
-            <div className={styles.metricIconBg} style={{ background: '#ecfeff', color: '#0891b2' }}>
+            <div className={`${styles.metricIconBg} ${styles.iconCyan}`}>
               <DollarSign size={18} />
             </div>
           </div>
-          <span className={styles.metricValue}>{formatCurrency(metrics.totalAprovado)}</span>
+          <span className={`${styles.metricValue} ${styles.textCyan}`}>{formatCurrency(metrics.totalAprovado)}</span>
           <span className={styles.metricSub}>Volume total convertido</span>
         </div>
 
         <div className={styles.metricCard}>
           <div className={styles.metricHeader}>
             <span className={styles.metricLabel}>TAXA DE CONVERSÃO</span>
-            <div className={styles.metricIconBg} style={{ background: '#f1f5f9', color: '#475569' }}>
+            <div className={`${styles.metricIconBg} ${styles.iconSlate}`}>
               <TrendingUp size={18} />
             </div>
           </div>
           <span className={styles.metricValue}>{metrics.taxaConversao}%</span>
           <span className={styles.metricSub}>Propostas fechadas com sucesso</span>
+        </div>
+      </div>
+
+      {/* ─── Grid Analítico: Gráfico de Donut & Desempenho ─── */}
+      <div className={styles.analyticsGrid}>
+        <div className={styles.chartCard}>
+          <div className={styles.chartHeader}>
+            <div className={styles.chartTitleWrapper}>
+              <PieChartIcon size={18} className={styles.textCyan} />
+              <h4>Planos Mais Aderidos</h4>
+            </div>
+            <span className={styles.chartBadge}>Distribuição</span>
+          </div>
+
+          <div className={styles.pieContainer}>
+            {pieData.length === 0 ? (
+              <div className={styles.emptyStateContainer}>
+                <p className={styles.emptyChartTitle}>Nenhum plano cadastrado</p>
+                <p className={styles.emptyChartSub}>Os tratamentos mais procurados aparecerão aqui.</p>
+              </div>
+            ) : (
+              <div className={styles.pieContent}>
+                <div className={styles.chartWrapper}>
+                  <ResponsiveContainer width="100%" height={190}>
+                    <PieChart>
+                      <Tooltip 
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload
+                            return (
+                              <div className={styles.customTooltip}>
+                                <span className={styles.tooltipName}>{data.name}</span>
+                                <span className={styles.tooltipValue}>{data.value} adesões ({formatCurrency(data.totalVal)})</span>
+                              </div>
+                            )
+                          }
+                          return null
+                        }}
+                      />
+                      <Pie
+                        data={pieData}
+                        innerRadius={50}
+                        outerRadius={75}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {pieData.map((_, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={index === 0 ? 'var(--primary-color, #06b6d4)' : PIE_COLORS[index % PIE_COLORS.length]} 
+                          />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  
+                  <div className={styles.donutCenter}>
+                    <strong>{totalPlansCount}</strong>
+                    <span>Planos</span>
+                  </div>
+                </div>
+
+                <div className={styles.legendList}>
+                  {pieData.map((item, idx) => {
+                    const percent = totalPlansCount > 0 ? Math.round((item.value / totalPlansCount) * 100) : 0
+                    const color = idx === 0 ? 'var(--primary-color, #06b6d4)' : PIE_COLORS[idx % PIE_COLORS.length]
+
+                    return (
+                      <div key={item.name} className={styles.legendItem}>
+                        <div className={styles.legendLeft}>
+                          <span className={styles.legendDot} style={{ background: color }} />
+                          <span className={styles.legendName} title={item.name}>{item.name}</span>
+                        </div>
+                        <span className={styles.legendPercent}>{percent}%</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.conversionCard}>
+          <div className={styles.conversionHeader}>
+            <div className={styles.conversionIconBg}>
+              <Sparkles size={20} />
+            </div>
+            <div>
+              <h4 className={styles.conversionTitle}>Performance Comercial</h4>
+              <p className={styles.conversionSub}>Taxa de aceite das propostas</p>
+            </div>
+          </div>
+
+          <div className={styles.conversionStats}>
+            <div className={styles.statBox}>
+              <span className={styles.statLabel}>Orçamentos Apresentados</span>
+              <strong className={styles.statValue}>{plans.length}</strong>
+            </div>
+            <div className={styles.statBox}>
+              <span className={styles.statLabel}>Ticket Médio por Plano</span>
+              <strong className={styles.statValue}>
+                {formatCurrency(plans.length > 0 ? metrics.total / plans.length : 0)}
+              </strong>
+            </div>
+          </div>
+
+          <div className={styles.progressContainer}>
+            <div className={styles.progressTop}>
+              <span>Conversão em Vendas</span>
+              <strong>{metrics.taxaConversao}%</strong>
+            </div>
+            <div className={styles.progressTrack}>
+              <div 
+                className={styles.progressBar} 
+                style={{ width: `${metrics.taxaConversao}%` }} 
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -217,7 +372,6 @@ export default function PlanosTratamentoPage() {
             />
           </div>
 
-          {/* Abas de Status */}
           <div className={styles.statusTabs}>
             {['TODOS', 'ORCAMENTO', 'APROVADO', 'EM_ANDAMENTO', 'CONCLUIDO', 'RECUSADO'].map((st) => (
               <button
@@ -243,76 +397,91 @@ export default function PlanosTratamentoPage() {
             <p>Nenhum plano ou orçamento encontrado para este filtro.</p>
           </div>
         ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>PACIENTE</th>
-                <th>TÍTULO DO PLANO</th>
-                <th>VALOR TOTAL</th>
-                <th>STATUS</th>
-                <th>CRIADO EM</th>
-                <th style={{ textAlign: 'right' }}>AÇÕES</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPlans.map((plan) => {
-                const config = STATUS_CONFIG[plan.status] || STATUS_CONFIG.ORCAMENTO
-                const StatusIcon = config.icon
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th style={{ width: '32%' }}>PACIENTE</th>
+                  <th style={{ width: '28%' }}>TÍTULO DO PLANO</th>
+                  <th style={{ width: '14%' }}>VALOR TOTAL</th>
+                  <th style={{ width: '14%' }}>STATUS</th>
+                  <th style={{ width: '12%' }}>CRIADO EM</th>
+                  <th style={{ width: '5%', textAlign: 'right' }}>AÇÕES</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPlans.map((plan) => {
+                  const config = STATUS_CONFIG[plan.status] || STATUS_CONFIG.ORCAMENTO
 
-                return (
-                  <tr key={plan.id} className={styles.row}>
-                    <td className={styles.patientCell}>
-                      <div className={styles.patientAvatar}>
-                        <User size={14} />
-                      </div>
-                      <div>
-                        <span className={styles.patientName}>{plan.patient?.name || 'Paciente'}</span>
-                        {plan.patient?.phone && (
-                          <span className={styles.patientPhone}>{plan.patient.phone}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className={styles.planTitleCell}>
-                      <strong>{plan.title}</strong>
-                      {plan.notes && <span className={styles.planNotes}>{plan.notes}</span>}
-                    </td>
-                    <td className={styles.amountCell}>
-                      {formatCurrency(plan.totalAmount)}
-                    </td>
-                    <td>
-                      <select 
-                        className={`${styles.statusSelect} ${config.class}`}
-                        value={plan.status}
-                        disabled={updatingId === plan.id}
-                        onChange={(e) => handleUpdateStatus(plan.id, e.target.value)}
-                      >
-                        <option value="ORCAMENTO">Orçamento</option>
-                        <option value="APROVADO">Aprovado</option>
-                        <option value="EM_ANDAMENTO">Em Andamento</option>
-                        <option value="CONCLUIDO">Concluído</option>
-                        <option value="RECUSADO">Recusado</option>
-                      </select>
-                    </td>
-                    <td className={styles.dateCell}>{formatDate(plan.createdAt)}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button 
-                        type="button" 
-                        className={styles.btnDelete} 
-                        title="Excluir Plano"
-                        onClick={() => handleDeletePlan(plan.id)}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                  return (
+                    <tr key={plan.id} className={styles.row}>
+                      {/* Coluna 1: Paciente */}
+                      <td>
+                        <div className={styles.patientWrapper}>
+                          <div className={styles.patientAvatar}>
+                            <User size={15} />
+                          </div>
+                          <div className={styles.patientInfo}>
+                            <span className={styles.patientName}>{plan.patient?.name || 'Paciente'}</span>
+                            {plan.patient?.phone && (
+                              <span className={styles.patientPhone}>{plan.patient.phone}</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Coluna 2: Título do Plano */}
+                      <td>
+                        <div className={styles.planTitleCol}>
+                          <strong className={styles.planTitleText}>{plan.title}</strong>
+                          {plan.notes && <span className={styles.planNotes}>{plan.notes}</span>}
+                        </div>
+                      </td>
+
+                      {/* Coluna 3: Valor Total */}
+                      <td className={styles.amountCell}>
+                        {formatCurrency(plan.totalAmount)}
+                      </td>
+
+                      {/* Coluna 4: Status */}
+                      <td>
+                        <select 
+                          className={`${styles.statusSelect} ${config.class}`}
+                          value={plan.status}
+                          disabled={updatingId === plan.id}
+                          onChange={(e) => handleUpdateStatus(plan.id, e.target.value)}
+                        >
+                          <option value="ORCAMENTO">Orçamento</option>
+                          <option value="APROVADO">Aprovado</option>
+                          <option value="EM_ANDAMENTO">Em Andamento</option>
+                          <option value="CONCLUIDO">Concluído</option>
+                          <option value="RECUSADO">Recusado</option>
+                        </select>
+                      </td>
+
+                      {/* Coluna 5: Criado Em */}
+                      <td className={styles.dateCell}>{formatDate(plan.createdAt)}</td>
+
+                      {/* Coluna 6: Ações */}
+                      <td style={{ textAlign: 'right' }}>
+                        <button 
+                          type="button" 
+                          className={styles.btnDelete} 
+                          title="Excluir Plano"
+                          onClick={() => handleDeletePlan(plan.id)}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      {/* ─── Modal de Criação ─── */}
       <CriarPlanoModal 
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
