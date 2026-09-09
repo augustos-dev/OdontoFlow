@@ -1,8 +1,8 @@
-// backend/src/services/appointment.service.ts
-
-import { Prisma, $Enums } from '@prisma/client'
+import { Prisma, $Enums, UserRole } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
+import { auditLogService } from './auditLog.service'
+import { triggerAutoStockExit } from '../utils/stockAutoExit'
 import type {
   CreateAppointmentDTO,
   UpdateAppointmentDTO,
@@ -10,7 +10,11 @@ import type {
   AppointmentFiltersDTO,
 } from '../types/appointment.types'
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+interface ActorContext {
+  userId: string
+  userName: string
+  userRole?: UserRole
+}
 
 function calcEndTime(dateTime: Date, durationMin: number): Date {
   return new Date(dateTime.getTime() + durationMin * 60 * 1000)
@@ -26,8 +30,6 @@ const ACTIVE_STATUSES: $Enums.AppointmentStatus[] = [
   'EM_ATENDIMENTO',
   'ESPERA',
 ]
-
-// ─── Validação de conflito ────────────────────────────────────────────────────
 
 async function checkConflicts(
   clinicId: string,
@@ -70,14 +72,13 @@ async function checkConflicts(
   }
 }
 
-// ─── Create ──────────────────────────────────────────────────────────────────
-
 export async function createAppointment(
   tenantId: string,
   clinicId: string,
-  data: CreateAppointmentDTO
+  data: CreateAppointmentDTO,
+  actor: ActorContext
 ) {
-  const { patientId, dentistId, dateTime, durationMin = 60, type, room, notes } = data
+  const { patientId, dentistId, procedureId, dateTime, durationMin = 60, type, room, notes } = data
 
   const patient = await prisma.patient.findFirst({
     where: { id: patientId, tenantId, clinicId, deletedAt: null },
@@ -89,6 +90,13 @@ export async function createAppointment(
   })
   if (!dentist) throw new AppError('Dentista não encontrado ou inativo.', 404)
 
+  if (procedureId) {
+    const procedureExists = await prisma.procedure.findFirst({
+      where: { id: procedureId, tenantId },
+    })
+    if (!procedureExists) throw new AppError('Procedimento não encontrado.', 404)
+  }
+
   const startTime = new Date(dateTime)
   const endTime = calcEndTime(startTime, durationMin)
 
@@ -96,23 +104,36 @@ export async function createAppointment(
 
   await checkConflicts(clinicId, room, dentistId, startTime, endTime)
 
-  return prisma.appointment.create({
-    data: { tenantId, clinicId, patientId, dentistId, dateTime: startTime, durationMin, type, room, notes },
+  const appointment = await prisma.appointment.create({
+    data: { tenantId, clinicId, patientId, dentistId, procedureId, dateTime: startTime, durationMin, type, room, notes },
     include: {
       patient: { select: { id: true, name: true, phone: true } },
       dentist: { select: { id: true, name: true } },
+      procedure: { select: { id: true, name: true, basePrice: true } },
     },
   })
-}
 
-// ─── List ─────────────────────────────────────────────────────────────────────
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'SECRETARY',
+    action: 'CREATE',
+    entity: 'APPOINTMENT',
+    entityId: appointment.id,
+    details: `Agendou consulta (${type}) para o paciente ${patient.name} com Dr(a). ${dentist.name} na sala ${room} em ${startTime.toLocaleString('pt-BR')}`,
+  })
+
+  return appointment
+}
 
 export async function listAppointments(
   tenantId: string,
   clinicId: string,
   filters: AppointmentFiltersDTO
 ) {
-  const { date, dentistId, patientId, status, room, page = 1, limit = 20 } = filters
+  const { date, dentistId, patientId, procedureId, status, room, page = 1, limit = 20 } = filters
   const skip = (page - 1) * limit
 
   let dateFilter: Prisma.AppointmentWhereInput = {}
@@ -128,6 +149,7 @@ export async function listAppointments(
     ...dateFilter,
     ...(dentistId && { dentistId }),
     ...(patientId && { patientId }),
+    ...(procedureId && { procedureId }),
     ...(status && { status: status as $Enums.AppointmentStatus }),
     ...(room && { room: room as $Enums.Room }),
   }
@@ -141,6 +163,7 @@ export async function listAppointments(
       include: {
         patient: { select: { id: true, name: true, phone: true } },
         dentist: { select: { id: true, name: true } },
+        procedure: { select: { id: true, name: true, basePrice: true } },
       },
     }),
     prisma.appointment.count({ where }),
@@ -152,8 +175,6 @@ export async function listAppointments(
   }
 }
 
-// ─── Get by ID ────────────────────────────────────────────────────────────────
-
 export async function getAppointmentById(
   tenantId: string,
   clinicId: string,
@@ -164,6 +185,16 @@ export async function getAppointmentById(
     include: {
       patient: { select: { id: true, name: true, phone: true, email: true } },
       dentist: { select: { id: true, name: true, cro: true } },
+      procedure: {
+        select: {
+          id: true,
+          name: true,
+          basePrice: true,
+          procedureProducts: {
+            include: { product: { select: { id: true, name: true, quantity: true } } },
+          },
+        },
+      },
       transaction: true,
     },
   })
@@ -173,16 +204,16 @@ export async function getAppointmentById(
   return appointment
 }
 
-// ─── Update ───────────────────────────────────────────────────────────────────
-
 export async function updateAppointment(
   tenantId: string,
   clinicId: string,
   appointmentId: string,
-  data: UpdateAppointmentDTO
+  data: UpdateAppointmentDTO,
+  actor: ActorContext
 ) {
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, tenantId, clinicId },
+    include: { patient: { select: { name: true } } },
   })
 
   if (!appointment) throw new AppError('Agendamento não encontrado.', 404)
@@ -197,32 +228,46 @@ export async function updateAppointment(
   const newDentistId = data.dentistId ?? appointment.dentistId
   const endTime = calcEndTime(newDateTime, newDuration)
 
-  if (data.dateTime && newDateTime < new Date()) {
-    throw new AppError('Não é possível agendar em uma data/hora passada.', 400)
-  }
-
   await checkConflicts(clinicId, newRoom, newDentistId, newDateTime, endTime, appointmentId)
 
-  return prisma.appointment.update({
+  const updatedAppointment = await prisma.appointment.update({
     where: { id: appointmentId },
     data: { ...data, dateTime: newDateTime },
     include: {
       patient: { select: { id: true, name: true, phone: true } },
       dentist: { select: { id: true, name: true } },
+      procedure: { select: { id: true, name: true } },
     },
   })
-}
 
-// ─── Update Status ────────────────────────────────────────────────────────────
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'SECRETARY',
+    action: 'UPDATE',
+    entity: 'APPOINTMENT',
+    entityId: appointmentId,
+    details: `Remarcou/editou consulta do paciente ${appointment.patient.name} para ${newDateTime.toLocaleString('pt-BR')}`,
+  })
+
+  return updatedAppointment
+}
 
 export async function updateAppointmentStatus(
   tenantId: string,
   clinicId: string,
   appointmentId: string,
-  data: UpdateAppointmentStatusDTO
+  data: UpdateAppointmentStatusDTO,
+  actor: ActorContext
 ) {
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, tenantId, clinicId },
+    include: {
+      patient: { select: { name: true } },
+      procedure: { select: { id: true, name: true } },
+    },
   })
 
   if (!appointment) throw new AppError('Agendamento não encontrado.', 404)
@@ -232,27 +277,64 @@ export async function updateAppointmentStatus(
     throw new AppError('Informe o motivo do cancelamento.', 400)
   }
 
-  return prisma.appointment.update({
+  const activeProcedureId = data.procedureId || appointment.procedureId
+
+  const updatedAppointment = await prisma.appointment.update({
     where: { id: appointmentId },
     data: {
       status: data.status,
+      procedureId: activeProcedureId,
       ...(data.status === 'CANCELADO' && {
         cancelledAt: new Date(),
         cancellationReason: data.cancellationReason,
       }),
     },
+    include: {
+      patient: { select: { id: true, name: true } },
+      dentist: { select: { id: true, name: true } },
+      procedure: { select: { id: true, name: true } },
+    },
   })
-}
 
-// ─── Delete ───────────────────────────────────────────────────────────────────
+  // 🟢 EXIT INTELIGENTE (SECRETARIA): Dispara a baixa atômica com trava de idempotência por appointmentId
+  if (data.status === 'FINALIZADO' && activeProcedureId) {
+    try {
+      await triggerAutoStockExit({
+        tenantId,
+        clinicId,
+        procedureId: activeProcedureId,
+        userId: actor.userId,
+        appointmentId, // Passa o appointmentId para validar se o dentista já não baixou antes!
+      })
+    } catch (error) {
+      console.error('[Exit Inteligente Error]: Falha ao disparar baixa no estoque na finalização do agendamento', error)
+    }
+  }
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'SECRETARY',
+    action: 'UPDATE',
+    entity: 'APPOINTMENT',
+    entityId: appointmentId,
+    details: `Alterou status da consulta do paciente ${appointment.patient.name} de ${appointment.status} para ${data.status}${data.cancellationReason ? ` (Motivo: ${data.cancellationReason})` : ''}`,
+  })
+
+  return updatedAppointment
+}
 
 export async function deleteAppointment(
   tenantId: string,
   clinicId: string,
-  appointmentId: string
+  appointmentId: string,
+  actor: ActorContext
 ) {
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, tenantId, clinicId },
+    include: { patient: { select: { name: true } } },
   })
 
   if (!appointment) throw new AppError('Agendamento não encontrado.', 404)
@@ -262,4 +344,16 @@ export async function deleteAppointment(
   }
 
   await prisma.appointment.delete({ where: { id: appointmentId } })
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'SECRETARY',
+    action: 'DELETE',
+    entity: 'APPOINTMENT',
+    entityId: appointmentId,
+    details: `Excluiu o agendamento do paciente ${appointment.patient.name}`,
+  })
 }

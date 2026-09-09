@@ -5,24 +5,25 @@ import {
   getProcedureByIdController,
   updateProcedureController,
   deleteProcedureController,
+  setProcedureProductsController,
+  getProcedureProductsController,
 } from '../controllers/procedureController'
 import { authenticate, authorize } from '../middlewares/authMiddlewares'
 
-const router = Router()
+const procedureRouter = Router()
 
-// ─── Todas as rotas do catálogo são privadas ──────────────────────────────────
+// ─── Autenticação Global do Módulo ───────────────────────────────────────────
+procedureRouter.use(authenticate)
 
-router.use(authenticate)
+// ─── Rotas de Leitura (Liberado para ADMIN, DENTIST e SECRETARY) ────────────
+procedureRouter.get('/', listProceduresController)
+procedureRouter.get('/:id', getProcedureByIdController)
+procedureRouter.get('/:id/products', getProcedureProductsController)
 
-// ─── Rotas Privadas — Leitura (todos os roles) ────────────────────────────────
+// ─── Rotas de Escrita & Ficha Técnica (Apenas ADMIN) ─────────────────────────
+procedureRouter.post('/', authorize('ADMIN'), createProcedureController)
+procedureRouter.put('/:id', authorize('ADMIN'), updateProcedureController)
+procedureRouter.post('/:id/products', authorize('ADMIN'), setProcedureProductsController)
+procedureRouter.delete('/:id', authorize('ADMIN'), deleteProcedureController)
 
-router.get('/', listProceduresController)
-router.get('/:id', getProcedureByIdController)
-
-// ─── Rotas Privadas — Escrita (apenas ADMIN) ──────────────────────────────────
-
-router.post('/', authorize('ADMIN'), createProcedureController)
-router.put('/:id', authorize('ADMIN'), updateProcedureController)
-router.delete('/:id', authorize('ADMIN'), deleteProcedureController)
-
-export default router
+export default procedureRouter

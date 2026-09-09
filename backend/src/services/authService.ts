@@ -1,15 +1,13 @@
-// backend/src/services/auth.service.ts
-
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
+import { auditLogService } from './auditLog.service'
+import type { UserRole } from '@prisma/client'
 import type { RegisterDTO, LoginDTO, AuthResponse, JwtPayload } from '../types/auth.types'
 
 const JWT_SECRET = process.env.JWT_SECRET!
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '8h'
-
-// ─── Register ────────────────────────────────────────────────────────────────
 
 export async function register(data: RegisterDTO): Promise<AuthResponse> {
   const { tenantId, clinicId, name, email, password, role, phone, cro } = data
@@ -18,7 +16,6 @@ export async function register(data: RegisterDTO): Promise<AuthResponse> {
   if (!tenant) throw new AppError('Tenant não encontrado.', 404)
   if (!tenant.isActive) throw new AppError('Assinatura inativa.', 403)
 
-  // Garante que a clínica pertence ao tenant (isolamento multi-tenant)
   const clinic = await prisma.clinic.findFirst({
     where: { id: clinicId, tenantId, isActive: true },
   })
@@ -34,12 +31,29 @@ export async function register(data: RegisterDTO): Promise<AuthResponse> {
     select: { id: true, name: true, email: true, role: true, tenantId: true, clinicId: true },
   })
 
-  const token = generateToken({ sub: user.id, tenantId: user.tenantId, clinicId: user.clinicId, role: user.role })
+  const token = generateToken({
+    sub: user.id,
+    tenantId: user.tenantId,
+    clinicId: user.clinicId,
+    role: user.role,
+    name: user.name,
+    plan: (tenant as any).plan || 'BASIC',
+  })
+
+  await auditLogService.createLog({
+    tenantId: user.tenantId,
+    clinicId: user.clinicId,
+    userId: user.id,
+    userName: user.name,
+    userRole: user.role as UserRole,
+    action: 'CREATE',
+    entity: 'USER',
+    entityId: user.id,
+    details: `Novo usuário registrado no sistema: ${user.name} (${user.email})`,
+  })
 
   return { token, user }
 }
-
-// ─── Login ───────────────────────────────────────────────────────────────────
 
 export async function login(data: LoginDTO): Promise<AuthResponse> {
   const { email, password } = data
@@ -55,7 +69,7 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
       clinicId: true,
       passwordHash: true,
       isActive: true,
-      tenant: { select: { isActive: true } },
+      tenant: { select: { isActive: true, plan: true } },
     },
   })
 
@@ -68,14 +82,31 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
 
   prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }).catch(() => {})
 
-  const token = generateToken({ sub: user.id, tenantId: user.tenantId, clinicId: user.clinicId, role: user.role })
+  const token = generateToken({
+    sub: user.id,
+    tenantId: user.tenantId,
+    clinicId: user.clinicId,
+    role: user.role,
+    name: user.name,
+    plan: user.tenant.plan || 'BASIC',
+  })
+
+  await auditLogService.createLog({
+    tenantId: user.tenantId,
+    clinicId: user.clinicId,
+    userId: user.id,
+    userName: user.name,
+    userRole: user.role as UserRole,
+    action: 'UPDATE',
+    entity: 'USER',
+    entityId: user.id,
+    details: `Sessão iniciada (Login realizado com sucesso)`,
+  })
 
   const { passwordHash: _, tenant: __, ...userWithoutSensitiveData } = user
 
   return { token, user: userWithoutSensitiveData }
 }
-
-// ─── Me ──────────────────────────────────────────────────────────────────────
 
 export async function getMe(userId: string, tenantId: string, clinicId: string) {
   const user = await prisma.user.findFirst({
@@ -99,8 +130,6 @@ export async function getMe(userId: string, tenantId: string, clinicId: string) 
 
   return user
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function generateToken(payload: JwtPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions)

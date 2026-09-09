@@ -8,12 +8,73 @@ import {
   updateClinicController,
   deactivateClinicController,
   reactivateClinicController,
+  getClinicCustomizationController,
+  updateClinicCustomizationController,
 } from '../../controllers/clinicController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
 
 const router = Router()
 
 router.use(authenticate)
+
+/**
+ * @openapi
+ * /clinics/{id}/customization:
+ *   get:
+ *     summary: Obtém os parâmetros de identidade visual da clínica (cores, logos e tipografia)
+ *     tags: [Clinics - White-label]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Configurações visuais retornadas com sucesso
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+router.get('/:id/customization', getClinicCustomizationController)
+
+/**
+ * @openapi
+ * /clinics/{id}/customization:
+ *   put:
+ *     summary: Atualiza o tema, paleta de cores e identidade visual da clínica (apenas ADMIN)
+ *     tags: [Clinics - White-label]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               clinicName: { type: string }
+ *               primaryColor: { type: string, example: "#06b6d4" }
+ *               accentColor: { type: string, example: "#0891b2" }
+ *               secondaryColor: { type: string, example: "#0f172a" }
+ *               fontFamily: { type: string, enum: [Inter, Roboto, Poppins, Montserrat] }
+ *               darkModeDefault: { type: boolean }
+ *               customLogoUrl: { type: string, format: uri }
+ *               customFavicon: { type: string, format: uri }
+ *     responses:
+ *       200:
+ *         description: Identidade visual da clínica atualizada com sucesso
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+router.put('/:id/customization', authorize('ADMIN'), updateClinicCustomizationController)
 
 /**
  * @openapi
@@ -83,9 +144,13 @@ router.get('/:id', getClinicByIdController)
  *               phone: { type: string }
  *               email: { type: string, format: email }
  *               address: { type: string }
+ *               logoUrl: { type: string }
+ *               paymentIntegrationActive: { type: boolean }
  *     responses:
  *       201:
  *         description: Clínica criada com sucesso
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       409:
@@ -119,6 +184,8 @@ router.post('/', authorize('ADMIN'), createClinicController)
  *     responses:
  *       200:
  *         description: Clínica atualizada com sucesso
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
@@ -140,6 +207,8 @@ router.put('/:id', authorize('ADMIN'), updateClinicController)
  *     responses:
  *       200:
  *         description: Clínica desativada com sucesso
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
@@ -161,6 +230,8 @@ router.patch('/:id/deactivate', authorize('ADMIN'), deactivateClinicController)
  *     responses:
  *       200:
  *         description: Clínica reativada com sucesso
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:

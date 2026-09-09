@@ -1,29 +1,39 @@
-import { Router } from "express";
-import { createAppointmentController,listAppointmentsController,getAppointmentByIdController,updateAppointmentController,updateAppointmentStatusController, deleteAppointmentController } from "../controllers/apponitmentController";
-import { authenticate,authorize } from "../middlewares/authMiddlewares";
+import { Router } from 'express'
+import {
+  createAppointmentController,
+  listAppointmentsController,
+  getAppointmentByIdController,
+  updateAppointmentController,
+  updateAppointmentStatusController,
+  deleteAppointmentController,
+} from '../controllers/apponitmentController'
+import { authenticate, authorize } from '../middlewares/authMiddlewares'
 
 const appointmentRouter = Router()
 
-// rotas de agendamenyos todas privadas 
-
+// Todas as rotas de agendamento exigem autenticação via Token JWT
 appointmentRouter.use(authenticate)
 
-// rotas privadas - leituras  todos roles podem acessar 
+// ─── 1. ROTAS DE LEITURA (ADMIN, SECRETARY, DENTIST) ─────────────────────────
+// Listagem com filtros por data, dentista, paciente, procedimento e status
+appointmentRouter.get('/', listAppointmentsController)
 
-appointmentRouter.get('/',listAppointmentsController)
-appointmentRouter.get('/:id',getAppointmentByIdController)
+// Detalhes completos do agendamento por ID
+appointmentRouter.get('/:id', getAppointmentByIdController)
 
-// rotas privadas - edicao (ADM , SECRETARIA , DENTISTA )
+// ─── 2. ROTAS DE CRIAÇÃO E EDIÇÃO (ADMIN, SECRETARY, DENTIST) ────────────────
+// Cadastro de nova consulta com validação de conflitos de sala/agenda
+appointmentRouter.post('/', authorize('ADMIN', 'SECRETARY', 'DENTIST'), createAppointmentController)
 
-appointmentRouter.post('/',authorize('ADMIN','SECRETARY','DENSTIST'),createAppointmentController)
-appointmentRouter.put('/:id',authorize('ADMIN','SECRETARY','DENSTIST'),updateAppointmentController)
+// Edição/Remarcação de agendamento (somente para consultas não finalizadas/canceladas)
+appointmentRouter.put('/:id', authorize('ADMIN', 'SECRETARY', 'DENTIST'), updateAppointmentController)
 
-// rotas privadas de status 
+// ─── 3. TRANSIÇÃO DE STATUS & EXIT INTELIGENTE (ADMIN, SECRETARY, DENTIST) ────
+// 🚀 Ao transitar para 'FINALIZADO', dispara a baixa automática com trava de idempotência
+appointmentRouter.patch('/:id/status', authorize('ADMIN', 'SECRETARY', 'DENTIST'), updateAppointmentStatusController)
 
-appointmentRouter.patch('/:id/status', authorize('ADMIN','SECRETARY','DENSTIST'),updateAppointmentStatusController)
-
-// rotas privadas de exclusao 
-
-appointmentRouter.delete('/:id',authorize('ADMIN','SECRETARY'),deleteAppointmentController)
+// ─── 4. ROTA DE EXCLUSÃO (ADMIN, SECRETARY) ──────────────────────────────────
+// Exclusão permitida apenas se o agendamento não estiver em andamento ou finalizado
+appointmentRouter.delete('/:id', authorize('ADMIN', 'SECRETARY'), deleteAppointmentController)
 
 export default appointmentRouter

@@ -1,30 +1,29 @@
-import { Router } from "express";
+// backend/src/routes/patient.routes.ts
+
+import { Router } from 'express'
 import {
   createPatientController,
   listPatientsController,
   getPatientByIdController,
   updatePatientController,
   deletePatientController,
-} from '../controllers/patientController'
-import { authenticate,authorize } from "../middlewares/authMiddlewares";
+} from '../controllers/patientController' // Alinhado com a nomenclatura .controller
+import { authenticate, authorize } from '../middlewares/authMiddlewares'
 
 const patientRoutes = Router()
 
+// Todas as rotas exigem autenticação
 patientRoutes.use(authenticate)
 
-// leitura 
+// 📖 Rotas de Leitura
+patientRoutes.get('/', listPatientsController)
+patientRoutes.get('/:id', getPatientByIdController)
 
-patientRoutes.get('/',listPatientsController)
-patientRoutes.get('/:id',getPatientByIdController)
+// ✍️ Rotas de Ações (Escrita/Edição)
+patientRoutes.post('/', authorize('ADMIN', 'SECRETARY', 'DENTIST'), createPatientController)
+patientRoutes.put('/:id', authorize('ADMIN', 'SECRETARY', 'DENTIST'), updatePatientController)
 
-// rotas de acoes 
-
-patientRoutes.post('/',authorize('ADMIN','SECRETARY','DENTIST'),createPatientController)
-patientRoutes.put('/:id',authorize('ADMIN','SECRETARY','DENTIST'),updatePatientController)
-
-// delete 
-
-patientRoutes.delete('/:id',authorize('ADMIN'),deletePatientController)
-
+// 🗑️ Rota de Exclusão (Apenas Admin)
+patientRoutes.delete('/:id', authorize('ADMIN'), deletePatientController)
 
 export default patientRoutes

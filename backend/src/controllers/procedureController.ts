@@ -1,62 +1,176 @@
-// backend/src/controllers/procedure.controller.ts
-
 import type { Request, Response, NextFunction } from 'express'
 import * as procedureService from '../services/procedureService'
-import type { CreateProcedureDTO, UpdateProcedureDTO, ProcedureFiltersDTO } from '../types/procedure.types'
+import type { UserRole } from '@prisma/client'
+import type { CustomJwtPayload } from '../types/express'
+import type {
+  CreateProcedureDTO,
+  UpdateProcedureDTO,
+  ProcedureFiltersDTO,
+  SetProcedureProductsDTO,
+} from '../types/procedure.types'
 
-export async function createProcedureController(req: Request, res: Response, next: NextFunction): Promise<void> {
+// Helper para extrair o ActorContext de forma segura
+function extractActor(req: Request) {
+  const user = req.user as CustomJwtPayload
+  return {
+    clinicId: user.clinicId,
+    userId: user.userId || (user as any).sub || (user as any).id,
+    userName: (user as any).name || 'Usuário',
+    userRole: (user.role as UserRole) || 'ADMIN',
+  }
+}
+
+// ─── 1. CRIAR PROCEDIMENTO ───────────────────────────────────────────────────
+export async function createProcedureController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const { tenantId } = req.user!
-    const procedure = await procedureService.createProcedure(tenantId, req.body as CreateProcedureDTO)
+    const user = req.user as CustomJwtPayload
+    const actor = extractActor(req)
+
+    const procedure = await procedureService.createProcedure(
+      user.tenantId,
+      req.body as CreateProcedureDTO,
+      actor
+    )
+
     res.status(201).json(procedure)
   } catch (error) {
     next(error)
   }
 }
 
-export async function listProceduresController(req: Request, res: Response, next: NextFunction): Promise<void> {
+// ─── 2. LISTAR PROCEDIMENTOS ─────────────────────────────────────────────────
+export async function listProceduresController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const { tenantId } = req.user!
+    const user = req.user as CustomJwtPayload
+
     const filters: ProcedureFiltersDTO = {
       name: req.query.name as string,
+      category: req.query.category as string,
       page: req.query.page ? Number(req.query.page) : undefined,
       limit: req.query.limit ? Number(req.query.limit) : undefined,
     }
-    const result = await procedureService.listProcedures(tenantId, filters)
+
+    const result = await procedureService.listProcedures(user.tenantId, filters)
+
     res.status(200).json(result)
   } catch (error) {
     next(error)
   }
 }
 
-export async function getProcedureByIdController(req: Request, res: Response, next: NextFunction): Promise<void> {
+// ─── 3. BUSCAR PROCEDIMENTO POR ID ───────────────────────────────────────────
+export async function getProcedureByIdController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const { tenantId } = req.user!
+    const user = req.user as CustomJwtPayload
     const { id } = req.params
-    const procedure = await procedureService.getProcedureById(tenantId, id as string)
+
+    const procedure = await procedureService.getProcedureById(user.tenantId, id as string)
+
     res.status(200).json(procedure)
   } catch (error) {
     next(error)
   }
 }
 
-export async function updateProcedureController(req: Request, res: Response, next: NextFunction): Promise<void> {
+// ─── 4. EDITAR PROCEDIMENTO ──────────────────────────────────────────────────
+export async function updateProcedureController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const { tenantId } = req.user!
+    const user = req.user as CustomJwtPayload
     const { id } = req.params
-    const procedure = await procedureService.updateProcedure(tenantId, id as string , req.body as UpdateProcedureDTO)
+    const actor = extractActor(req)
+
+    const procedure = await procedureService.updateProcedure(
+      user.tenantId,
+      id as string,
+      req.body as UpdateProcedureDTO,
+      actor
+    )
+
     res.status(200).json(procedure)
   } catch (error) {
     next(error)
   }
 }
 
-export async function deleteProcedureController(req: Request, res: Response, next: NextFunction): Promise<void> {
+// ─── 5. DELETAR PROCEDIMENTO ─────────────────────────────────────────────────
+export async function deleteProcedureController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const { tenantId } = req.user!
+    const user = req.user as CustomJwtPayload
     const { id } = req.params
-    await procedureService.deleteProcedure(tenantId, id as string)
+    const actor = extractActor(req)
+
+    await procedureService.deleteProcedure(user.tenantId, id as string, actor)
+
     res.status(204).send()
+  } catch (error) {
+    next(error)
+  }
+}
+
+// ─── 6. ATUALIZAR FICHA TÉCNICA (VINCULAR INSUMOS DO ESTOQUE) ───────────────
+export async function setProcedureProductsController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const user = req.user as CustomJwtPayload
+    const { id } = req.params
+    const actor = extractActor(req)
+
+    const payload: SetProcedureProductsDTO = {
+      items: req.body.items || req.body.products || [],
+    }
+
+    const result = await procedureService.setProcedureProducts(
+      user.tenantId,
+      id as string,
+      payload,
+      actor
+    )
+
+    res.status(200).json({
+      message: 'Ficha técnica do procedimento atualizada com sucesso.',
+      data: result,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+// ─── 7. BUSCAR INSUMOS DA FICHA TÉCNICA DO PROCEDIMENTO ─────────────────────
+export async function getProcedureProductsController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const user = req.user as CustomJwtPayload
+    const { id } = req.params
+
+    const products = await procedureService.getProcedureProducts(user.tenantId, id as string)
+
+    res.status(200).json(products)
   } catch (error) {
     next(error)
   }

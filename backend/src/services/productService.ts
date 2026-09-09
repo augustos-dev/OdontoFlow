@@ -1,296 +1,392 @@
-import {prisma} from '../lib/prisma'
-import { $Enums, Prisma } from '@prisma/client'
+import { prisma } from '../lib/prisma'
+import { Prisma, StockMovementType, UnitType } from '@prisma/client'
 import { AppError } from '../shared/AppError'
 import type {
-    CreateProductDTO,
-    AdjustStockDTO,
-    UpdateProductDTO,
-    FilterProductDTO,
+  CreateProductDTO,
+  AdjustStockDTO,
+  UpdateProductDTO,
+  FilterProductDTO,
 } from '../types/products.types'
-import { get } from 'node:http'
-//helpers
 
+// Helper de semáforo de estoque
 function getStockStatus(quantity: number, minQuantity: number): 'CRITICO' | 'BAIXO' | 'OK' {
   if (quantity === 0) return 'CRITICO'
   if (quantity <= minQuantity) return 'BAIXO'
   return 'OK'
 }
 
-//Create--------------------------------------------------------------------------------------------------
+// ─── Create ──────────────────────────────────────────────────────────────────
 
 export async function createProductService(
-    tenantId:string,
-    clinicId:string,
-    data: CreateProductDTO
+  tenantId: string,
+  clinicId: string,
+  data: CreateProductDTO
 ) {
-   const {name,quantity,minQuantity,supplierId,expiryDate} = data
+  const { 
+    name, 
+    quantity, 
+    minQuantity, 
+    unit, 
+    costPrice, 
+    itemsPerPackage, 
+    supplierId, 
+    lotNumber, 
+    manufacturingDate, 
+    expiryDate, 
+    notes 
+  } = data
 
-   // valida fornecedor caso informado 
-
-   if (supplierId) {
+  if (supplierId) {
     const supplier = await prisma.supplier.findFirst({
-        where: {id :supplierId,tenantId,clinicId},
+      where: { id: supplierId, tenantId, clinicId },
     })
     if (!supplier) {
-        throw new AppError('Fornecedor nao encontrado',404)
+      throw new AppError('Fornecedor não encontrado.', 404)
     }
-   }
+  }
 
-   return prisma.product.create({
+  const parsedCost = costPrice !== undefined && costPrice !== null 
+    ? parseFloat(String(costPrice).replace(',', '.')) 
+    : null
+
+  const parsedItemsPerPackage = itemsPerPackage !== undefined && itemsPerPackage !== null
+    ? Number(itemsPerPackage)
+    : (unit === 'CX' ? 100 : 1)
+
+  const product = await prisma.product.create({
     data: {
+      tenantId,
+      clinicId,
+      name,
+      quantity: Number(quantity),
+      minQuantity: Number(minQuantity),
+      unit: (unit as UnitType) || 'UN',
+      costPrice: parsedCost && !isNaN(parsedCost) ? parsedCost : null,
+      itemsPerPackage: parsedItemsPerPackage > 0 ? parsedItemsPerPackage : 1, // 🟢 Suporte a rendimento/embalagem
+      supplierId: supplierId ?? null,
+      lotNumber: lotNumber ?? null,
+      manufacturingDate: manufacturingDate ? new Date(manufacturingDate) : null,
+      expiryDate: expiryDate ? new Date(expiryDate) : null,
+      notes: notes ?? null,
+    },
+    include: {
+      supplier: { select: { id: true, name: true } },
+    },
+  })
+
+  // Se o produto já foi cadastrado com saldo inicial > 0, gera histórico de movimentação
+  if (product.quantity > 0) {
+    await prisma.stockMovement.create({
+      data: {
         tenantId,
         clinicId,
-        name,
-        quantity,
-        minQuantity,
-        supplierId: supplierId ?? null,
-        expiryDate: expiryDate ? new Date(expiryDate) : null,
-    },
+        productId: product.id,
+        type: 'ENTRY',
+        quantity: product.quantity,
+        reason: 'Cadastro Inicial de Estoque',
+      },
+    })
+  }
 
-    include : {
-        supplier: {select: {id:true, name: true} }
-    },
-
-   })
+  return {
+    ...product,
+    batchNumber: product.lotNumber, // 📦 Alias para compatibilidade no Front
+    stockStatus: getStockStatus(product.quantity, product.minQuantity),
+  }
 }
 
-//lista --------------------------------------------------------------------------------------------------------
+// ─── List ────────────────────────────────────────────────────────────────────
 
+export async function listProductService(
+  tenantId: string,
+  clinicId: string,
+  filters: FilterProductDTO
+) {
+  const { name, supplierId, lotNumber, unit, lowStock, expiring, page = 1, limit = 20 } = filters
+  const skip = (page - 1) * limit
 
-export async function listProductService(tenantId: string , clinicId:string ,filters:FilterProductDTO):Promise <any> {
-    const {name,lowStock,supplierId,expiring,page = 1 ,limit = 20 } = filters
+  const vencendoEmTrintaDias = new Date()
+  vencendoEmTrintaDias.setDate(vencendoEmTrintaDias.getDate() + 30)
 
-    const skip = (page-1) * limit
+  const where: Prisma.ProductWhereInput = {
+    tenantId,
+    clinicId,
+    ...(name && { name: { contains: name, mode: 'insensitive' } }),
+    ...(supplierId && { supplierId }),
+    ...(unit && { unit: unit as UnitType }),
+    ...(lotNumber && { lotNumber: { contains: lotNumber, mode: 'insensitive' } }),
+    ...(lowStock && {
+      quantity: { lte: prisma.product.fields.minQuantity },
+    }),
+    ...(expiring && {
+      expiryDate: {
+        not: null,
+        lte: vencendoEmTrintaDias,
+        gte: new Date(),
+      },
+    }),
+  }
 
-    // Alerta de vencimento de produtos vencendo em 30 dias 
-    const vencendoEmTrintaDias = new Date() 
-    vencendoEmTrintaDias.setDate(vencendoEmTrintaDias.getDate() + 30)
+  const [products, total] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { name: 'asc' },
+      include: {
+        supplier: { select: { id: true, name: true } },
+      },
+    }),
+    prisma.product.count({ where }),
+  ])
 
-    const where : Prisma.ProductWhereInput = {
+  const data = products.map((product) => ({
+    ...product,
+    batchNumber: product.lotNumber, // 📦 Alias Front-end
+    stockStatus: getStockStatus(product.quantity, product.minQuantity),
+    isExpiringSoon:
+      product.expiryDate !== null && product.expiryDate <= vencendoEmTrintaDias,
+  }))
+
+  return {
+    data,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  }
+}
+
+// ─── Get By Id (Com Histórico de Movimentações do Exit Inteligente) ─────────
+
+export async function getProductByIdService(
+  tenantId: string,
+  clinicId: string,
+  productId: string
+) {
+  const product = await prisma.product.findFirst({
+    where: { id: productId, tenantId, clinicId },
+    include: {
+      supplier: { select: { id: true, name: true, phone: true, email: true, contact: true } },
+      stockMovements: {
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { id: true, name: true } },
+        },
+      },
+    },
+  })
+
+  if (!product) {
+    throw new AppError('Produto não encontrado.', 404)
+  }
+
+  return {
+    ...product,
+    batchNumber: product.lotNumber,
+    stockStatus: getStockStatus(product.quantity, product.minQuantity),
+  }
+}
+
+// ─── Update ──────────────────────────────────────────────────────────────────
+
+export async function updateProductService(
+  tenantId: string,
+  clinicId: string,
+  productId: string,
+  data: UpdateProductDTO
+) {
+  const product = await prisma.product.findFirst({
+    where: { id: productId, tenantId, clinicId },
+  })
+
+  if (!product) {
+    throw new AppError('Produto não encontrado.', 404)
+  }
+
+  // 🟢 Remove batchNumber se o front tiver enviado por engano
+  const { manufacturingDate, expiryDate, costPrice, itemsPerPackage, batchNumber, ...rest }: any = data
+
+  const parsedCost = costPrice !== undefined && costPrice !== null && costPrice !== ''
+    ? parseFloat(String(costPrice).replace(',', '.')) 
+    : undefined
+
+  const parsedItemsPerPackage = itemsPerPackage !== undefined && itemsPerPackage !== null
+    ? Number(itemsPerPackage)
+    : undefined
+
+  const updated = await prisma.product.update({
+    where: { id: productId },
+    data: {
+  ...rest,
+  ...(parsedCost !== undefined && { costPrice: isNaN(parsedCost) ? null : parsedCost }),
+  ...(parsedItemsPerPackage !== undefined && { 
+    itemsPerPackage: !isNaN(parsedItemsPerPackage) && parsedItemsPerPackage > 0 ? parsedItemsPerPackage : 1 
+  }),
+  ...(manufacturingDate !== undefined && {
+    manufacturingDate: manufacturingDate ? new Date(manufacturingDate) : null,
+  }),
+  ...(expiryDate !== undefined && {
+    expiryDate: expiryDate ? new Date(expiryDate) : null,
+  }),
+},
+    include: {
+      supplier: { select: { id: true, name: true } },
+    },
+  })
+
+  return {
+    ...updated,
+    batchNumber: updated.lotNumber,
+    stockStatus: getStockStatus(updated.quantity, updated.minQuantity),
+  }
+}
+
+// ─── Adjust Stock (Integração com StockMovement) ────────────────────────────
+
+export async function adjustStockService(
+  tenantId: string,
+  clinicId: string,
+  productId: string,
+  data: AdjustStockDTO,
+  userId?: string
+) {
+  const product = await prisma.product.findFirst({
+    where: { id: productId, tenantId, clinicId },
+  })
+
+  if (!product) {
+    throw new AppError('Produto não encontrado.', 404)
+  }
+
+  const change = Number(data.quantity)
+  const currentQuantity = Number(product.quantity)
+
+  if (isNaN(change)) {
+    throw new AppError('A quantidade enviada deve ser um número válido.', 400)
+  }
+
+  const newQuantity = currentQuantity + change
+
+  if (newQuantity < 0) {
+    throw new AppError(
+      `Estoque insuficiente. Disponível: ${currentQuantity} ${product.unit}. Tentativa de alteração: ${change}`,
+      400
+    )
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const updatedProduct = await tx.product.update({
+      where: { id: productId },
+      data: { quantity: newQuantity },
+      include: { supplier: { select: { id: true, name: true } } },
+    })
+
+    const movementType: StockMovementType = change > 0 ? 'ENTRY' : 'EXIT_MANUAL'
+
+    await tx.stockMovement.create({
+      data: {
         tenantId,
         clinicId,
-        ...(name && {name: {contains: name, mode:'insensitive'}}),
-        ...(supplierId && {supplierId}),
-        // Filtro de semafaro para disparado de estoque critico (quantity <= minQuantity)
-        ...(lowStock &&{
-            quantity : {lte: prisma.product.fields.minQuantity},
-        }),
-        // filtro vencendo em 30 dias 
-        ...(expiring && {
-            expiryDate : {
-                not: null,
-                lte: vencendoEmTrintaDias,
-                gte: new Date()
-            },
-        }),
-    }
+        productId,
+        userId: userId ?? null,
+        type: movementType,
+        quantity: Math.abs(change),
+        reason: data.reason || 'Ajuste manual de estoque',
+      },
+    })
 
+    return updatedProduct
+  })
 
-    const [products, total] = await Promise.all([
-        prisma.product.findMany({
-            where,
-            skip,
-            take:limit,
-            orderBy: {name: 'asc'},
-            include: {
-                supplier: {select: {id: true, name: true}},
-            },
-        }),
-        prisma.product.count({where}),
-    ])
-
-    //enriquece cada produto com o status do semafaro do estoque 
-
-    const data = products.map((product) => ({
-        ...product,
-        stockStatus:getStockStatus(product.quantity, product.minQuantity),
-        isExpiringSoon: 
-            product.expiryDate !== null && product.expiryDate <= vencendoEmTrintaDias,
-    })) as any[]
-
-    return {
-        data,
-        meta:{
-            total,
-            page,
-            limit,
-            totaPages:Math.ceil(total/limit)
-        },
-    }
-
+  return {
+    ...result,
+    batchNumber: result.lotNumber,
+    stockStatus: getStockStatus(result.quantity, result.minQuantity),
+    adjustment: {
+      previous: currentQuantity,
+      change,
+      current: newQuantity,
+      reason: data.reason,
+    },
+  }
 }
 
-// get by id -----------------------------------------------
-export async function getProductByIdService(tenantId: string,clinicId: string, productId:string) {
-    const product = await prisma.product.findFirst({
-        where: {id: productId,tenantId,clinicId},
-        include: {
-            supplier:{select:{id:true,name:true,phone:true,email:true}},
-        }
-    })
-    if(!product) {
-        throw new AppError('Produto nao encontrado', 404)
-    }
+// ─── Low Stock Alert ─────────────────────────────────────────────────────────
 
-    return {
-        ...product,
-        stockStatus:getStockStatus(product.quantity, product.minQuantity)
-    }
+export async function getLowStockAlertService(tenantId: string, clinicId: string) {
+  const products = await prisma.product.findMany({
+    where: { tenantId, clinicId },
+    include: {
+      supplier: { select: { id: true, name: true, phone: true } },
+    },
+    orderBy: { quantity: 'asc' },
+  })
+
+  const lowStock = products.filter((p) => p.quantity <= p.minQuantity)
+
+  return lowStock.map((p) => ({
+    ...p,
+    batchNumber: p.lotNumber,
+    stockStatus: getStockStatus(p.quantity, p.minQuantity),
+  }))
 }
 
-// Update ---------------------------------------------------------
+// ─── Expiring Products ───────────────────────────────────────────────────────
 
-export async function updateProductService(tenantId:string,clinicId:string, productId:string,data:UpdateProductDTO){
-    const product = await prisma.product.findFirst({
-        where: {id:productId,tenantId,clinicId}
-    })
+export async function getExpringProductsService(tenantId: string, clinicId: string) {
+  const vencendoEmTrintaDias = new Date()
+  vencendoEmTrintaDias.setDate(vencendoEmTrintaDias.getDate() + 30)
 
-    if(!product) {
-        throw new AppError('Produto nao encontrado', 404)
-    }
-    if(data.supplierId) {
-        const supplier = await prisma.supplier.findFirst({
-            where: {id: data.supplierId, tenantId, clinicId},
-        })
-        if (!supplier) {
-            throw new AppError('Fornecedor nao encontrado', 404)
-        }
+  const products = await prisma.product.findMany({
+    where: {
+      tenantId,
+      clinicId,
+      expiryDate: {
+        not: null,
+        lte: vencendoEmTrintaDias,
+        gte: new Date(),
+      },
+    },
+    include: {
+      supplier: { select: { id: true, name: true, phone: true } },
+    },
+    orderBy: { expiryDate: 'asc' },
+  })
 
-        return prisma.product.update({
-            where: {id:productId},
-            data: {
-                ...data,
-                expiryDate:data.expiryDate ? new Date(data.expiryDate) : undefined,
-            },
-            include: {
-                supplier : {select:{id: true, name: true}},
-            },
-        })
-
-    }
-
-
+  return products.map((p) => ({
+    ...p,
+    batchNumber: p.lotNumber,
+    daysUntilExpiry: Math.ceil(
+      (p.expiryDate!.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+    ),
+  }))
 }
 
-/// ajuste de stock ----------------------------
- export async function adjustStockService(tenantId:string,clinicId:string,productId:string, data: AdjustStockDTO) {
-    const product = await prisma.product.findFirst({
-        where:{id: productId,tenantId,clinicId},
-    })
+// ─── Delete ──────────────────────────────────────────────────────────────────
 
-    if(!product) {
-        throw new AppError('Produto nao encontrado', 404)
-    }
+export async function deleteProductService(
+  tenantId: string,
+  clinicId: string,
+  productId: string
+) {
+  const product = await prisma.product.findFirst({
+    where: { id: productId, tenantId, clinicId },
+  })
 
-    const newQuantity = product.quantity + data.quantity 
+  if (!product) {
+    throw new AppError('Produto não encontrado.', 404)
+  }
 
-    // nao permite estoque negativo 
+  if (product.quantity > 0) {
+    throw new AppError(
+      'Não é possível deletar um produto com quantidade acima de zero. Zere o estoque antes de deletar.',
+      400
+    )
+  }
 
-    if(newQuantity < 0) {
-        throw new AppError(
-            `Estoque insuficiente. Disponvel: ${product.quantity} unidade(s).`,
-            400
-        )
-    }
-
-    const updated = await prisma.product.update({
-        where:{id: productId},
-        data: {
-            quantity: newQuantity
-        },
-        include:{
-            supplier:{select:{id:true,name:true}},
-        },
-    })
-
-    return {
-        ...updated,
-        stockStatus:getStockStatus(updated.quantity, updated.minQuantity),
-        adjustment:{
-            previous: product.quantity,
-            change: data.quantity,
-            current: newQuantity,
-            reason: data.reason
-        },
-    }
-
- }
-
- // estoque baixo low stcok alert -------------------
-
- export async function getLowStockAlertService(tenantId:string,clinicId:string) {
-    const products = await prisma.product.findMany({
-        where:{tenantId,clinicId},
-        include: {
-            supplier:{select:{id:true,name:true, phone: true}}
-        },
-        orderBy:{
-            quantity:'asc'
-        }
-    })
-
-    // flitra manualmentte para comparar campos da mesma linha
-
-    const lowStock = products.filter((p)=> p.quantity <= p.quantity)
-
-    return lowStock.map((p) => ({
-        ...p,
-        stockStatus: getStockStatus(p.quantity, p.minQuantity,)
-    }))
- }
-
-
- // expirando --- expiring
-
- export async function getExpringProductsService(tenantId:string,clinicId:string) {
-    const vencendoEmTrintaDias = new Date()
-    vencendoEmTrintaDias.setDate(vencendoEmTrintaDias.getDate() + 30)
-
-    const products = await prisma.product.findMany({
-        where:{
-            tenantId,
-            clinicId,
-            expiryDate: {
-                not: null,
-                lte: vencendoEmTrintaDias,
-                gte: new Date()
-            },
-        },
-        include:{
-            supplier:{select: {id:true, name: true, phone:true}}
-        },
-        orderBy: {
-            expiryDate:'asc'
-        }
-    })
-
-    return products.map((p) => ({
-        ...p,
-        daysUntilExpiry: Math.ceil(
-            (p.expiryDate!.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-        ),
-    }))
- }
-
- // delete ------------------------------
-
- export async function deleteProductService(tenantId:string,clinicId:string,productId:string) {
-    const product = await prisma.product.findFirst({
-        where:{id:productId,tenantId,clinicId}
-    })
-
-     if (!product) {
-        throw new AppError('Produto não encontrado.', 404)
-     }
-
-    if (product.quantity > 0) {
-        throw new AppError(
-            'nao e possivel deletar um produto com quantidade acima de zero. zere antes de  deletar', 400
-        )
-    }
-
-    await prisma.product.delete({
-        where:{id:productId}
-    })
-
- }
+  await prisma.product.delete({ where: { id: productId } })
+}

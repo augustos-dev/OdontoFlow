@@ -1,8 +1,7 @@
-// backend/src/services/treatmentPlan.service.ts
-
-import { Prisma, $Enums } from '@prisma/client'
+import { Prisma, $Enums, UserRole } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
+import { auditLogService } from './auditLog.service'
 import type {
   CreateTreatmentPlanDTO,
   UpdateTreatmentPlanDTO,
@@ -11,14 +10,18 @@ import type {
   PlanProcedureItemDTO,
 } from '../types/treatment.types'
 
+interface ActorContext {
+  userId: string
+  userName: string
+  userRole?: UserRole
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// Calcula o total do orçamento somando quantity * actualPrice de cada item
 function calcTotalAmount(procedures: PlanProcedureItemDTO[]): number {
   return procedures.reduce((sum, item) => sum + item.quantity * item.actualPrice, 0)
 }
 
-// Valida se todos os procedimentos informados existem no catálogo do tenant
 async function validateProcedures(tenantId: string, procedures: PlanProcedureItemDTO[]) {
   if (procedures.length === 0) {
     throw new AppError('O plano de tratamento deve ter ao menos um procedimento.', 400)
@@ -40,7 +43,8 @@ async function validateProcedures(tenantId: string, procedures: PlanProcedureIte
 export async function createTreatmentPlan(
   tenantId: string,
   clinicId: string,
-  data: CreateTreatmentPlanDTO
+  data: CreateTreatmentPlanDTO,
+  actor: ActorContext
 ) {
   const { patientId, dentistId, title, notes, procedures } = data
 
@@ -58,7 +62,6 @@ export async function createTreatmentPlan(
 
   const totalAmount = calcTotalAmount(procedures)
 
-  // Cria o plano e os itens da tabela pivô em uma única transação
   const treatmentPlan = await prisma.treatmentPlan.create({
     data: {
       tenantId,
@@ -84,6 +87,19 @@ export async function createTreatmentPlan(
         include: { procedure: { select: { id: true, name: true, code: true } } },
       },
     },
+  })
+
+  // 🟢 Log de Auditoria
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole,
+    action: 'CREATE',
+    entity: 'TREATMENT_PLAN',
+    entityId: treatmentPlan.id,
+    details: `Criou plano de tratamento "${treatmentPlan.title}" para o paciente ${patient.name} no valor de R$ ${totalAmount.toFixed(2)}`,
   })
 
   return treatmentPlan
@@ -159,7 +175,8 @@ export async function updateTreatmentPlan(
   tenantId: string,
   clinicId: string,
   planId: string,
-  data: UpdateTreatmentPlanDTO
+  data: UpdateTreatmentPlanDTO,
+  actor: ActorContext
 ) {
   const plan = await prisma.treatmentPlan.findFirst({
     where: { id: planId, tenantId, clinicId },
@@ -167,14 +184,12 @@ export async function updateTreatmentPlan(
 
   if (!plan) throw new AppError('Plano de tratamento não encontrado.', 404)
 
-  // Planos já aprovados ou concluídos não podem ter os itens alterados
   if (['APROVADO', 'EM_ANDAMENTO', 'CONCLUIDO'].includes(plan.status) && data.procedures) {
     throw new AppError('Não é possível alterar os procedimentos de um plano já aprovado.', 400)
   }
 
   let totalAmount = plan.totalAmount
 
-  // Se procedures foi informado, substitui todos os itens (delete + create)
   if (data.procedures) {
     await validateProcedures(tenantId, data.procedures)
     totalAmount = new Prisma.Decimal(calcTotalAmount(data.procedures))
@@ -191,7 +206,7 @@ export async function updateTreatmentPlan(
     })
   }
 
-  return prisma.treatmentPlan.update({
+  const updatedPlan = await prisma.treatmentPlan.update({
     where: { id: planId },
     data: {
       title: data.title,
@@ -206,6 +221,21 @@ export async function updateTreatmentPlan(
       },
     },
   })
+
+  // 🟢 Log de Auditoria
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole,
+    action: 'UPDATE',
+    entity: 'TREATMENT_PLAN',
+    entityId: planId,
+    details: `Atualizou plano de tratamento "${updatedPlan.title}". Novo total: R$ ${Number(totalAmount).toFixed(2)}`,
+  })
+
+  return updatedPlan
 }
 
 // ─── Update Status ────────────────────────────────────────────────────────────
@@ -214,7 +244,8 @@ export async function updateTreatmentPlanStatus(
   tenantId: string,
   clinicId: string,
   planId: string,
-  data: UpdateTreatmentPlanStatusDTO
+  data: UpdateTreatmentPlanStatusDTO,
+  actor: ActorContext
 ) {
   const plan = await prisma.treatmentPlan.findFirst({
     where: { id: planId, tenantId, clinicId },
@@ -222,12 +253,10 @@ export async function updateTreatmentPlanStatus(
 
   if (!plan) throw new AppError('Plano de tratamento não encontrado.', 404)
 
-  // Planos finalizados (CONCLUIDO ou RECUSADO) são estados terminais
   if (['CONCLUIDO', 'RECUSADO'].includes(plan.status)) {
     throw new AppError(`Plano de tratamento já está ${plan.status.toLowerCase()} e não pode mudar de status.`, 400)
   }
 
-  // Validação de transição de status (fluxo lógico do orçamento)
   const validTransitions: Record<string, string[]> = {
     ORCAMENTO: ['APROVADO', 'RECUSADO'],
     APROVADO: ['EM_ANDAMENTO', 'RECUSADO'],
@@ -241,10 +270,25 @@ export async function updateTreatmentPlanStatus(
     )
   }
 
-  return prisma.treatmentPlan.update({
+  const updatedPlan = await prisma.treatmentPlan.update({
     where: { id: planId },
     data: { status: data.status },
   })
+
+  // 🟢 Log de Auditoria
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole,
+    action: 'UPDATE',
+    entity: 'TREATMENT_PLAN',
+    entityId: planId,
+    details: `Alterou status do orçamento "${plan.title}" de ${plan.status} para ${data.status}`,
+  })
+
+  return updatedPlan
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
@@ -252,7 +296,8 @@ export async function updateTreatmentPlanStatus(
 export async function deleteTreatmentPlan(
   tenantId: string,
   clinicId: string,
-  planId: string
+  planId: string,
+  actor: ActorContext
 ) {
   const plan = await prisma.treatmentPlan.findFirst({
     where: { id: planId, tenantId, clinicId },
@@ -264,6 +309,18 @@ export async function deleteTreatmentPlan(
     throw new AppError('Não é possível deletar um plano já aprovado ou em andamento.', 400)
   }
 
-  // planProcedures são deletados em cascata pelo schema (onDelete: Cascade)
   await prisma.treatmentPlan.delete({ where: { id: planId } })
+
+  // 🟢 Log de Auditoria
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole,
+    action: 'DELETE',
+    entity: 'TREATMENT_PLAN',
+    entityId: planId,
+    details: `Deletou o orçamento em rascunho: "${plan.title}"`,
+  })
 }

@@ -16,15 +16,15 @@ const options: swaggerJsdoc.Options = {
       },
     },
     servers: [
-  {
-    url: 'https://odontoflow-bbcl.onrender.com/api',
-    description: 'Servidor de produção (Render)',
-  },
-  {
-    url: 'http://localhost:3333/api',
-    description: 'Servidor local de desenvolvimento',
-  },
-],
+      {
+        url: 'https://odontoflow-bbcl.onrender.com/api',
+        description: 'Servidor de produção (Render)',
+      },
+      {
+        url: 'http://localhost:3333/api',
+        description: 'Servidor local de desenvolvimento',
+      },
+    ],
     components: {
       securitySchemes: {
         bearerAuth: {
@@ -128,16 +128,28 @@ const options: swaggerJsdoc.Options = {
             cancellationReason: { type: 'string' },
           },
         },
-        Appointment: {
+       Appointment: {
           type: 'object',
           properties: {
             id: { type: 'string', format: 'uuid' },
+            patientId: { type: 'string', format: 'uuid' },
+            dentistId: { type: 'string', format: 'uuid' },
+            procedureId: { type: 'string', format: 'uuid', nullable: true },
             dateTime: { type: 'string', format: 'date-time' },
             durationMin: { type: 'integer' },
             status: { type: 'string' },
             type: { type: 'string' },
             room: { type: 'string' },
-            notes: { type: 'string' },
+            notes: { type: 'string', nullable: true },
+            procedure: {
+              type: 'object',
+              nullable: true,
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                name: { type: 'string', example: 'Limpeza e Profilaxia' },
+                basePrice: { type: 'number', example: 150.0 },
+              },
+            },
           },
         },
 
@@ -152,6 +164,7 @@ const options: swaggerJsdoc.Options = {
             description: { type: 'string' },
             category: { type: 'string' },
             appointmentId: { type: 'string', format: 'uuid' },
+            treatmentPlanId: { type: 'string', format: 'uuid', description: 'Vínculo opcional com orçamento aprovado' },
             paidAt: { type: 'string', format: 'date-time' },
           },
         },
@@ -164,6 +177,7 @@ const options: swaggerJsdoc.Options = {
             paymentMethod: { type: 'string' },
             description: { type: 'string' },
             category: { type: 'string' },
+            treatmentPlanId: { type: 'string', format: 'uuid', nullable: true },
             paidAt: { type: 'string', format: 'date-time' },
           },
         },
@@ -194,11 +208,14 @@ const options: swaggerJsdoc.Options = {
           type: 'object',
           required: ['name', 'quantity', 'minQuantity'],
           properties: {
-            name: { type: 'string', example: 'Anestésico Tubete' },
+            name: { type: 'string', example: 'Anestésico Tubete 2%' },
             quantity: { type: 'integer', example: 50 },
             minQuantity: { type: 'integer', example: 10 },
             supplierId: { type: 'string', format: 'uuid' },
-            expiryDate: { type: 'string', format: 'date' },
+            lotNumber: { type: 'string', example: 'LT-2026-A', description: 'Número do lote para rastreabilidade' },
+            manufacturingDate: { type: 'string', format: 'date', example: '2026-01-15' },
+            expiryDate: { type: 'string', format: 'date', example: '2027-12-31' },
+            notes: { type: 'string', example: 'Armazenar entre 2°C e 8°C.' },
           },
         },
         AdjustStockDTO: {
@@ -216,8 +233,68 @@ const options: swaggerJsdoc.Options = {
             name: { type: 'string' },
             quantity: { type: 'integer' },
             minQuantity: { type: 'integer' },
-            expiryDate: { type: 'string', format: 'date' },
+            lotNumber: { type: 'string', nullable: true },
+            manufacturingDate: { type: 'string', format: 'date-time', nullable: true },
+            expiryDate: { type: 'string', format: 'date', nullable: true },
+            notes: { type: 'string', nullable: true },
             stockStatus: { type: 'string', enum: ['CRITICO', 'BAIXO', 'OK'] },
+          },
+        },
+
+        // ─── AuditLog ──────────────────────────────────────────────────────
+        AuditLog: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            tenantId: { type: 'string', format: 'uuid' },
+            clinicId: { type: 'string', format: 'uuid' },
+            userId: { type: 'string', format: 'uuid', nullable: true },
+            userName: { type: 'string', example: 'Dr. Vicente Augusto', nullable: true },
+            userRole: { type: 'string', enum: ['ADMIN', 'DENTIST', 'SECRETARY'], nullable: true },
+            action: { type: 'string', enum: ['CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'EXPORT'] },
+            entity: { type: 'string', example: 'PRODUCT' },
+            entityId: { type: 'string', example: 'prod-123456', nullable: true },
+            details: { type: 'string', example: 'Cadastrou o produto: Anestésico Tubete | Lote: LT-2026-A' },
+            ipAddress: { type: 'string', example: '187.19.120.4', nullable: true },
+            userAgent: { type: 'string', example: 'Mozilla/5.0...', nullable: true },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        // ─── Stock Movements ────────────────────────────────────────────────
+        CreateStockMovementDTO: {
+          type: 'object',
+          required: ['productId', 'type', 'quantity'],
+          properties: {
+            productId: { type: 'string', format: 'uuid' },
+            type: { type: 'string', enum: ['ENTRY', 'EXIT_MANUAL'] },
+            quantity: { type: 'integer', example: 10 },
+            reason: { type: 'string', example: 'Ajuste de inventário' },
+          },
+        },
+        StockMovement: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            productId: { type: 'string', format: 'uuid' },
+            userId: { type: 'string', format: 'uuid', nullable: true },
+            type: { type: 'string', enum: ['ENTRY', 'EXIT_MANUAL', 'EXIT_AUTO'] },
+            quantity: { type: 'integer' },
+            reason: { type: 'string', nullable: true },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        AuditLogListResponse: {
+          type: 'object',
+          properties: {
+            total: { type: 'integer', example: 45 },
+            page: { type: 'integer', example: 1 },
+            totalPages: { type: 'integer', example: 3 },
+            logs: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/AuditLog',
+              },
+            },
           },
         },
 
@@ -259,7 +336,7 @@ const options: swaggerJsdoc.Options = {
           },
         },
 
-        // ─── Erros ─────────────────────────────────────────────────────────
+        // ─── Erros & Padrões ───────────────────────────────────────────────
         Error: {
           type: 'object',
           properties: {
@@ -297,7 +374,7 @@ const options: swaggerJsdoc.Options = {
     },
     security: [{ bearerAuth: [] }],
   },
- apis: [path.join(process.cwd(), 'src/docs/routes/*.routes.ts')],
+  apis: [path.join(process.cwd(), 'src/docs/routes/*.routes.ts'), path.join(process.cwd(), 'src/routes/*.routes.ts')],
 }
 
 export const swaggerSpec = swaggerJsdoc(options)

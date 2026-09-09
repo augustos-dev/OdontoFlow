@@ -1,5 +1,3 @@
-// backend/src/routes/procedure.routes.ts
-
 import { Router } from 'express'
 import {
   createProcedureController,
@@ -7,44 +5,55 @@ import {
   getProcedureByIdController,
   updateProcedureController,
   deleteProcedureController,
+  setProcedureProductsController,
+  getProcedureProductsController,
 } from '../../controllers/procedureController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
 
-const router = Router()
+const procedureRouter = Router()
 
-router.use(authenticate)
+// ─── Autenticação Global do Módulo ───────────────────────────────────────────
+procedureRouter.use(authenticate)
 
 /**
  * @openapi
  * /procedures:
  *   get:
- *     summary: Lista o catálogo de procedimentos da clínica
+ *     summary: Lista o catálogo de procedimentos
  *     tags: [Procedures]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: name
+ *         schema: { type: string }
+ *         description: Filtrar procedimentos pelo nome
+ *       - in: query
+ *         name: category
+ *         schema: { type: string }
+ *         description: Filtrar por especialidade/categoria (ex. Dentística / Estética)
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
  *     responses:
  *       200:
- *         description: Lista de procedimentos
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id: { type: string, format: uuid }
- *                   name: { type: string, example: 'Profilaxia' }
- *                   code: { type: string, example: '81000014' }
- *                   basePrice: { type: number, example: 150.00 }
+ *         description: Lista de procedimentos com duração, precificação e insumos vinculados
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-router.get('/', listProceduresController)
+procedureRouter.get('/', listProceduresController)
 
 /**
  * @openapi
  * /procedures/{id}:
  *   get:
- *     summary: Busca um procedimento por ID
+ *     summary: Busca detalhes de um procedimento por ID
  *     tags: [Procedures]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -52,18 +61,43 @@ router.get('/', listProceduresController)
  *         schema: { type: string, format: uuid }
  *     responses:
  *       200:
- *         description: Dados do procedimento
+ *         description: Dados detalhados do procedimento
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.get('/:id', getProcedureByIdController)
+procedureRouter.get('/:id', getProcedureByIdController)
+
+/**
+ * @openapi
+ * /procedures/{id}/products:
+ *   get:
+ *     summary: Lista a Ficha Técnica (insumos do estoque) de um procedimento
+ *     tags: [Procedures]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Lista de produtos/insumos associados
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+procedureRouter.get('/:id/products', getProcedureProductsController)
+
+// ─── Rotas de Escrita (Apenas ADMIN) ──────────────────────────────────────────
 
 /**
  * @openapi
  * /procedures:
  *   post:
- *     summary: Adiciona um procedimento ao catálogo (apenas ADMIN)
+ *     summary: Cadastra um novo procedimento no catálogo
  *     tags: [Procedures]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -72,25 +106,27 @@ router.get('/:id', getProcedureByIdController)
  *             type: object
  *             required: [name, basePrice]
  *             properties:
- *               name: { type: string, example: 'Restauração Estética' }
- *               code: { type: string, example: '81000022' }
- *               basePrice: { type: number, example: 350.00 }
+ *               name: { type: string, example: "Restauração Resina Composta" }
+ *               code: { type: string, example: "PROC-001" }
+ *               basePrice: { type: number, example: 150.00 }
+ *               durationMin: { type: integer, example: 30, description: "Duração na agenda em minutos" }
+ *               category: { type: string, example: "Dentística / Estética" }
  *     responses:
  *       201:
- *         description: Procedimento criado com sucesso
- *       403:
- *         $ref: '#/components/responses/Forbidden'
+ *         description: Procedimento cadastrado com sucesso
  *       409:
- *         description: Procedimento com mesmo nome já existe no tenant
+ *         description: Já existe um procedimento com este nome
  */
-router.post('/', authorize('ADMIN'), createProcedureController)
+procedureRouter.post('/', authorize('ADMIN'), createProcedureController)
 
 /**
  * @openapi
  * /procedures/{id}:
  *   put:
- *     summary: Atualiza um procedimento do catálogo (apenas ADMIN)
+ *     summary: Atualiza um procedimento existente
  *     tags: [Procedures]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -106,22 +142,63 @@ router.post('/', authorize('ADMIN'), createProcedureController)
  *               name: { type: string }
  *               code: { type: string }
  *               basePrice: { type: number }
+ *               durationMin: { type: integer }
+ *               category: { type: string }
  *     responses:
  *       200:
  *         description: Procedimento atualizado com sucesso
- *       403:
- *         $ref: '#/components/responses/Forbidden'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.put('/:id', authorize('ADMIN'), updateProcedureController)
+procedureRouter.put('/:id', authorize('ADMIN'), updateProcedureController)
+
+/**
+ * @openapi
+ * /procedures/{id}/products:
+ *   post:
+ *     summary: Configura a Ficha Técnica do procedimento (associa insumos do estoque)
+ *     description: Define quais produtos, quantidades e unidades serão consumidos do estoque ao realizar este procedimento.
+ *     tags: [Procedures]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [items]
+ *             properties:
+ *               items:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required: [productId, quantity]
+ *                   properties:
+ *                     productId: { type: string, format: uuid }
+ *                     quantity: { type: number, example: 0.5, description: "Quantidade gasta (aceita decimais)" }
+ *                     unit: { type: string, enum: [UN, ML, MG, G, L, CX], example: "ML" }
+ *     responses:
+ *       200:
+ *         description: Ficha técnica vinculada com sucesso
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+procedureRouter.post('/:id/products', authorize('ADMIN'), setProcedureProductsController)
 
 /**
  * @openapi
  * /procedures/{id}:
  *   delete:
- *     summary: Remove um procedimento do catálogo (apenas ADMIN)
+ *     summary: Deleta um procedimento do catálogo
  *     tags: [Procedures]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -130,11 +207,11 @@ router.put('/:id', authorize('ADMIN'), updateProcedureController)
  *     responses:
  *       204:
  *         description: Procedimento removido com sucesso
- *       403:
- *         $ref: '#/components/responses/Forbidden'
+ *       400:
+ *         description: Procedimento vinculado a um plano de tratamento não pode ser excluído
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.delete('/:id', authorize('ADMIN'), deleteProcedureController)
+procedureRouter.delete('/:id', authorize('ADMIN'), deleteProcedureController)
 
-export default router
+export default procedureRouter

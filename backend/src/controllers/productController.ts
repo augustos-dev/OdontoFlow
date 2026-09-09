@@ -1,107 +1,198 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from 'express'
+import { UserRole, UnitType } from '@prisma/client'
 import * as productService from '../services/productService'
-import {
-    CreateProductDTO,
-    UpdateProductDTO,
-    FilterProductDTO,
-    AdjustStockDTO,
+import { auditLogService } from '../services/auditLog.service'
+import type { CustomJwtPayload } from '../types/express'
+import type {
+  CreateProductDTO,
+  UpdateProductDTO,
+  FilterProductDTO,
+  AdjustStockDTO,
 } from '../types/products.types'
 
-export async function  createProductController(req:Request,res:Response,next:NextFunction): Promise<void> {
-    try {
-        const {tenantId,clinicId} = req.user!
-        const product = await productService.createProductService(tenantId,clinicId,req.body as CreateProductDTO)
-        res.status(201).json(product)
-
-    } catch (error) {
-        next(error)
-    }
+function getAuthUser(req: Request) {
+  const user = req.user as CustomJwtPayload
+  return {
+    tenantId: user.tenantId,
+    clinicId: user.clinicId!,
+    userId: user.userId || (user as any).sub || (user as any).id,
+    userName: (user as any).name || 'Usuário',
+    userRole: (user.role as UserRole) || 'ADMIN',
+  }
 }
 
-export async function listProductController(req:Request,res:Response,next:NextFunction):Promise<void> {
-    try {
-        const {tenantId,clinicId} = req.user!
-        const filters: FilterProductDTO = {
-            name: req.query.name as string,
-            supplierId: req.query.supplierId as string,
-            lowStock: req.query.lowStock === 'true',
-            expiring: req.query.expiring ===  'true',
-            page: req.query.page ? Number(req.query.page): undefined,
-            limit: req.query.limit ? Number(req.query.limit): undefined,
-        }
+// ─── Create ──────────────────────────────────────────────────────────────────
 
-        const result = await productService.listProductService(tenantId,clinicId,filters)
-        res.status(200).json(result)
-    } catch (error) {
-        next(error)
-    }
+export async function createProductController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, clinicId, userId, userName, userRole } = getAuthUser(req)
+    const product = await productService.createProductService(
+      tenantId,
+      clinicId,
+      req.body as CreateProductDTO
+    )
+
+    auditLogService.createLog({
+      tenantId,
+      clinicId,
+      userId,
+      userName,
+      userRole,
+      action: 'CREATE',
+      entity: 'PRODUCT',
+      entityId: product.id,
+      details: `Cadastrou o produto: ${product.name} | Lote: ${product.lotNumber || 'N/A'} | Qtd: ${product.quantity} ${product.unit}`,
+    })
+
+    res.status(201).json(product)
+  } catch (error) {
+    next(error)
+  }
 }
 
-export async function productByIdController(req:Request,res:Response,next:NextFunction):Promise<void> {
-    try {
-        const {tenantId,clinicId} =req.user!
-        const  {id} = req.params
-        const product = await productService.getProductByIdService(tenantId,clinicId,id as string)
-        res.status(201).json(product)
+// ─── List ────────────────────────────────────────────────────────────────────
 
-    } catch (error) {
-        next(error)
-    } 
+export async function listProductController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, clinicId } = getAuthUser(req)
+    const filters: FilterProductDTO = {
+      name: req.query.name as string,
+      supplierId: req.query.supplierId as string,
+      lotNumber: req.query.lotNumber as string,
+      unit: req.query.unit as UnitType,
+      lowStock: req.query.lowStock === 'true',
+      expiring: req.query.expiring === 'true',
+      page: req.query.page ? Number(req.query.page) : undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    }
+
+    const result = await productService.listProductService(tenantId, clinicId, filters)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
 }
 
-export async function updateProductController(req:Request,res:Response,next:NextFunction):Promise<void> {
-    try {
-        const {tenantId,clinicId} = req.user! 
-        const {id} = req.params
-        const product  = await productService.updateProductService(tenantId,clinicId,id as string, req.body as UpdateProductDTO)
-        res.status(200).json(product)
-         
-    } catch (error) {
-        next(error)
-    }
+// ─── Get By Id ───────────────────────────────────────────────────────────────
+
+export async function productByIdController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, clinicId } = getAuthUser(req)
+    const { id } = req.params
+    const product = await productService.getProductByIdService(tenantId, clinicId, id as string)
+    
+    res.status(200).json(product)
+  } catch (error) {
+    next(error)
+  }
 }
 
-export async function adjustStockController(req:Request,res:Response,next:NextFunction):Promise<void> {
-    try{
-        const {tenantId,clinicId} = req.user!
-        const {id} = req.params
-        const result = await productService.adjustStockService(tenantId,clinicId, id as string, req.body as AdjustStockDTO)
-        res.status(200).json(result)
+// ─── Update ──────────────────────────────────────────────────────────────────
 
-    } catch (error) {
-        next(error)
-    }
-}
-export async function lowStockController(req:Request,res:Response,next:NextFunction):Promise<void> {
-    try {
-        const {tenantId,clinicId} = req.user!
-        const products = await productService.getLowStockAlertService(tenantId,clinicId)
-        res.status(200).json(products)
+export async function updateProductController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, clinicId, userId, userName, userRole } = getAuthUser(req)
+    const { id } = req.params
+    const product = await productService.updateProductService(
+      tenantId,
+      clinicId,
+      id as string,
+      req.body as UpdateProductDTO
+    )
 
-    } catch (error) {
-        next(error)
-    }
-}
+    auditLogService.createLog({
+      tenantId,
+      clinicId,
+      userId,
+      userName,
+      userRole,
+      action: 'UPDATE',
+      entity: 'PRODUCT',
+      entityId: id as string,
+      details: `Atualizou os dados do produto: ${product.name}`,
+    })
 
-export async function expringProductController(req:Request,res:Response,next:NextFunction):Promise<void> {
-    try {
-        const {tenantId,clinicId} = req.user!
-        const products = await productService.getExpringProductsService(tenantId,clinicId)
-        res.status(200).json(products)
-
-    } catch (error) {
-        next(error)
-    }
+    res.status(200).json(product)
+  } catch (error) {
+    next(error)
+  }
 }
 
-export async function deleteProductController(req:Request,res:Response,next:NextFunction):Promise<void> {
-    try {
-        const {tenantId,clinicId} = req.user!
-        const {id} = req.params
-        await productService.deleteProductService(tenantId,clinicId,id as string) 
-        res.status(204).send()
+// ─── Adjust Stock ────────────────────────────────────────────────────────────
 
-    } catch (error) {
-        next(error)
-    }
+export async function adjustStockController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, clinicId, userId, userName, userRole } = getAuthUser(req)
+    const { id } = req.params
+    const body = req.body as AdjustStockDTO
+    
+    const result = await productService.adjustStockService(tenantId, clinicId, id as string, body, userId)
+
+    auditLogService.createLog({
+      tenantId,
+      clinicId,
+      userId,
+      userName,
+      userRole,
+      action: 'UPDATE',
+      entity: 'PRODUCT',
+      entityId: id as string,
+      details: `Ajuste de estoque (${body.quantity > 0 ? '+' : ''}${body.quantity}): ${body.reason}`,
+    })
+
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+// ─── Low Stock Alert ─────────────────────────────────────────────────────────
+
+export async function lowStockController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, clinicId } = getAuthUser(req)
+    const products = await productService.getLowStockAlertService(tenantId, clinicId)
+    res.status(200).json(products)
+  } catch (error) {
+    next(error)
+  }
+}
+
+// ─── Expiring Products ───────────────────────────────────────────────────────
+
+export async function expringProductController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, clinicId } = getAuthUser(req)
+    const products = await productService.getExpringProductsService(tenantId, clinicId)
+    res.status(200).json(products)
+  } catch (error) {
+    next(error)
+  }
+}
+
+// ─── Delete ──────────────────────────────────────────────────────────────────
+
+export async function deleteProductController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, clinicId, userId, userName, userRole } = getAuthUser(req)
+    const { id } = req.params
+    
+    await productService.deleteProductService(tenantId, clinicId, id as string)
+
+    auditLogService.createLog({
+      tenantId,
+      clinicId,
+      userId,
+      userName,
+      userRole,
+      action: 'DELETE',
+      entity: 'PRODUCT',
+      entityId: id as string,
+      details: `Deletou o produto ID: ${id}`,
+    })
+
+    res.status(204).send()
+  } catch (error) {
+    next(error)
+  }
 }
