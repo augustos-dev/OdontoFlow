@@ -21,7 +21,9 @@ import {
   Eye,
   ExternalLink,
   Save,
-  Printer
+  Printer,
+  ChevronRight,
+  ShieldCheck
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './perfil.module.css'
@@ -90,7 +92,7 @@ export default function PerfilPacientePage() {
   // Estado do Odontograma Acumulado
   const [currentOdontogram, setCurrentOdontogram] = useState<OdontogramData | null>(null)
 
-  // Arquivos e Raio-X Panorâmico Manual (Salvo por paciente no localStorage)
+  // Arquivos e Raio-X Panorâmico Manual
   const [patientFiles, setPatientFiles] = useState<PatientFile[]>([])
   const [panoramicFileId, setPanoramicFileId] = useState<string | null>(null)
 
@@ -115,7 +117,6 @@ export default function PerfilPacientePage() {
 
   const DRAFT_KEY = `odontoflow_draft_mr_${id}`
 
-  // ── 1. Rascunho Automático & Panorâmica Fixada ──
   useEffect(() => {
     if (id) {
       const savedPanoramic = localStorage.getItem(PANORAMIC_KEY)
@@ -151,14 +152,11 @@ export default function PerfilPacientePage() {
     setIsClient(true)
   }, [])
 
-  // ── 2. Carga Principal de Dados ──
   async function load() {
     try {
-      // 2.1. Busca dados do paciente
       const { data: patientData } = await api.get(`/patients/${id}`)
       setPatient(patientData)
 
-      // Popula Anamnese inicial se não tiver rascunho ativo
       const savedDraft = typeof window !== 'undefined' ? localStorage.getItem(DRAFT_KEY) : null
       if (patientData.medicalRecord && !savedDraft) {
         setMrForm({
@@ -172,12 +170,10 @@ export default function PerfilPacientePage() {
         })
       }
 
-      // 2.2. Busca histórico, anexos e snapshot das evoluções
       try {
         const { data: evolutions } = await api.get(`/medical-records/${id}/evolutions`)
 
         if (Array.isArray(evolutions)) {
-          // 🎯 Busca o snapshot de Odontograma mais recente no histórico de evoluções
           const evolutionsWithSnapshot = evolutions
             .filter((evo: any) => evo.odontogramSnapshot)
             .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -188,7 +184,6 @@ export default function PerfilPacientePage() {
             setCurrentOdontogram(parsedSnapshot)
           }
 
-          // Extração dos Anexos
           const extractedFiles: PatientFile[] = evolutions.flatMap((evo: any) => {
             const rawAttachments = evo.attachments || []
 
@@ -234,7 +229,6 @@ export default function PerfilPacientePage() {
     if (id) load()
   }, [id])
 
-  // Função para fixar ou desfixar o arquivo panorâmico principal
   function handleTogglePinPanoramic(fileId: string) {
     if (panoramicFileId === fileId) {
       setPanoramicFileId(null)
@@ -245,7 +239,6 @@ export default function PerfilPacientePage() {
     }
   }
 
-  // Encontra o arquivo panorâmico selecionado manualmente
   const panoramicFile = patientFiles.find((f) => f.id === panoramicFileId) || null
 
   function toggleTag(field: keyof typeof mrForm, tag: string) {
@@ -358,7 +351,7 @@ export default function PerfilPacientePage() {
     return (
       <div className={styles.loading}>
         <Loader2 size={24} className={styles.spinner} />
-        <span>Carregando perfil...</span>
+        <span>Carregando prontuário do paciente...</span>
       </div>
     )
   }
@@ -372,14 +365,12 @@ export default function PerfilPacientePage() {
   return (
     <div className={styles.page}>
       
-     {/* ─── Header do Perfil ─── */}
+      {/* ─── Header do Perfil ─── */}
       <div className={styles.profileHeader}>
-        
-        {/* Barra superior de navegação e exportação */}
         <div className={styles.profileTopBar}>
           <button className={styles.backBtn} onClick={() => router.back()}>
             <ArrowLeft size={16} />
-            <span>Voltar</span>
+            <span>Voltar para Lista de Pacientes</span>
           </button>
 
           <div className={styles.headerRightActions}>
@@ -409,19 +400,19 @@ export default function PerfilPacientePage() {
         {/* Informações cadastrais do paciente */}
         <div className={styles.profileInfo}>
           <div className={styles.profileAvatar}>{getInitials(patient.name)}</div>
-          <div>
+          <div style={{ flex: 1 }}>
             <div className={styles.profileTitleRow}>
               <h1 className={styles.profileName}>{patient.name}</h1>
               
               {mr?.allergies && mr.allergies.toLowerCase() !== 'nenhuma' && (
                 <span className={styles.badgeAllergy}>
-                  <AlertTriangle size={14} />
+                  <AlertTriangle size={13} />
                   <span>Alergia: {mr.allergies}</span>
                 </span>
               )}
               {isBirthday && (
                 <span className={styles.badgeBirthday}>
-                  <Cake size={14} />
+                  <Cake size={13} />
                   <span>Aniversário Hoje!</span>
                 </span>
               )}
@@ -434,25 +425,25 @@ export default function PerfilPacientePage() {
                   <span>{age} anos</span>
                 </span>
               )}
-              {patient.gender !== 'NAO_INFORMADO' && <span>· {GENDER_LABEL[patient.gender]}</span>}
-              {patient.cpf && <span>· CPF: {patient.cpf}</span>}
-              <span>· Cadastrado em {formatDate(patient.createdAt)}</span>
+              {patient.gender !== 'NAO_INFORMADO' && <span>• {GENDER_LABEL[patient.gender]}</span>}
+              {patient.cpf && <span>• CPF: {patient.cpf}</span>}
+              <span>• Cadastrado em {formatDate(patient.createdAt)}</span>
             </div>
             
             <div className={styles.profileContacts}>
               <a href={`https://wa.me/55${patient.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className={styles.contactLink}>
-                <Phone size={14} />
+                <Phone size={13} />
                 <span>{patient.phone}</span>
               </a>
               {patient.email && (
                 <span className={styles.contactItem}>
-                  <Mail size={14} />
+                  <Mail size={13} />
                   <span>{patient.email}</span>
                 </span>
               )}
               {patient.address && (
                 <span className={styles.contactItem}>
-                  <MapPin size={14} />
+                  <MapPin size={13} />
                   <span>{patient.address}</span>
                 </span>
               )}
@@ -464,23 +455,23 @@ export default function PerfilPacientePage() {
       {/* ─── Navegação por Abas ─── */}
       <div className={styles.tabs}>
         <button className={`${styles.tab} ${tab === 'visao_geral' ? styles.tabActive : ''}`} onClick={() => setTab('visao_geral')}>
-          <Stethoscope size={16} />
+          <Stethoscope size={15} />
           <span>Visão Geral & Odontograma</span>
         </button>
         <button className={`${styles.tab} ${tab === 'evolucoes' ? styles.tabActive : ''}`} onClick={() => setTab('evolucoes')}>
-          <FileText size={16} />
+          <FileText size={15} />
           <span>Evoluções Clínicas</span>
         </button>
         <button className={`${styles.tab} ${tab === 'agenda' ? styles.tabActive : ''}`} onClick={() => setTab('agenda')}>
-          <Calendar size={16} />
+          <Calendar size={15} />
           <span>Agendamentos ({patient.appointments.length})</span>
         </button>
         <button className={`${styles.tab} ${tab === 'planos' ? styles.tabActive : ''}`} onClick={() => setTab('planos')}>
-          <ClipboardList size={16} />
+          <ClipboardList size={15} />
           <span>Planos ({patient.treatmentPlans?.length ?? 0})</span>
         </button>
         <button className={`${styles.tab} ${tab === 'arquivos' ? styles.tabActive : ''}`} onClick={() => setTab('arquivos')}>
-          <Folder size={16} />
+          <Folder size={15} />
           <span>Arquivos ({patientFiles.length})</span>
         </button>
       </div>
@@ -496,14 +487,14 @@ export default function PerfilPacientePage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <h3 className={styles.sectionTitle}>Anamnese & Saúde Base</h3>
                   {hasDraft && isEditingMR && (
-                    <span style={{ fontSize: '0.75rem', background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '12px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Save size={10} /> Rascunho salvo
+                    <span className={styles.draftBadge}>
+                      <Save size={10} /> Rascunho
                     </span>
                   )}
                 </div>
                 {!isEditingMR && (
                   <button type="button" onClick={() => setIsEditingMR(true)} className={styles.btnEdit}>
-                    <Pencil size={14} />
+                    <Pencil size={13} />
                     <span>Editar Anamnese</span>
                   </button>
                 )}
@@ -511,7 +502,6 @@ export default function PerfilPacientePage() {
 
               {isEditingMR ? (
                 <form onSubmit={handleSaveMedicalRecord} className={styles.anamneseForm}>
-                  
                   <div className={styles.formGroup}>
                     <span className={styles.infoLabel}>QUEIXA PRINCIPAL</span>
                     <div className={styles.tagsWrapper}>
@@ -524,7 +514,7 @@ export default function PerfilPacientePage() {
                             onClick={() => toggleTag('chiefComplaint', tag)}
                             className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
                           >
-                            {isActive ? <Check size={12} /> : <Plus size={12} />}
+                            {isActive ? <Check size={11} /> : <Plus size={11} />}
                             <span>{tag}</span>
                           </button>
                         )
@@ -551,7 +541,7 @@ export default function PerfilPacientePage() {
                             onClick={() => toggleTag('allergies', tag)}
                             className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
                           >
-                            {isActive ? <Check size={12} /> : <Plus size={12} />}
+                            {isActive ? <Check size={11} /> : <Plus size={11} />}
                             <span>{tag}</span>
                           </button>
                         )
@@ -582,7 +572,7 @@ export default function PerfilPacientePage() {
                             onClick={() => toggleTag('systemicDiseases', tag)}
                             className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
                           >
-                            {isActive ? <Check size={12} /> : <Plus size={12} />}
+                            {isActive ? <Check size={11} /> : <Plus size={11} />}
                             <span>{tag}</span>
                           </button>
                         )
@@ -612,7 +602,7 @@ export default function PerfilPacientePage() {
                             onClick={() => toggleTag('habits', tag)}
                             className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
                           >
-                            {isActive ? <Check size={12} /> : <Plus size={12} />}
+                            {isActive ? <Check size={11} /> : <Plus size={11} />}
                             <span>{tag}</span>
                           </button>
                         )
@@ -730,17 +720,17 @@ export default function PerfilPacientePage() {
           </div>
         )}
 
-        {/* ================= COLUNA DIREITA (ODONTOGRAMA & DEMAIS ABAS) ================= */}
+        {/* ================= COLUNA DIREITA ================= */}
         <div className={styles.column}>
           
           {/* VISÃO GERAL */}
           {tab === 'visao_geral' && (
             <>
-              {/* Radiografia Panorâmica / Exame Principal Selecionado */}
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#0f172a' }}>
-                    <Eye size={18} style={{ color: '#06b6d4' }} />
+              {/* Radiografia Panorâmica Principal */}
+              <div className={styles.panoramicCard}>
+                <div className={styles.panoramicHeader}>
+                  <div className={styles.panoramicTitle}>
+                    <Eye size={17} color="var(--primary-color, #0891b2)" />
                     <span>{panoramicFile ? (panoramicFile.type === 'pdf' ? 'Laudo / Exame Principal (PDF)' : 'Radiografia Panorâmica Principal') : 'Radiografia Panorâmica do Paciente'}</span>
                   </div>
                   {panoramicFile && (
@@ -748,7 +738,7 @@ export default function PerfilPacientePage() {
                       href={panoramicFile.url} 
                       target="_blank" 
                       rel="noreferrer" 
-                      style={{ fontSize: '0.8rem', color: '#06b6d4', textDecoration: 'none', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}
+                      className={styles.btnLink}
                     >
                       <span>Abrir Documento Inteiro</span>
                       <ExternalLink size={12} />
@@ -757,7 +747,7 @@ export default function PerfilPacientePage() {
                 </div>
 
                 {panoramicFile ? (
-                  <div style={{ width: '100%', height: '280px', backgroundColor: '#09090b', borderRadius: '8px', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', border: '1px solid #27272a' }}>
+                  <div className={styles.panoramicPreview}>
                     {panoramicFile.type === 'pdf' ? (
                       <iframe 
                         src={`${panoramicFile.url}#toolbar=0`} 
@@ -765,34 +755,23 @@ export default function PerfilPacientePage() {
                         title="Laudo Panorâmico PDF"
                       />
                     ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img 
                         src={panoramicFile.url} 
                         alt="Radiografia Panorâmica" 
-                        style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
                       />
                     )}
                   </div>
                 ) : (
-                  <div style={{ 
-                    width: '100%', 
-                    height: '180px', 
-                    backgroundColor: '#f8fafc', 
-                    border: '2px dashed #cbd5e1', 
-                    borderRadius: '8px', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    justifyContent: 'center', 
-                    alignItems: 'center', 
-                    gap: '8px',
-                    color: '#64748b'
-                  }}>
-                    <Folder size={28} style={{ color: '#94a3b8' }} />
-                    <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>Nenhuma radiografia definida como principal</span>
+                  <div className={styles.panoramicEmpty}>
+                    <Folder size={28} color="#94a3b8" />
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Nenhuma radiografia definida como principal</span>
                     <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Vá até a aba "Arquivos" e clique no botão de fixar no exame desejado.</span>
                   </div>
                 )}
               </div>
 
+              {/* Mapa Bucal (Odontograma) */}
               <div className={styles.card}>
                 <div>
                   <h3 className={styles.sectionTitle}>Mapa Bucal (Odontograma)</h3>
@@ -801,7 +780,6 @@ export default function PerfilPacientePage() {
                   </p>
                 </div>
                 
-                {/* 🎯 Odontograma renderizado com o snapshot vindo da evolução mais recente */}
                 <Odontogram 
                   patientId={id as string} 
                   value={currentOdontogram || undefined}
@@ -809,9 +787,13 @@ export default function PerfilPacientePage() {
                 />
               </div>
 
+              {/* 🎯 Últimas 5 Evoluções Clínicas (com link para ver todas) */}
               <div className={styles.card}>
                 <div className={styles.cardHeader}>
-                  <h3 className={styles.sectionTitle}>Últimas Evoluções Clínicas</h3>
+                  <div>
+                    <h3 className={styles.sectionTitle}>Últimas Evoluções Clínicas</h3>
+                    <p className={styles.sectionSubtitle}>Resumo dos 5 atendimentos mais recentes</p>
+                  </div>
                   <button className={styles.btnPrimary} onClick={() => setIsAddEvolutionOpen(true)}>
                     <Plus size={15} />
                     <span>Nova Evolução</span>
@@ -822,16 +804,31 @@ export default function PerfilPacientePage() {
                   patientId={id as string}
                   medicalRecordId={patient.medicalRecord?.id}
                   key={reloadEvolutionsTrigger}
+                  limit={5}
                 />
+
+                <div className={styles.timelineFooter}>
+                  <button 
+                    type="button" 
+                    onClick={() => setTab('evolucoes')}
+                    className={styles.btnViewAllEvolutions}
+                  >
+                    <span>Ver todas as evoluções na aba dedicada</span>
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
               </div>
             </>
           )}
 
-          {/* EVOLUÇÕES CLÍNICAS */}
+          {/* ABA EVOLUÇÕES CLÍNICAS (HISTÓRICO COMPLETO) */}
           {tab === 'evolucoes' && (
             <div className={styles.card}>
               <div className={styles.cardHeader}>
-                <h3 className={styles.sectionTitle}>Histórico de Evoluções Clínicas</h3>
+                <div>
+                  <h3 className={styles.sectionTitle}>Histórico Completo de Evoluções</h3>
+                  <p className={styles.sectionSubtitle}>Linha do tempo integral de atendimentos e procedimentos</p>
+                </div>
                 <button className={styles.btnPrimary} onClick={() => setIsAddEvolutionOpen(true)}>
                   <Plus size={15} />
                   <span>Nova Evolução</span>
