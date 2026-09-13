@@ -1,9 +1,11 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
-import path from 'path' // 👈 1. Import do path
+import helmet from 'helmet'
+import path from 'path'
 import router from './routes/index'
 import { errorHandler } from './middlewares/errorHandler.middleware'
+import { apiLimiter } from './middlewares/rateLimiter.middleware'
 import { swaggerSpec } from './docs/Swagger'
 import swaggerUi from 'swagger-ui-express'
 
@@ -20,7 +22,17 @@ process.on('unhandledRejection', (reason) => {
 const app = express()
 const PORT = process.env.PORT ?? 3333
 
-// Ajuste Fino de CORS
+// Permite capturar o IP real do cliente atrás de proxies reversos
+app.set('trust proxy', 1)
+
+// Oculta X-Powered-By e aplica headers HTTP de segurança (crossOriginResourcePolicy permite servir uploads)
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+)
+
+// Configuração de CORS
 app.use(
   cors({
     origin: '*',
@@ -31,19 +43,27 @@ app.use(
 
 app.use(express.json())
 
-// 👈 2. Libera o acesso público à pasta de uploads para servir fotos/anexos
+// Acesso estático público aos uploads
 app.use('/uploads', express.static(path.resolve(__dirname, '..', 'uploads')))
 
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customSiteTitle: 'OdontoFlow API — Documentação',
-}))
+// Documentação Swagger (livre de rate limiter)
+app.use(
+  '/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: 'OdontoFlow API — Documentação',
+  })
+)
 
-app.use('/api', router)
-
+// Endpoint de verificação operacional (livre de rate limiter)
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+// Aplica limitador geral de tráfego em todos os endpoints de negócio
+app.use('/api', apiLimiter, router)
+
+// Middleware central de tratamento de erros
 app.use(errorHandler)
 
 const portNumber = Number(PORT)
