@@ -1,5 +1,5 @@
 // =============================================================================
-// OdontoFlow - Schema Prisma Refatorado (Sprint 14 + Enterprise RBAC + White-label)
+// OdontoFlow - Schema Prisma Consolidado (Enterprise Security & White-label)
 // Multi-tenant SaaS de Gerenciamento Clínico Odontológico
 // =============================================================================
 
@@ -9,7 +9,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
- 
 }
 
 // =============================================================================
@@ -135,24 +134,24 @@ model Tenant {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  clinics            Clinic[]
-  users              User[]
-  patients           Patient[]
-  appointments       Appointment[]
-  products           Product[]
-  suppliers          Supplier[]
-  transactions       Transaction[]
-  medicalRecords     MedicalRecord[]
-  evolutions         Evolution[]
-  toothConditions    ToothCondition[]
-  treatmentPlans     TreatmentPlan[]
-  procedures         Procedure[]
-  planProcedures     PlanProcedure[]
-  procedureProducts  ProcedureProduct[]
-  medicalFiles       MedicalFile[]
-  auditLogs          AuditLog[]
-  subscription       Subscription?
-  rolePermissions    RolePermission[]
+  clinics           Clinic[]
+  users             User[]
+  patients          Patient[]
+  appointments      Appointment[]
+  products          Product[]
+  suppliers         Supplier[]
+  transactions      Transaction[]
+  medicalRecords    MedicalRecord[]
+  evolutions        Evolution[]
+  toothConditions   ToothCondition[]
+  treatmentPlans    TreatmentPlan[]
+  procedures        Procedure[]
+  planProcedures    PlanProcedure[]
+  procedureProducts ProcedureProduct[]
+  medicalFiles      MedicalFile[]
+  auditLogs         AuditLog[]
+  subscription      Subscription?
+  rolePermissions   RolePermission[]
 
   @@map("tenants")
 }
@@ -188,39 +187,42 @@ model Clinic {
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
-  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  customization  ClinicCustomization?
-  users          User[]
-  patients       Patient[]
-  appointments   Appointment[]
-  products       Product[]
-  transactions   Transaction[]
-  suppliers      Supplier[]
-  medicalRecords MedicalRecord[]
-  treatmentPlans TreatmentPlan[]
-  medicalFiles   MedicalFile[]
-  auditLogs      AuditLog[]
+  tenant          Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  customization   ClinicCustomization?
+  users           User[]
+  patients        Patient[]
+  appointments    Appointment[]
+  products        Product[]
+  transactions    Transaction[]
+  suppliers       Supplier[]
+  medicalRecords  MedicalRecord[]
+  treatmentPlans  TreatmentPlan[]
+  medicalFiles    MedicalFile[]
+  auditLogs       AuditLog[]
+  rolePermissions RolePermission[]
 
   @@index([tenantId])
   @@map("clinics")
 }
 
 model ClinicCustomization {
-  id              String   @id @default(uuid())
-  clinicId        String   @unique
-  clinicName      String?
-  primaryColor    String   @default("#06b6d4") // Azul ciano default do OdontoFlow
-  accentColor     String   @default("#0891b2") // Cor de hover/destaque
-  secondaryColor  String?  @default("#0f172a") // Cor escura base para contrastes
-  fontFamily      String   @default("Inter")   // Suporte a Inter, Roboto, Poppins, Montserrat
-  darkModeDefault Boolean  @default(false)
+  id                   String   @id @default(uuid())
+  clinicId             String   @unique
+  clinicName           String?
+  primaryColor         String   @default("#06b6d4") // Ciano default OdontoFlow
+  accentColor          String   @default("#0891b2") // Cor de hover/destaque
+  secondaryColor       String?  @default("#0f172a") // Cor escura base para contrastes
+  fontFamily           String   @default("Inter")   // Suporte a Inter, Roboto, Poppins
+  darkModeDefault      Boolean  @default(false)
   
-  // Customização visual da clínica sem apagar o branding da Omnia
-  customLogoUrl   String?
-  customFavicon   String?
+  // Customização de Marca e Impressos
+  customLogoUrl        String?
+  customFavicon        String?
+  customDocumentHeader String?  @db.Text            // Cabeçalho de prontuários, receitas e atestados
+  customReceiptFooter  String?  @db.Text            // Rodapé institucional nos recibos
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
@@ -230,6 +232,7 @@ model ClinicCustomization {
 model RolePermission {
   id        String       @id @default(uuid())
   tenantId  String
+  clinicId  String?      // Opcional: permite customizar permissão por filial específica
   role      UserRole
   module    SystemModule
   canRead   Boolean      @default(true)
@@ -240,28 +243,35 @@ model RolePermission {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clinic Clinic? @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
-  @@unique([tenantId, role, module])
+  @@unique([tenantId, clinicId, role, module])
   @@index([tenantId, role])
+  @@index([clinicId, role])
   @@map("role_permissions")
 }
 
 model User {
-  id           String    @id @default(uuid())
-  tenantId     String
-  clinicId     String
-  name         String
-  email        String    @unique
-  passwordHash String
-  role         UserRole
-  phone        String?
-  cro          String?
-  avatarUrl    String?
-  isActive     Boolean   @default(true)
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                  String    @id @default(uuid())
+  tenantId            String
+  clinicId            String
+  name                String
+  email               String    @unique
+  passwordHash        String
+  role                UserRole
+  phone               String?
+  cro                 String?
+  avatarUrl           String?
+  isActive            Boolean   @default(true)
+  lastLoginAt         DateTime?
+  
+  // 🔹 Proteção e Bloqueio Progressivo (Anti-Brute Force / Bcrypt DoS)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   clinic         Clinic          @relation(fields: [clinicId], references: [id])
@@ -555,7 +565,7 @@ model StockMovement {
   quantity      Float
   reason        String?
 
-  // 🔹 Chaves para controle de concorrência e idempotência do Exit Inteligente
+  // Chaves para concorrência e idempotência do Exit Inteligente
   appointmentId String?
   procedureId   String?
 
@@ -566,7 +576,7 @@ model StockMovement {
 
   @@index([tenantId, clinicId])
   @@index([productId, createdAt])
-  @@index([tenantId, appointmentId, type]) // 🚀 Validação instantânea de idempotência
+  @@index([tenantId, appointmentId, type])
   @@map("stock_movements")
 }
 
@@ -585,7 +595,7 @@ model Supplier {
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   clinic       Clinic        @relation(fields: [clinicId], references: [id])
   products     Product[]
-  transactions Transaction[] // 🚀 Relação reversa adicionada
+  transactions Transaction[]
 
   @@index([tenantId])
   @@index([clinicId])
@@ -599,12 +609,14 @@ model Transaction {
   clinicId        String
   appointmentId   String?         @unique
   treatmentPlanId String?
-  supplierId      String?         // 🚀 Campo que faltava para despesas com fornecedores
+  supplierId      String?         // Despesas com fornecedores de insumos
   amount          Decimal         @db.Decimal(10, 2)
   type            TransactionType @default(RECEITA)
   paymentMethod   PaymentMethod
   description     String?
   category        String?
+  costCenter      String?         // Apoio a DRE e centros de custo (ex: "Clínico", "Operacional", "Prótese")
+  isReconciled    Boolean         @default(true) // Apoio a conciliação bancária/caixa
   paidAt          DateTime        @default(now())
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -613,7 +625,7 @@ model Transaction {
   clinic        Clinic         @relation(fields: [clinicId], references: [id])
   appointment   Appointment?   @relation(fields: [appointmentId], references: [id])
   treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id])
-  supplier      Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull) // 🚀 Vínculo de fornecedor
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, createdAt])
   @@index([tenantId, clinicId])
