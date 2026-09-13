@@ -6,43 +6,41 @@ import {
   updateUserController,
   updateUserRoleController,
   updateUserStatusController,
+  resetUserLockoutController,
   changePasswordController,
   deleteUserController,
   getRolePermissionsController,
   updateRolePermissionsController,
 } from '../controllers/userController'
 import { authenticate, authorize } from '../middlewares/authMiddlewares'
+import { can } from '../middlewares/rbac.middleware'
 
 const router = Router()
 
-// ─── Todas as rotas de usuários são privadas ──────────────────────────────────
-
+// Todas as rotas de usuários exigem autenticação
 router.use(authenticate)
 
-// ─── Rota Privada — Própria conta (qualquer usuário autenticado) ────────────
-
+// Própria conta
 router.patch('/me/change-password', changePasswordController)
 
-// ─── Rotas Privadas — Permissões Granulares (RBAC / Apenas ADMIN) ────────────
-// (Declaradas antes de /:id para evitar conflitos de rota dinâmica no Express)
-
+// Permissões Granulares (RBAC - apenas ADMIN)
 router.get('/permissions/:role', authorize('ADMIN'), getRolePermissionsController)
 router.put('/permissions', authorize('ADMIN'), updateRolePermissionsController)
 
-// ─── Rotas Privadas — Leitura de Usuários (Apenas ADMIN) ─────────────────────
+// Desbloqueio manual de conta bloqueada por tentativas (apenas ADMIN)
+router.patch('/:id/unlock', authorize('ADMIN'), resetUserLockoutController)
 
-router.get('/', authorize('ADMIN'), listUsersController)
-router.get('/:id', authorize('ADMIN'), getUserByIdController)
+// Leitura
+router.get('/', can('SETTINGS', 'READ'), listUsersController)
+router.get('/:id', can('SETTINGS', 'READ'), getUserByIdController)
 
-// ─── Rotas Privadas — Escrita e Modificação (Apenas ADMIN) ───────────────────
-
-router.post('/', authorize('ADMIN'), createUserController)
-router.put('/:id', authorize('ADMIN'), updateUserController)
+// Escrita e Modificação
+router.post('/', can('SETTINGS', 'CREATE'), createUserController)
+router.put('/:id', can('SETTINGS', 'UPDATE'), updateUserController)
 router.patch('/:id/role', authorize('ADMIN'), updateUserRoleController)
 router.patch('/:id/status', authorize('ADMIN'), updateUserStatusController)
 
-// ─── Rotas Privadas — Exclusão (Apenas ADMIN) ────────────────────────────────
-
+// Exclusão (apenas ADMIN)
 router.delete('/:id', authorize('ADMIN'), deleteUserController)
 
 export default router

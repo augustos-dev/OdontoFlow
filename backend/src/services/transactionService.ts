@@ -7,6 +7,7 @@ import type {
   UpdateTransactionDTO,
   TransactionFiltersDTO,
   TransactionReportDTO,
+  ReconcileTransactionDTO,
 } from '../types/transaction.types'
 
 interface ActorContext {
@@ -53,6 +54,8 @@ export async function createTransaction(
     paymentMethod,
     description,
     category,
+    costCenter,
+    isReconciled = true,
     appointmentId,
     treatmentPlanId,
     supplierId,
@@ -102,6 +105,8 @@ export async function createTransaction(
       paymentMethod,
       description,
       category,
+      costCenter: costCenter || null,
+      isReconciled,
       appointmentId: appointmentId || null,
       treatmentPlanId: treatmentPlanId || null,
       supplierId: supplierId || null,
@@ -110,7 +115,7 @@ export async function createTransaction(
     include: TRANSACTION_INCLUDES,
   })
 
-  // 🟢 Log de Auditoria
+  // Log de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -120,7 +125,7 @@ export async function createTransaction(
     action: 'CREATE',
     entity: 'TRANSACTION',
     entityId: transaction.id,
-    details: `Registrou ${type}: R$ ${Number(amount).toFixed(2)} (${paymentMethod}) - ${description || category || 'Sem categoria'}${transaction.supplier ? ` | Fornecedor: ${transaction.supplier.name}` : ''}`,
+    details: `Registrou ${type}: R$ ${Number(amount).toFixed(2)} (${paymentMethod}) - ${description || category || 'Sem categoria'}${costCenter ? ` | Centro de Custo: ${costCenter}` : ''}${transaction.supplier ? ` | Fornecedor: ${transaction.supplier.name}` : ''}`,
   })
 
   return transaction
@@ -133,7 +138,18 @@ export async function listTransactions(
   clinicId: string,
   filters: TransactionFiltersDTO
 ) {
-  const { type, paymentMethod, category, supplierId, startDate, endDate, page = 1, limit = 20 } = filters
+  const {
+    type,
+    paymentMethod,
+    category,
+    costCenter,
+    isReconciled,
+    supplierId,
+    startDate,
+    endDate,
+    page = 1,
+    limit = 20,
+  } = filters
   const skip = (page - 1) * limit
 
   let dateFilter: Prisma.TransactionWhereInput = {}
@@ -153,6 +169,8 @@ export async function listTransactions(
     ...(type && { type: type as $Enums.TransactionType }),
     ...(paymentMethod && { paymentMethod: paymentMethod as $Enums.PaymentMethod }),
     ...(category && { category: { contains: category, mode: 'insensitive' } }),
+    ...(costCenter && { costCenter: { contains: costCenter, mode: 'insensitive' } }),
+    ...(isReconciled !== undefined && { isReconciled }),
     ...(supplierId && { supplierId }),
   }
 
@@ -225,7 +243,7 @@ export async function updateTransaction(
     include: TRANSACTION_INCLUDES,
   })
 
-  // 🟢 Log de Auditoria
+  // Log de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -235,7 +253,43 @@ export async function updateTransaction(
     action: 'UPDATE',
     entity: 'TRANSACTION',
     entityId: transactionId,
-    details: `Atualizou transação (${transaction.type}). Novo valor: R$ ${Number(updatedTransaction.amount).toFixed(2)}`,
+    details: `Atualizou transação (${transaction.type}). Novo valor: R$ ${Number(updatedTransaction.amount).toFixed(2)}${data.costCenter !== undefined ? ` | Centro de Custo: ${data.costCenter}` : ''}${data.isReconciled !== undefined ? ` | Conciliado: ${data.isReconciled}` : ''}`,
+  })
+
+  return updatedTransaction
+}
+
+// ─── Reconcile (Conciliação Rápida de Caixa / Banco) ──────────────────────────
+
+export async function setTransactionReconciliation(
+  tenantId: string,
+  clinicId: string,
+  transactionId: string,
+  data: ReconcileTransactionDTO,
+  actor: ActorContext
+) {
+  const transaction = await prisma.transaction.findFirst({
+    where: { id: transactionId, tenantId, clinicId },
+  })
+
+  if (!transaction) throw new AppError('Transação não encontrada.', 404)
+
+  const updatedTransaction = await prisma.transaction.update({
+    where: { id: transactionId },
+    data: { isReconciled: data.isReconciled },
+    include: TRANSACTION_INCLUDES,
+  })
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole,
+    action: 'UPDATE',
+    entity: 'TRANSACTION',
+    entityId: transactionId,
+    details: `Status de conciliação alterado para: ${data.isReconciled ? 'CONCILIADO' : 'PENDENTE'}`,
   })
 
   return updatedTransaction
@@ -261,7 +315,7 @@ export async function deleteTransaction(
 
   await prisma.transaction.delete({ where: { id: transactionId } })
 
-  // 🟢 Log de Auditoria
+  // Log de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -275,14 +329,14 @@ export async function deleteTransaction(
   })
 }
 
-// ─── Report ───────────────────────────────────────────────────────────────────
+// ─── Report & DRE ─────────────────────────────────────────────────────────────
 
 export async function getFinancialReport(
   tenantId: string,
   clinicId: string,
   filters: TransactionReportDTO
 ) {
-  const { startDate, endDate } = filters
+  const { startDate, endDate, type, costCenter, isReconciled } = filters
 
   const where: Prisma.TransactionWhereInput = {
     tenantId,
@@ -291,9 +345,12 @@ export async function getFinancialReport(
       gte: new Date(`${startDate}T00:00:00.000Z`),
       lte: new Date(`${endDate}T23:59:59.999Z`),
     },
+    ...(type && { type }),
+    ...(costCenter && { costCenter: { contains: costCenter, mode: 'insensitive' } }),
+    ...(isReconciled !== undefined && { isReconciled }),
   }
 
-  const [receitas, despesas, byPaymentMethod] = await Promise.all([
+  const [receitas, despesas, byPaymentMethod, byCostCenter] = await Promise.all([
     prisma.transaction.aggregate({
       where: { ...where, type: 'RECEITA' },
       _sum: { amount: true },
@@ -307,6 +364,12 @@ export async function getFinancialReport(
     prisma.transaction.groupBy({
       by: ['paymentMethod'],
       where: { ...where, type: 'RECEITA' },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.transaction.groupBy({
+      by: ['costCenter'],
+      where: { ...where, costCenter: { not: null } },
       _sum: { amount: true },
       _count: true,
     }),
@@ -327,6 +390,11 @@ export async function getFinancialReport(
     despesas: { total: totalDespesas, count: despesas._count },
     receitasPorMetodoPagamento: byPaymentMethod.map((item) => ({
       paymentMethod: item.paymentMethod,
+      total: Number(item._sum.amount ?? 0),
+      count: item._count,
+    })),
+    despesasPorCentroCusto: byCostCenter.map((item) => ({
+      costCenter: item.costCenter || 'Geral',
       total: Number(item._sum.amount ?? 0),
       count: item._count,
     })),

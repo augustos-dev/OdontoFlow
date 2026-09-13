@@ -7,6 +7,7 @@ import {
   getMeController,
 } from '../../controllers/authController'
 import { authenticate } from '../../middlewares/authMiddlewares'
+import { loginLimiter } from '../../middlewares/rateLimiter.middleware'
 
 const router = Router()
 
@@ -41,7 +42,7 @@ router.post('/register', registerController)
  * @openapi
  * /auth/login:
  *   post:
- *     summary: Autentica um usuário e retorna o token JWT
+ *     summary: Autentica um usuário com proteção anti-força bruta e retorna o token JWT
  *     tags: [Auth]
  *     security: []
  *     requestBody:
@@ -61,8 +62,10 @@ router.post('/register', registerController)
  *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
+ *       429:
+ *         description: Limite de tentativas excedido ou conta bloqueada temporariamente
  */
-router.post('/login', loginController)
+router.post('/login', loginLimiter, loginController)
 
 // ─── Rotas Privadas (exigem JWT válido) ──────────────────────────────────────
 

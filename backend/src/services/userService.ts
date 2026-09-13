@@ -15,6 +15,8 @@ import type { BulkUpdateRolePermissionsDTO } from '../types/permission.types'
 
 const USER_SAFE_SELECT = {
   id: true,
+  tenantId: true,
+  clinicId: true,
   name: true,
   email: true,
   role: true,
@@ -22,8 +24,11 @@ const USER_SAFE_SELECT = {
   cro: true,
   avatarUrl: true,
   isActive: true,
+  failedLoginAttempts: true,
+  lockedUntil: true,
   lastLoginAt: true,
   createdAt: true,
+  updatedAt: true,
 } satisfies Prisma.UserSelect
 
 interface ActorContext {
@@ -48,14 +53,25 @@ export async function createUser(
   const passwordHash = await bcrypt.hash(password, 12)
 
   const newUser = await prisma.user.create({
-    data: { tenantId, clinicId, name, email, passwordHash, role, phone, cro },
+    data: {
+      tenantId,
+      clinicId,
+      name,
+      email,
+      passwordHash,
+      role,
+      phone,
+      cro,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    },
     select: USER_SAFE_SELECT,
   })
 
-  // 🟢 Inicializa permissões padrões da role se ainda não existirem para o tenant
-  await ensureDefaultRolePermissions(tenantId, role)
+  // Inicializa permissões padrões da role para a clínica/tenant se não existirem
+  await ensureDefaultRolePermissions(tenantId, clinicId, role)
 
-  // 🟢 Log de Auditoria
+  // Log de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -231,6 +247,44 @@ export async function updateUserStatus(
   return updatedUser
 }
 
+// ─── Reset Account Lockout (Desbloqueio Manual por ADMIN) ────────────────────
+
+export async function resetUserLockout(
+  tenantId: string,
+  clinicId: string,
+  userId: string,
+  actor: ActorContext
+) {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, tenantId, clinicId },
+  })
+
+  if (!user) throw new AppError('Usuário não encontrado.', 404)
+
+  const unlockedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    },
+    select: USER_SAFE_SELECT,
+  })
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'ADMIN',
+    action: 'UPDATE',
+    entity: 'USER',
+    entityId: userId,
+    details: `Desbloqueio de segurança efetuado manualmente para a conta: ${user.email}`,
+  })
+
+  return unlockedUser
+}
+
 // ─── Change Password (próprio usuário) ───────────────────────────────────────
 
 export async function changePassword(
@@ -256,7 +310,11 @@ export async function changePassword(
 
   await prisma.user.update({
     where: { id: userId },
-    data: { passwordHash: newPasswordHash },
+    data: {
+      passwordHash: newPasswordHash,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    },
   })
 
   await auditLogService.createLog({
@@ -316,13 +374,17 @@ export async function deleteUser(
   })
 }
 
-// ─── RBAC: Permissões por Role (Novo) ─────────────────────────────────────────
+// ─── RBAC: Permissões por Role ────────────────────────────────────────────────
 
-export async function getRolePermissions(tenantId: string, role: UserRole) {
-  await ensureDefaultRolePermissions(tenantId, role)
+export async function getRolePermissions(tenantId: string, clinicId: string, role: UserRole) {
+  await ensureDefaultRolePermissions(tenantId, clinicId, role)
 
   return prisma.rolePermission.findMany({
-    where: { tenantId, role },
+    where: {
+      tenantId,
+      role,
+      OR: [{ clinicId }, { clinicId: null }],
+    },
     orderBy: { module: 'asc' },
   })
 }
@@ -334,6 +396,7 @@ export async function updateRolePermissions(
   actor: ActorContext
 ) {
   const { role, permissions } = data
+  const targetClinicId = data.clinicId !== undefined ? data.clinicId : clinicId
 
   if (role === 'ADMIN') {
     throw new AppError('As permissões do perfil ADMINISTRADOR são fixas e irrestritas.', 400)
@@ -342,8 +405,9 @@ export async function updateRolePermissions(
   const operations = permissions.map((perm) =>
     prisma.rolePermission.upsert({
       where: {
-        tenantId_role_module: {
+        tenantId_clinicId_role_module: {
           tenantId,
+          clinicId: targetClinicId as string,
           role,
           module: perm.module,
         },
@@ -356,6 +420,7 @@ export async function updateRolePermissions(
       },
       create: {
         tenantId,
+        clinicId: targetClinicId,
         role,
         module: perm.module,
         canRead: perm.canRead ?? true,
@@ -376,16 +441,20 @@ export async function updateRolePermissions(
     userRole: actor.userRole || 'ADMIN',
     action: 'UPDATE',
     entity: 'ROLE_PERMISSION',
-    details: `Permissões de acesso granulares atualizadas para o perfil: ${role}`,
+    details: `Permissões de acesso granulares atualizadas para o perfil: ${role} na clínica: ${targetClinicId}`,
   })
 
   return updatedPermissions
 }
 
-// Auxiliar para criar o mapa padrão de permissões caso o tenant não tenha inicializado
-async function ensureDefaultRolePermissions(tenantId: string, role: UserRole) {
+// Auxiliar para criar mapa padrão considerando o escopo de filial e tenant
+async function ensureDefaultRolePermissions(tenantId: string, clinicId: string, role: UserRole) {
   const existingCount = await prisma.rolePermission.count({
-    where: { tenantId, role },
+    where: {
+      tenantId,
+      role,
+      OR: [{ clinicId }, { clinicId: null }],
+    },
   })
 
   if (existingCount > 0) return
@@ -409,11 +478,14 @@ async function ensureDefaultRolePermissions(tenantId: string, role: UserRole) {
 
     return {
       tenantId,
+      clinicId,
       role,
       module,
       canRead: role === 'ADMIN' ? true : !isSecretaryRestricted,
-      canCreate: role === 'ADMIN' ? true : role === 'SECRETARY' ? ['AGENDA', 'PATIENTS'].includes(module) : true,
-      canUpdate: role === 'ADMIN' ? true : role === 'SECRETARY' ? ['AGENDA', 'PATIENTS'].includes(module) : true,
+      canCreate:
+        role === 'ADMIN' ? true : role === 'SECRETARY' ? ['AGENDA', 'PATIENTS'].includes(module) : true,
+      canUpdate:
+        role === 'ADMIN' ? true : role === 'SECRETARY' ? ['AGENDA', 'PATIENTS'].includes(module) : true,
       canDelete: role === 'ADMIN',
     }
   })

@@ -1,31 +1,26 @@
-import { UserRole } from './user.types'
+// backend/src/types/permission.types.ts
 
-export type SystemModule =
-  | 'DASHBOARD'
-  | 'AGENDA'
-  | 'PATIENTS'
-  | 'RECORDS'
-  | 'STOCK'
-  | 'FINANCIAL'
-  | 'PROCEDURES'
-  | 'SUPPLIERS'
-  | 'SETTINGS'
-  | 'REPORTS'
+import { SystemModule, UserRole } from '@prisma/client'
 
-export interface RolePermission {
+export { SystemModule, UserRole }
+
+export type PermissionAction = 'READ' | 'CREATE' | 'UPDATE' | 'DELETE'
+
+export interface RolePermissionDTO {
   id: string
   tenantId: string
+  clinicId?: string | null
   role: UserRole
   module: SystemModule
   canRead: boolean
   canCreate: boolean
   canUpdate: boolean
   canDelete: boolean
-  createdAt?: string | Date
-  updatedAt?: string | Date
+  createdAt: Date
+  updatedAt: Date
 }
 
-export interface UpdateRolePermissionDTO {
+export interface UpdateModulePermissionDTO {
   module: SystemModule
   canRead?: boolean
   canCreate?: boolean
@@ -35,5 +30,20 @@ export interface UpdateRolePermissionDTO {
 
 export interface BulkUpdateRolePermissionsDTO {
   role: UserRole
-  permissions: UpdateRolePermissionDTO[]
+  clinicId?: string | null
+  permissions: UpdateModulePermissionDTO[]
+}
+
+export interface RolePermissionsMapDTO {
+  role: UserRole
+  clinicId?: string | null
+  modules: Record<
+    SystemModule,
+    {
+      canRead: boolean
+      canCreate: boolean
+      canUpdate: boolean
+      canDelete: boolean
+    }
+  >
 }

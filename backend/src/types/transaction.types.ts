@@ -1,8 +1,8 @@
 // backend/src/types/transaction.types.ts
 
-export type TransactionType = 'RECEITA' | 'DESPESA'
+import { TransactionType, PaymentMethod } from '@prisma/client'
 
-export type PaymentMethod = 'PIX' | 'CREDITO' | 'DEBITO' | 'DINHEIRO' | 'CONVENIO'
+export { TransactionType, PaymentMethod }
 
 // =============================================================================
 // ENTIDADE (RETORNO DO BANCO)
@@ -20,6 +20,8 @@ export interface Transaction {
   paymentMethod: PaymentMethod
   description?: string | null
   category?: string | null
+  costCenter?: string | null
+  isReconciled: boolean
   paidAt: Date | string
   createdAt: Date | string
   updatedAt: Date | string
@@ -37,6 +39,10 @@ export interface Transaction {
       name: string
     }
   } | null
+  treatmentPlan?: {
+    id: string
+    title: string
+  } | null
 }
 
 // =============================================================================
@@ -49,9 +55,11 @@ export interface CreateTransactionDTO {
   paymentMethod: PaymentMethod
   description?: string
   category?: string
+  costCenter?: string
+  isReconciled?: boolean
   appointmentId?: string
   treatmentPlanId?: string
-  supplierId?: string // 🚀 Campo que resolveu o erro 500 no lançamento de despesa
+  supplierId?: string
   paidAt?: Date | string
 }
 
@@ -61,14 +69,18 @@ export interface UpdateTransactionDTO {
   type?: TransactionType
   description?: string
   category?: string
+  costCenter?: string | null
+  isReconciled?: boolean
   supplierId?: string | null
   paidAt?: Date | string
 }
 
 export interface TransactionFiltersDTO {
   type?: TransactionType
-  paymentMethod?: PaymentMethod | string
+  paymentMethod?: PaymentMethod
   category?: string
+  costCenter?: string
+  isReconciled?: boolean
   supplierId?: string
   startDate?: string
   endDate?: string
@@ -80,4 +92,10 @@ export interface TransactionReportDTO {
   startDate: string
   endDate: string
   type?: TransactionType
+  costCenter?: string
+  isReconciled?: boolean
+}
+
+export interface ReconcileTransactionDTO {
+  isReconciled: boolean
 }

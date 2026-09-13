@@ -1,18 +1,21 @@
-import { Router } from "express";
-import { registerController,loginController,getMeController } from "../controllers/authController";
-import { authenticate } from "../middlewares/authMiddlewares";
-
+import { Router } from 'express'
+import {
+  registerController,
+  loginController,
+  getMeController,
+} from '../controllers/authController'
+import { authenticate } from '../middlewares/authMiddlewares'
+import { loginLimiter } from '../middlewares/rateLimiter.middleware'
 
 const authRouter = Router()
 
-//POST Cria usuer vinculado a clinia
-authRouter.post('/register',registerController)
+// Registro de conta/clínica
+authRouter.post('/register', registerController)
 
-// POST retorna login e jwt 
-authRouter.post('/login',loginController)
+// Login blindado com rate limiting por IP + e-mail
+authRouter.post('/login', loginLimiter, loginController)
 
-// GET retorna o perfil 
-authRouter.get('/me',authenticate,getMeController)
-
+// Perfil autenticado
+authRouter.get('/me', authenticate, getMeController)
 
 export default authRouter

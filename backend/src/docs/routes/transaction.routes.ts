@@ -6,10 +6,12 @@ import {
   listTransactionsController,
   getTransactionByIdController,
   updateTransactionController,
+  reconcileTransactionController,
   deleteTransactionController,
   getFinancialReportController,
 } from '../../controllers/transactionController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
+import { can } from '../../middlewares/rbac.middleware'
 
 const router = Router()
 
@@ -21,7 +23,7 @@ router.use(authenticate)
  * @openapi
  * /transactions/report:
  *   get:
- *     summary: Relatório financeiro consolidado por período (apenas ADMIN)
+ *     summary: Relatório financeiro e DRE consolidado por período
  *     tags: [Transactions]
  *     parameters:
  *       - in: query
@@ -32,9 +34,18 @@ router.use(authenticate)
  *         name: endDate
  *         required: true
  *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: type
+ *         schema: { type: string, enum: [RECEITA, DESPESA] }
+ *       - in: query
+ *         name: costCenter
+ *         schema: { type: string }
+ *       - in: query
+ *         name: isReconciled
+ *         schema: { type: boolean }
  *     responses:
  *       200:
- *         description: Relatório com receitas, despesas e lucro do período
+ *         description: Relatório com receitas, despesas, margens e centros de custo
  *         content:
  *           application/json:
  *             schema:
@@ -46,7 +57,7 @@ router.use(authenticate)
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  */
-router.get('/report', authorize('ADMIN'), getFinancialReportController)
+router.get('/report', can('FINANCIAL', 'READ'), getFinancialReportController)
 
 /**
  * @openapi
@@ -64,6 +75,12 @@ router.get('/report', authorize('ADMIN'), getFinancialReportController)
  *       - in: query
  *         name: category
  *         schema: { type: string }
+ *       - in: query
+ *         name: costCenter
+ *         schema: { type: string }
+ *       - in: query
+ *         name: isReconciled
+ *         schema: { type: boolean }
  *       - in: query
  *         name: supplierId
  *         schema: { type: string, format: uuid }
@@ -93,8 +110,10 @@ router.get('/report', authorize('ADMIN'), getFinancialReportController)
  *                 meta: { $ref: '#/components/schemas/PaginationMeta' }
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
  */
-router.get('/', listTransactionsController)
+router.get('/', can('FINANCIAL', 'READ'), listTransactionsController)
 
 /**
  * @openapi
@@ -116,16 +135,18 @@ router.get('/', listTransactionsController)
  *               $ref: '#/components/schemas/Transaction'
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.get('/:id', getTransactionByIdController)
+router.get('/:id', can('FINANCIAL', 'READ'), getTransactionByIdController)
 
 /**
  * @openapi
  * /transactions:
  *   post:
- *     summary: Cria uma transação financeira (receita de atendimento ou despesa de fornecedor)
+ *     summary: Cria uma transação financeira (receita ou despesa)
  *     tags: [Transactions]
  *     requestBody:
  *       required: true
@@ -148,6 +169,10 @@ router.get('/:id', getTransactionByIdController)
  *                 type: string
  *               category:
  *                 type: string
+ *               costCenter:
+ *                 type: string
+ *               isReconciled:
+ *                 type: boolean
  *               appointmentId:
  *                 type: string
  *                 format: uuid
@@ -176,13 +201,13 @@ router.get('/:id', getTransactionByIdController)
  *       409:
  *         description: Já existe transação vinculada a este agendamento
  */
-router.post('/', authorize('ADMIN', 'SECRETARY'), createTransactionController)
+router.post('/', can('FINANCIAL', 'CREATE'), createTransactionController)
 
 /**
  * @openapi
  * /transactions/{id}:
  *   put:
- *     summary: Atualiza uma transação
+ *     summary: Atualiza os dados de uma transação
  *     tags: [Transactions]
  *     parameters:
  *       - in: path
@@ -205,6 +230,10 @@ router.post('/', authorize('ADMIN', 'SECRETARY'), createTransactionController)
  *                 type: string
  *               category:
  *                 type: string
+ *               costCenter:
+ *                 type: string
+ *               isReconciled:
+ *                 type: boolean
  *               supplierId:
  *                 type: string
  *                 format: uuid
@@ -223,7 +252,39 @@ router.post('/', authorize('ADMIN', 'SECRETARY'), createTransactionController)
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.put('/:id', authorize('ADMIN', 'SECRETARY'), updateTransactionController)
+router.put('/:id', can('FINANCIAL', 'UPDATE'), updateTransactionController)
+
+/**
+ * @openapi
+ * /transactions/{id}/reconcile:
+ *   patch:
+ *     summary: Alterna o status de conciliação bancária/caixa da transação
+ *     tags: [Transactions]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [isReconciled]
+ *             properties:
+ *               isReconciled: { type: boolean }
+ *     responses:
+ *       200:
+ *         description: Status de conciliação atualizado com sucesso
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+router.patch('/:id/reconcile', can('FINANCIAL', 'UPDATE'), reconcileTransactionController)
 
 /**
  * @openapi

@@ -1,12 +1,16 @@
 // backend/src/types/auth.types.ts
 
+import { UserRole, TenantPlan } from '@prisma/client'
+
+export { UserRole, TenantPlan }
+
 export interface RegisterDTO {
   tenantId: string
   clinicId: string
   name: string
   email: string
   password: string
-  role: 'ADMIN' | 'DENTIST' | 'SECRETARY'
+  role: UserRole
   phone?: string
   cro?: string
 }
@@ -17,12 +21,13 @@ export interface LoginDTO {
 }
 
 export interface JwtPayload {
-  sub: string      // userId
+  sub: string        // userId
+  userId?: string    // alias retrocompatível com middlewares
   tenantId: string
   clinicId: string
-  role: string
-  name: string     // 🟢 Adicionado: garante o nome do usuário no log de auditoria
-  plan?: string    // 🟢 Adicionado: permite verificar se é BASIC, PREMIUM ou ENTERPRISE
+  role: UserRole
+  name: string
+  plan?: TenantPlan
   iat?: number
   exp?: number
 }
@@ -33,8 +38,20 @@ export interface AuthResponse {
     id: string
     name: string
     email: string
-    role: string
+    role: UserRole
     tenantId: string
     clinicId: string
+    avatarUrl?: string | null
+    plan?: TenantPlan
   }
+}
+
+export interface AuthUserSession {
+  tenantId: string
+  clinicId: string
+  userId: string
+  sub?: string
+  name: string
+  role: UserRole
+  plan?: TenantPlan
 }

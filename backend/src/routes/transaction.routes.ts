@@ -4,26 +4,29 @@ import {
   listTransactionsController,
   getTransactionByIdController,
   updateTransactionController,
+  reconcileTransactionController,
   deleteTransactionController,
   getFinancialReportController,
 } from '../controllers/transactionController'
 import { authenticate, authorize } from '../middlewares/authMiddlewares'
+import { can } from '../middlewares/rbac.middleware'
 
 const transactionRoute = Router()
 
-// Todas as rotas de transações são privadas
+// Todas as rotas de transações exigem autenticação
 transactionRoute.use(authenticate)
 
-// Rotas estáticas antes dos parâmetros dinâmicos (evita que /report caia em /:id)
-transactionRoute.get('/report', authorize('ADMIN'), getFinancialReportController)
+// Relatórios / DRE (rota estática antes de /:id)
+transactionRoute.get('/report', can('FINANCIAL', 'READ'), getFinancialReportController)
 
 // Leitura
-transactionRoute.get('/', listTransactionsController)
-transactionRoute.get('/:id', getTransactionByIdController)
+transactionRoute.get('/', can('FINANCIAL', 'READ'), listTransactionsController)
+transactionRoute.get('/:id', can('FINANCIAL', 'READ'), getTransactionByIdController)
 
-// Escrita (ADMIN, SECRETARY)
-transactionRoute.post('/', authorize('ADMIN', 'SECRETARY'), createTransactionController)
-transactionRoute.put('/:id', authorize('ADMIN', 'SECRETARY'), updateTransactionController)
+// Escrita / Conciliação
+transactionRoute.post('/', can('FINANCIAL', 'CREATE'), createTransactionController)
+transactionRoute.put('/:id', can('FINANCIAL', 'UPDATE'), updateTransactionController)
+transactionRoute.patch('/:id/reconcile', can('FINANCIAL', 'UPDATE'), reconcileTransactionController)
 
 // Exclusão (apenas ADMIN)
 transactionRoute.delete('/:id', authorize('ADMIN'), deleteTransactionController)

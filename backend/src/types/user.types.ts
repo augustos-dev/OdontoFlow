@@ -1,6 +1,8 @@
 // backend/src/types/user.types.ts
 
-export type UserRole = 'ADMIN' | 'DENTIST' | 'SECRETARY'
+import { UserRole } from '@prisma/client'
+
+export { UserRole }
 
 export interface CreateUserDTO {
   name: string
@@ -37,4 +39,28 @@ export interface UserFiltersDTO {
   isActive?: boolean
   page?: number
   limit?: number
+}
+
+export interface UserResponseDTO {
+  id: string
+  tenantId: string
+  clinicId: string
+  name: string
+  email: string
+  role: UserRole
+  phone: string | null
+  cro: string | null
+  avatarUrl: string | null
+  isActive: boolean
+  failedLoginAttempts: number
+  lockedUntil: Date | null
+  lastLoginAt: Date | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface UserLockoutStatusDTO {
+  failedLoginAttempts: number
+  lockedUntil: Date | null
+  isLocked: boolean
 }
