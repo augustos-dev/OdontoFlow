@@ -1,10 +1,11 @@
 import { JwtPayload } from 'jsonwebtoken'
+import { UserRole } from '@prisma/client'
 
 export interface CustomJwtPayload extends JwtPayload {
   userId: string
   tenantId: string
   clinicId?: string
-  role?: string
+  role?: UserRole
   name?: string
 }
 

@@ -8,12 +8,14 @@ import {
   updateUserController,
   updateUserRoleController,
   updateUserStatusController,
+  resetUserLockoutController,
   changePasswordController,
   deleteUserController,
   getRolePermissionsController,
   updateRolePermissionsController,
 } from '../../controllers/userController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
+import { can } from '../../middlewares/rbac.middleware'
 
 const router = Router()
 
@@ -38,10 +40,10 @@ router.use(authenticate)
  *     responses:
  *       200:
  *         description: Senha alterada com sucesso
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
  *       400:
  *         description: Senha atual incorreta
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  */
 router.patch('/me/change-password', changePasswordController)
 
@@ -83,6 +85,9 @@ router.get('/permissions/:role', authorize('ADMIN'), getRolePermissionsControlle
  *               role:
  *                 type: string
  *                 enum: [DENTIST, SECRETARY]
+ *               clinicId:
+ *                 type: string
+ *                 format: uuid
  *               permissions:
  *                 type: array
  *                 items:
@@ -108,36 +113,62 @@ router.put('/permissions', authorize('ADMIN'), updateRolePermissionsController)
 
 /**
  * @openapi
- * /users:
- *   get:
- *     summary: Lista todos os usuários da clínica (apenas ADMIN)
+ * /users/{id}/unlock:
+ *   patch:
+ *     summary: Desbloqueia manualmente uma conta bloqueada por tentativas sucessivas de login (apenas ADMIN)
  *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
  *     responses:
  *       200:
- *         description: Lista de usuários
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id: { type: string, format: uuid }
- *                   name: { type: string }
- *                   email: { type: string }
- *                   role: { type: string }
- *                   isActive: { type: boolean }
- *                   lastLoginAt: { type: string, format: date-time }
+ *         description: Conta desbloqueada com sucesso
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+router.patch('/:id/unlock', authorize('ADMIN'), resetUserLockoutController)
+
+/**
+ * @openapi
+ * /users:
+ *   get:
+ *     summary: Lista todos os usuários da clínica
+ *     tags: [Users]
+ *     parameters:
+ *       - in: query
+ *         name: name
+ *         schema: { type: string }
+ *       - in: query
+ *         name: role
+ *         schema: { type: string, enum: [ADMIN, DENTIST, SECRETARY] }
+ *       - in: query
+ *         name: isActive
+ *         schema: { type: boolean }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
+ *     responses:
+ *       200:
+ *         description: Lista paginada de usuários
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  */
-router.get('/', authorize('ADMIN'), listUsersController)
+router.get('/', can('SETTINGS', 'READ'), listUsersController)
 
 /**
  * @openapi
  * /users/{id}:
  *   get:
- *     summary: Busca um usuário por ID (apenas ADMIN)
+ *     summary: Busca um usuário por ID
  *     tags: [Users]
  *     parameters:
  *       - in: path
@@ -147,18 +178,20 @@ router.get('/', authorize('ADMIN'), listUsersController)
  *     responses:
  *       200:
  *         description: Dados completos do usuário
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.get('/:id', authorize('ADMIN'), getUserByIdController)
+router.get('/:id', can('SETTINGS', 'READ'), getUserByIdController)
 
 /**
  * @openapi
  * /users:
  *   post:
- *     summary: Cria um novo usuário na clínica (apenas ADMIN)
+ *     summary: Cria um novo usuário na clínica
  *     tags: [Users]
  *     requestBody:
  *       required: true
@@ -169,18 +202,20 @@ router.get('/:id', authorize('ADMIN'), getUserByIdController)
  *     responses:
  *       201:
  *         description: Usuário criado com sucesso
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       409:
  *         $ref: '#/components/responses/Conflict'
  */
-router.post('/', authorize('ADMIN'), createUserController)
+router.post('/', can('SETTINGS', 'CREATE'), createUserController)
 
 /**
  * @openapi
  * /users/{id}:
  *   put:
- *     summary: Atualiza dados de um usuário (apenas ADMIN)
+ *     summary: Atualiza dados cadastrais de um usuário
  *     tags: [Users]
  *     parameters:
  *       - in: path
@@ -201,18 +236,20 @@ router.post('/', authorize('ADMIN'), createUserController)
  *     responses:
  *       200:
  *         description: Usuário atualizado com sucesso
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.put('/:id', authorize('ADMIN'), updateUserController)
+router.put('/:id', can('SETTINGS', 'UPDATE'), updateUserController)
 
 /**
  * @openapi
  * /users/{id}/role:
  *   patch:
- *     summary: Altera o role de um usuário (apenas ADMIN)
+ *     summary: Altera o papel (role) de um usuário (apenas ADMIN)
  *     tags: [Users]
  *     parameters:
  *       - in: path
@@ -233,6 +270,8 @@ router.put('/:id', authorize('ADMIN'), updateUserController)
  *     responses:
  *       200:
  *         description: Role atualizado com sucesso
+ *       400:
+ *         description: Não é permitido alterar sua própria role
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
@@ -263,6 +302,8 @@ router.patch('/:id/role', authorize('ADMIN'), updateUserRoleController)
  *     responses:
  *       200:
  *         description: Status atualizado com sucesso
+ *       400:
+ *         description: Não é permitido desativar sua própria conta
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
@@ -284,6 +325,8 @@ router.patch('/:id/status', authorize('ADMIN'), updateUserStatusController)
  *     responses:
  *       204:
  *         description: Usuário removido com sucesso
+ *       400:
+ *         description: Usuário com agendamentos vinculados não pode ser excluído
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
