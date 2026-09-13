@@ -15,13 +15,16 @@ import {
   AlertCircle,
   CheckCircle2,
   Lock,
+  LockOpen,
   Mail,
   UserCheck,
   Phone,
   MapPin,
   Sliders,
   Sparkles,
-  Info
+  Info,
+  ShieldAlert,
+  Power
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './configuracoes.module.css'
@@ -33,6 +36,10 @@ interface UserItem {
   role: 'ADMIN' | 'DENTIST' | 'SECRETARY'
   cro?: string
   phone?: string
+  avatarUrl?: string | null
+  isActive: boolean
+  failedLoginAttempts: number
+  lockedUntil?: string | null
   createdAt: string
 }
 
@@ -98,6 +105,7 @@ export default function ConfiguracoesPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   // Usuários
   const [users, setUsers] = useState<UserItem[]>([])
@@ -140,10 +148,15 @@ export default function ConfiguracoesPage() {
   async function loadData() {
     try {
       setLoading(true)
-      const [usersRes, clinicsRes] = await Promise.all([
+      const [meRes, usersRes, clinicsRes] = await Promise.all([
+        api.get('/auth/me').catch(() => null),
         api.get('/users').catch(() => ({ data: [] })),
         api.get('/clinics').catch(() => ({ data: [] }))
       ])
+
+      if (meRes?.data?.id) {
+        setCurrentUserId(meRes.data.id)
+      }
 
       const userList = Array.isArray(usersRes.data) ? usersRes.data : usersRes.data?.data || []
       setUsers(userList)
@@ -166,16 +179,26 @@ export default function ConfiguracoesPage() {
   }
 
   async function loadPermissions(role: 'DENTIST' | 'SECRETARY') {
-    try {
-      setLoadingPermissions(true)
-      const res = await api.get(`/users/permissions/${role}`)
-      setRolePermissions(res.data || [])
-    } catch (err) {
-      console.error('Erro ao carregar permissões:', err)
-    } finally {
-      setLoadingPermissions(false)
-    }
+  try {
+    setLoadingPermissions(true)
+    const res = await api.get(`/users/permissions/${role}`)
+    const rawList: RolePermission[] = Array.isArray(res.data) ? res.data : res.data?.data || []
+
+    // Deduplica os módulos caso o banco tenha retornado registros repetidos
+    const uniqueMap = new Map<SystemModule, RolePermission>()
+    rawList.forEach((perm) => {
+      if (!uniqueMap.has(perm.module)) {
+        uniqueMap.set(perm.module, perm)
+      }
+    })
+
+    setRolePermissions(Array.from(uniqueMap.values()))
+  } catch (err) {
+    console.error('Erro ao carregar permissões:', err)
+  } finally {
+    setLoadingPermissions(false)
   }
+}
 
   useEffect(() => {
     loadData()
@@ -207,7 +230,7 @@ export default function ConfiguracoesPage() {
           clinicName: clinic.name,
           primaryColor: customization.primaryColor,
           accentColor: customization.accentColor,
-          secondaryColor: customization.secondaryColor,
+          secondaryColor: customization.secondaryColor || '#0f172a',
           fontFamily: customization.fontFamily,
           darkModeDefault: customization.darkModeDefault,
           customLogoUrl: customization.customLogoUrl || undefined,
@@ -230,6 +253,7 @@ export default function ConfiguracoesPage() {
     try {
       await api.put('/users/permissions', {
         role: selectedRoleForPermissions,
+        clinicId: clinic?.id,
         permissions: rolePermissions
       })
       setMessage({ type: 'success', text: `Permissões de acesso para ${selectedRoleForPermissions === 'DENTIST' ? 'Dentistas' : 'Secretárias'} atualizadas!` })
@@ -311,6 +335,34 @@ export default function ConfiguracoesPage() {
     }
   }
 
+  async function handleToggleStatus(user: UserItem) {
+    if (user.id === currentUserId) {
+      setMessage({ type: 'error', text: 'Você não pode desativar sua própria conta.' })
+      return
+    }
+
+    try {
+      await api.patch(`/users/${user.id}/status`, { isActive: !user.isActive })
+      setMessage({ 
+        type: 'success', 
+        text: `Conta de ${user.name} ${!user.isActive ? 'ativada' : 'desativada'} com sucesso.` 
+      })
+      loadData()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Erro ao alterar status.' })
+    }
+  }
+
+  async function handleUnlockUser(user: UserItem) {
+    try {
+      await api.patch(`/users/${user.id}/unlock`)
+      setMessage({ type: 'success', text: `Conta de ${user.name} desbloqueada com sucesso!` })
+      loadData()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Erro ao desbloquear conta.' })
+    }
+  }
+
   async function handleResetPassword(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedUser) return
@@ -318,8 +370,10 @@ export default function ConfiguracoesPage() {
     setMessage(null)
 
     try {
-      await api.patch(`/users/${selectedUser.id}/status`, { isActive: true }) // keep active
-      setMessage({ type: 'success', text: `Solicitação registrada para o usuário ${selectedUser.name}.` })
+      await api.put(`/users/${selectedUser.id}`, {
+        password: newPasswordValue
+      })
+      setMessage({ type: 'success', text: `Nova senha aplicada para ${selectedUser.name}.` })
       setIsResetPasswordModalOpen(false)
       setNewPasswordValue('')
     } catch (err: any) {
@@ -330,6 +384,11 @@ export default function ConfiguracoesPage() {
   }
 
   async function handleDeleteUser(userId: string, userName: string) {
+    if (userId === currentUserId) {
+      setMessage({ type: 'error', text: 'Você não pode excluir sua própria conta.' })
+      return
+    }
+
     if (!window.confirm(`Tem certeza que deseja revogar o acesso de ${userName}?`)) return
     try {
       await api.delete(`/users/${userId}`)
@@ -346,6 +405,10 @@ export default function ConfiguracoesPage() {
     setFormPassword('')
     setFormCro('')
     setFormRole('DENTIST')
+  }
+
+  function isUserLocked(user: UserItem) {
+    return !!(user.lockedUntil && new Date(user.lockedUntil) > new Date())
   }
 
   return (
@@ -405,7 +468,7 @@ export default function ConfiguracoesPage() {
           <div className={styles.cardHeader}>
             <div>
               <h2 className={styles.cardTitle}>Usuários com Acesso ao Sistema</h2>
-              <p className={styles.cardSubtitle}>Controle de cargos, redefinição de senhas e desligamentos.</p>
+              <p className={styles.cardSubtitle}>Controle de cargos, redefinição de senhas, bloqueio e segurança operacional.</p>
             </div>
             <button 
               type="button" 
@@ -430,55 +493,106 @@ export default function ConfiguracoesPage() {
                   <th>E-MAIL</th>
                   <th>CARGO / NÍVEL</th>
                   <th>REGISTRO (CRO)</th>
+                  <th>STATUS</th>
                   <th style={{ textAlign: 'right' }}>AÇÕES</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} className={styles.row}>
-                    <td className={styles.nameCell}>
-                      <div className={styles.userAvatar}>
-                        {u.name.slice(0, 2).toUpperCase()}
-                      </div>
-                      <span className={styles.boldText}>{u.name}</span>
-                    </td>
-                    <td>{u.email}</td>
-                    <td>
-                      <span className={`${styles.roleBadge} ${styles[u.role.toLowerCase()] || ''}`}>
-                        {u.role === 'ADMIN' ? 'Administrador' : u.role === 'DENTIST' ? 'Dentista' : 'Secretária'}
-                      </span>
-                    </td>
-                    <td>{u.cro || '—'}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div className={styles.actionButtonsGroup}>
-                        <button 
-                          type="button" 
-                          onClick={() => handleOpenEditModal(u)}
-                          className={styles.btnActionIcon}
-                          title="Editar funcionário"
-                        >
-                          <Edit size={15} />
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => { setSelectedUser(u); setIsResetPasswordModalOpen(true) }}
-                          className={styles.btnActionIcon}
-                          title="Redefinir senha"
-                        >
-                          <KeyRound size={15} />
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => handleDeleteUser(u.id, u.name)}
-                          className={`${styles.btnActionIcon} ${styles.btnActionDelete}`}
-                          title="Excluir acesso"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {users.map((u) => {
+                  const locked = isUserLocked(u)
+                  const isSelf = u.id === currentUserId
+
+                  return (
+                    <tr key={u.id} className={styles.row}>
+                      <td className={styles.nameCell}>
+                        <div className={styles.userAvatar}>
+                          {u.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <span className={styles.boldText}>
+                          {u.name} {isSelf && <small className={styles.selfBadge}>(Você)</small>}
+                        </span>
+                      </td>
+                      <td>{u.email}</td>
+                      <td>
+                        <span className={`${styles.roleBadge} ${styles[u.role.toLowerCase()] || ''}`}>
+                          {u.role === 'ADMIN' ? 'Administrador' : u.role === 'DENTIST' ? 'Dentista' : 'Secretária'}
+                        </span>
+                      </td>
+                      <td>{u.cro || '—'}</td>
+                      <td>
+                        {locked ? (
+                          <span className={`${styles.statusBadge} ${styles.statusLocked}`} title={`Bloqueado até: ${new Date(u.lockedUntil!).toLocaleTimeString()}`}>
+                            <ShieldAlert size={12} />
+                            Bloqueado (Lockout)
+                          </span>
+                        ) : u.isActive ? (
+                          <span className={`${styles.statusBadge} ${styles.statusActive}`}>
+                            <span className={styles.dotActive} />
+                            Ativo
+                          </span>
+                        ) : (
+                          <span className={`${styles.statusBadge} ${styles.statusInactive}`}>
+                            Inativo
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div className={styles.actionButtonsGroup}>
+                          {/* Botão de desbloqueio rápido se estiver bloqueado */}
+                          {locked && (
+                            <button
+                              type="button"
+                              onClick={() => handleUnlockUser(u)}
+                              className={`${styles.btnActionIcon} ${styles.btnActionUnlock}`}
+                              title="Desbloquear conta imediatamente"
+                            >
+                              <LockOpen size={15} />
+                            </button>
+                          )}
+
+                          {/* Toggle de ativação inline */}
+                          <button
+                            type="button"
+                            disabled={isSelf}
+                            onClick={() => handleToggleStatus(u)}
+                            className={`${styles.btnActionIcon} ${!u.isActive ? styles.btnActionActivate : ''}`}
+                            title={isSelf ? 'Não é possível desativar sua conta' : u.isActive ? 'Desativar acesso' : 'Ativar acesso'}
+                          >
+                            <Power size={15} />
+                          </button>
+
+                          <button 
+                            type="button" 
+                            onClick={() => handleOpenEditModal(u)}
+                            className={styles.btnActionIcon}
+                            title="Editar dados"
+                          >
+                            <Edit size={15} />
+                          </button>
+
+                          <button 
+                            type="button" 
+                            onClick={() => { setSelectedUser(u); setIsResetPasswordModalOpen(true) }}
+                            className={styles.btnActionIcon}
+                            title="Redefinir senha"
+                          >
+                            <KeyRound size={15} />
+                          </button>
+
+                          <button 
+                            type="button" 
+                            disabled={isSelf}
+                            onClick={() => handleDeleteUser(u.id, u.name)}
+                            className={`${styles.btnActionIcon} ${styles.btnActionDelete}`}
+                            title={isSelf ? 'Você não pode excluir sua própria conta' : 'Excluir acesso'}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
@@ -596,7 +710,6 @@ export default function ConfiguracoesPage() {
       {activeTab === 'clinica' && clinic && (
         <div className={styles.card}>
           <form onSubmit={handleSaveClinicAndTheme} className={styles.formContainer}>
-            {/* Aviso de Licenciamento Multi-Clínica */}
             <div className={styles.multiClinicAlert}>
               <div className={styles.multiClinicAlertHeader}>
                 <Sparkles size={18} className={styles.multiClinicIcon} />
@@ -685,30 +798,49 @@ export default function ConfiguracoesPage() {
             {/* Customização White-Label */}
             <div className={styles.cardHeaderClean}>
               <h2 className={styles.cardTitle}>Identidade Visual & Cores (White-Label)</h2>
-              <p className={styles.cardSubtitle}>Personalize a cor de destaque e a fonte da sua clínica. O branding da Omnia permanece protegido.</p>
+              <p className={styles.cardSubtitle}>Personalize a paleta de cores e a identidade da unidade. O branding central da Omnia Tech permanece preservado.</p>
             </div>
 
             <div className={styles.themeSelectorSection}>
-              <div className={styles.formGroup}>
-                <label>Cor de Destaque Primária</label>
-                <div className={styles.colorPickerGroup}>
-                  <div className={styles.colorPresetsRow}>
-                    {COLOR_PRESETS.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        className={`${styles.presetBtn} ${customization.primaryColor === color ? styles.presetBtnActive : ''}`}
-                        style={{ background: color }}
-                        onClick={() => setCustomization({ ...customization, primaryColor: color })}
+              <div className={styles.twoCols}>
+                <div className={styles.formGroup}>
+                  <label>Cor Primária (Destaque Principal)</label>
+                  <div className={styles.colorPickerGroup}>
+                    <div className={styles.colorPresetsRow}>
+                      {COLOR_PRESETS.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          className={`${styles.presetBtn} ${customization.primaryColor === color ? styles.presetBtnActive : ''}`}
+                          style={{ background: color }}
+                          onClick={() => setCustomization({ ...customization, primaryColor: color })}
+                        />
+                      ))}
+                    </div>
+                    <div className={styles.inputWrapper} style={{ maxWidth: '160px' }}>
+                      <Palette size={16} className={styles.inputIcon} />
+                      <input 
+                        type="text" 
+                        value={customization.primaryColor}
+                        onChange={(e) => setCustomization({ ...customization, primaryColor: e.target.value })}
+                        className={styles.inputField} 
                       />
-                    ))}
+                    </div>
                   </div>
-                  <div className={styles.inputWrapper} style={{ maxWidth: '160px' }}>
-                    <Palette size={16} className={styles.inputIcon} />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>Cor Secundária / Contrastes</label>
+                  <div className={styles.inputWrapper} style={{ maxWidth: '200px' }}>
+                    <div 
+                      className={styles.colorSquarePreview} 
+                      style={{ background: customization.secondaryColor || '#0f172a' }} 
+                    />
                     <input 
                       type="text" 
-                      value={customization.primaryColor}
-                      onChange={(e) => setCustomization({ ...customization, primaryColor: e.target.value })}
+                      placeholder="#0f172a"
+                      value={customization.secondaryColor || ''}
+                      onChange={(e) => setCustomization({ ...customization, secondaryColor: e.target.value })}
                       className={styles.inputField} 
                     />
                   </div>
@@ -985,7 +1117,7 @@ export default function ConfiguracoesPage() {
 
             <form onSubmit={handleResetPassword} className={styles.modalForm}>
               <p style={{ fontSize: '13px', color: '#64748b' }}>
-                Confirme a redefinição de acesso para <strong>{selectedUser.name}</strong>.
+                Defina uma nova senha para <strong>{selectedUser.name}</strong>. A alteração substituirá imediatamente o hash anterior.
               </p>
 
               <div className={styles.formGroup}>
