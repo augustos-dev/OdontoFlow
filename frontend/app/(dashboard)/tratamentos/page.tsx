@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { 
   Search, 
   Plus, 
@@ -14,7 +14,11 @@ import {
   Trash2, 
   TrendingUp, 
   PieChart as PieChartIcon, 
-  Sparkles 
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -25,7 +29,7 @@ import {
 } from 'recharts'
 import api from '@/lib/api'
 import styles from './planos.module.css'
-import { CriarPlanoModal } from '../../components/financeiro/CriarPlanoModal'
+import { CriarPlanoModal } from '../../components/planos/CriarPlanoModal'
 
 interface TreatmentPlan {
   id: string
@@ -40,6 +44,20 @@ interface TreatmentPlan {
   dentist?: { id: string; name: string }
 }
 
+interface ClinicCustomization {
+  primaryColor: string
+  accentColor: string
+  secondaryColor?: string | null
+  fontFamily: string
+}
+
+interface MetaPagination {
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
 const STATUS_CONFIG: Record<string, { label: string; class: string; icon: any }> = {
   ORCAMENTO: { label: 'Orçamento', class: styles.statusOrcamento, icon: Clock },
   APROVADO: { label: 'Aprovado', class: styles.statusAprovado, icon: CheckCircle2 },
@@ -52,49 +70,126 @@ const PIE_COLORS = ['#06b6d4', '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4
 
 export default function PlanosTratamentoPage() {
   const [plans, setPlans] = useState<TreatmentPlan[]>([])
+  const [allPlansForMetrics, setAllPlansForMetrics] = useState<TreatmentPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('TODOS')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
-  async function loadPlans() {
+  // 📄 Paginação de Folhas
+  const [page, setPage] = useState<number>(1)
+  const [meta, setMeta] = useState<MetaPagination>({
+    total: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 1
+  })
+
+  // White-Label da Clínica
+  const [customization, setCustomization] = useState<ClinicCustomization>({
+    primaryColor: '#06b6d4',
+    accentColor: '#0891b2',
+    secondaryColor: '#0f172a',
+    fontFamily: 'Inter'
+  })
+
+  // Carrega customização da clínica e métricas globais
+  async function loadAuxiliaryData() {
     try {
-      setLoading(true)
-      const res = await api.get('/treatment-plans?limit=100')
-      const data = Array.isArray(res.data) ? res.data : res.data?.data || []
-      setPlans(data)
+      const [clinicsRes, allRes] = await Promise.all([
+        api.get('/clinics').catch(() => ({ data: [] })),
+        api.get('/treatment-plans?limit=1000').catch(() => ({ data: [] }))
+      ])
+
+      const clinicList = Array.isArray(clinicsRes.data) ? clinicsRes.data : clinicsRes.data?.data || []
+      const currentClinic = clinicList[0]
+      if (currentClinic?.id) {
+        const customRes = await api.get(`/clinics/${currentClinic.id}/customization`).catch(() => null)
+        if (customRes?.data?.primaryColor) {
+          setCustomization(customRes.data)
+        }
+      }
+
+      const allData = Array.isArray(allRes.data) ? allRes.data : allRes.data?.data || []
+      setAllPlansForMetrics(allData)
     } catch (err) {
-      console.error('Erro ao carregar planos de tratamento:', err)
-    } finally {
-      setLoading(false)
+      console.error('Erro ao carregar dados auxiliares:', err)
     }
   }
 
   useEffect(() => {
-    loadPlans()
+    loadAuxiliaryData()
   }, [])
 
-  // Métricas do Topo
-  const metrics = useMemo(() => {
-    const total = plans.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0)
-    const orcamentos = plans.filter((p) => p.status === 'ORCAMENTO')
-    const aprovados = plans.filter((p) => ['APROVADO', 'EM_ANDAMENTO', 'CONCLUIDO'].includes(p.status))
-    const totalAprovado = aprovados.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0)
+  // Busca paginada de planos
+  const fetchPlans = useCallback(async () => {
+    try {
+      setLoading(true)
+      const params: Record<string, any> = {
+        page,
+        limit: 20
+      }
 
-    const taxaConversao = plans.length > 0 
-      ? Math.round((aprovados.length / plans.length) * 100) 
-      : 0
+      if (statusFilter !== 'TODOS') {
+        params.status = statusFilter
+      }
+      if (searchTerm.trim()) {
+        params.search = searchTerm.trim()
+      }
+
+      const res = await api.get('/treatment-plans', { params })
+      const list = res.data?.data || (Array.isArray(res.data) ? res.data : [])
+      const metaInfo = res.data?.meta || {
+        total: list.length,
+        page,
+        limit: 20,
+        totalPages: Math.ceil(list.length / 20) || 1
+      }
+
+      setPlans(list)
+      setMeta(metaInfo)
+    } catch (err) {
+      console.error('Erro ao buscar planos de tratamento:', err)
+      setPlans([])
+    } finally {
+      setLoading(false)
+    }
+  }, [page, statusFilter, searchTerm])
+
+  useEffect(() => {
+    fetchPlans()
+  }, [fetchPlans])
+
+  function handleStatusChange(newStatus: string) {
+    setStatusFilter(newStatus)
+    setPage(1)
+  }
+
+  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setSearchTerm(e.target.value)
+    setPage(1)
+  }
+
+  // Métricas Consolidadas (Baseadas no total global)
+  const metrics = useMemo(() => {
+    const list = allPlansForMetrics.length > 0 ? allPlansForMetrics : plans
+    const total = list.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0)
+    const orcamentos = list.filter((p) => p.status === 'ORCAMENTO')
+    const aprovados = list.filter((p) => ['APROVADO', 'EM_ANDAMENTO', 'CONCLUIDO'].includes(p.status))
+    const totalAprovado = aprovados.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0)
+    const taxaConversao = list.length > 0 ? Math.round((aprovados.length / list.length) * 100) : 0
 
     return { total, orcamentosCount: orcamentos.length, aprovadosCount: aprovados.length, totalAprovado, taxaConversao }
-  }, [plans])
+  }, [allPlansForMetrics, plans])
 
-  // Agrupamento para o Donut
+  // Agrupamento para Donut Chart
   const pieData = useMemo(() => {
     const counts: Record<string, { count: number; totalVal: number }> = {}
+    const list = allPlansForMetrics.length > 0 ? allPlansForMetrics : plans
 
-    plans.forEach((p) => {
-      const cleanTitle = p.title.trim() || 'Tratamento Geral'
+    list.forEach((p) => {
+      const cleanTitle = p.title?.trim() || 'Tratamento Geral'
       if (!counts[cleanTitle]) {
         counts[cleanTitle] = { count: 0, totalVal: 0 }
       }
@@ -110,21 +205,11 @@ export default function PlanosTratamentoPage() {
       }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 5)
-  }, [plans])
+  }, [allPlansForMetrics, plans])
 
   const totalPlansCount = useMemo(() => {
     return pieData.reduce((acc, curr) => acc + curr.value, 0)
   }, [pieData])
-
-  // Filtros
-  const filteredPlans = useMemo(() => {
-    return plans.filter((p) => {
-      const matchName = (p.patient?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
-      const matchTitle = (p.title || '').toLowerCase().includes(searchTerm.toLowerCase())
-      const matchStatus = statusFilter === 'TODOS' || p.status === statusFilter
-      return (matchName || matchTitle) && matchStatus
-    })
-  }, [plans, searchTerm, statusFilter])
 
   async function handleUpdateStatus(planId: string, newStatus: string) {
     try {
@@ -145,7 +230,8 @@ export default function PlanosTratamentoPage() {
         }
       }
 
-      await loadPlans()
+      fetchPlans()
+      loadAuxiliaryData()
     } catch (err: any) {
       alert(err.response?.data?.message || 'Erro ao alterar o status do plano.')
     } finally {
@@ -157,7 +243,8 @@ export default function PlanosTratamentoPage() {
     if (!window.confirm('Tem certeza que deseja excluir este plano/orçamento permanentemente?')) return
     try {
       await api.delete(`/treatment-plans/${planId}`)
-      await loadPlans()
+      fetchPlans()
+      loadAuxiliaryData()
     } catch (err: any) {
       alert(err.response?.data?.message || 'Erro ao excluir o plano.')
     }
@@ -172,9 +259,38 @@ export default function PlanosTratamentoPage() {
     return new Date(dt).toLocaleDateString('pt-BR')
   }
 
+  // Folhas Numeradas (1, 2, 3...)
+  const totalPages = meta.totalPages || 1
+  const pageNumbers = useMemo(() => {
+    const pages: (number | string)[] = []
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i)
+    } else {
+      if (page <= 4) {
+        pages.push(1, 2, 3, 4, 5, '...', totalPages)
+      } else if (page >= totalPages - 3) {
+        pages.push(1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
+      } else {
+        pages.push(1, '...', page - 1, page, page + 1, '...', totalPages)
+      }
+    }
+    return pages
+  }, [totalPages, page])
+
+  const startIndex = meta.total === 0 ? 0 : (page - 1) * 20 + 1
+  const endIndex = Math.min(page * 20, meta.total)
+
   return (
-    <div className={styles.page}>
-      {/* ─── Header da Página (Subtítulo e Ação) ─── */}
+    <div 
+      className={styles.page}
+      style={{
+        '--brand-primary': customization.primaryColor || '#06b6d4',
+        '--brand-accent': customization.accentColor || '#0891b2',
+        '--primary-color': customization.primaryColor || '#06b6d4',
+        fontFamily: customization.fontFamily || 'Inter'
+      } as React.CSSProperties}
+    >
+      {/* ─── Header da Página ─── */}
       <div className={styles.pageHeader}>
         <div className={styles.pageHeaderInfo}>
           <span className={styles.headerTag}>ODONTOFLOW • GESTÃO COMERCIAL</span>
@@ -239,7 +355,7 @@ export default function PlanosTratamentoPage() {
         </div>
       </div>
 
-      {/* ─── Grid Analítico: Gráfico de Donut & Desempenho ─── */}
+      {/* ─── Grid Analítico ─── */}
       <div className={styles.analyticsGrid}>
         <div className={styles.chartCard}>
           <div className={styles.chartHeader}>
@@ -285,7 +401,7 @@ export default function PlanosTratamentoPage() {
                         {pieData.map((_, index) => (
                           <Cell 
                             key={`cell-${index}`} 
-                            fill={index === 0 ? 'var(--primary-color, #06b6d4)' : PIE_COLORS[index % PIE_COLORS.length]} 
+                            fill={index === 0 ? (customization.primaryColor || '#06b6d4') : PIE_COLORS[index % PIE_COLORS.length]} 
                           />
                         ))}
                       </Pie>
@@ -301,7 +417,7 @@ export default function PlanosTratamentoPage() {
                 <div className={styles.legendList}>
                   {pieData.map((item, idx) => {
                     const percent = totalPlansCount > 0 ? Math.round((item.value / totalPlansCount) * 100) : 0
-                    const color = idx === 0 ? 'var(--primary-color, #06b6d4)' : PIE_COLORS[idx % PIE_COLORS.length]
+                    const color = idx === 0 ? (customization.primaryColor || '#06b6d4') : PIE_COLORS[idx % PIE_COLORS.length]
 
                     return (
                       <div key={item.name} className={styles.legendItem}>
@@ -333,12 +449,12 @@ export default function PlanosTratamentoPage() {
           <div className={styles.conversionStats}>
             <div className={styles.statBox}>
               <span className={styles.statLabel}>Orçamentos Apresentados</span>
-              <strong className={styles.statValue}>{plans.length}</strong>
+              <strong className={styles.statValue}>{meta.total || plans.length}</strong>
             </div>
             <div className={styles.statBox}>
               <span className={styles.statLabel}>Ticket Médio por Plano</span>
               <strong className={styles.statValue}>
-                {formatCurrency(plans.length > 0 ? metrics.total / plans.length : 0)}
+                {formatCurrency(metrics.total / (allPlansForMetrics.length || 1))}
               </strong>
             </div>
           </div>
@@ -351,7 +467,10 @@ export default function PlanosTratamentoPage() {
             <div className={styles.progressTrack}>
               <div 
                 className={styles.progressBar} 
-                style={{ width: `${metrics.taxaConversao}%` }} 
+                style={{ 
+                  width: `${metrics.taxaConversao}%`,
+                  backgroundColor: customization.primaryColor || '#06b6d4'
+                }} 
               />
             </div>
           </div>
@@ -365,9 +484,9 @@ export default function PlanosTratamentoPage() {
             <Search size={16} className={styles.searchIcon} />
             <input 
               type="text" 
-              placeholder="Buscar por paciente ou título do plano..."
+              placeholder="Buscar por paciente ou título do plano..." 
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               className={styles.searchInput}
             />
           </div>
@@ -378,7 +497,7 @@ export default function PlanosTratamentoPage() {
                 key={st}
                 type="button"
                 className={`${styles.statusTab} ${statusFilter === st ? styles.statusTabActive : ''}`}
-                onClick={() => setStatusFilter(st)}
+                onClick={() => handleStatusChange(st)}
               >
                 {st === 'TODOS' ? 'Todos' : STATUS_CONFIG[st]?.label || st}
               </button>
@@ -391,103 +510,182 @@ export default function PlanosTratamentoPage() {
             <Loader2 size={24} className={styles.spinner} />
             <span>Carregando planos de tratamento...</span>
           </div>
-        ) : filteredPlans.length === 0 ? (
+        ) : plans.length === 0 ? (
           <div className={styles.emptyState}>
             <FileText size={36} className={styles.emptyIcon} />
             <p>Nenhum plano ou orçamento encontrado para este filtro.</p>
           </div>
         ) : (
-          <div className={styles.tableWrapper}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th style={{ width: '32%' }}>PACIENTE</th>
-                  <th style={{ width: '28%' }}>TÍTULO DO PLANO</th>
-                  <th style={{ width: '14%' }}>VALOR TOTAL</th>
-                  <th style={{ width: '14%' }}>STATUS</th>
-                  <th style={{ width: '12%' }}>CRIADO EM</th>
-                  <th style={{ width: '5%', textAlign: 'right' }}>AÇÕES</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPlans.map((plan) => {
-                  const config = STATUS_CONFIG[plan.status] || STATUS_CONFIG.ORCAMENTO
+          <>
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '32%' }}>PACIENTE</th>
+                    <th style={{ width: '28%' }}>TÍTULO DO PLANO</th>
+                    <th style={{ width: '14%' }}>VALOR TOTAL</th>
+                    <th style={{ width: '14%' }}>STATUS</th>
+                    <th style={{ width: '12%' }}>CRIADO EM</th>
+                    <th style={{ width: '5%', textAlign: 'right' }}>AÇÕES</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plans.map((plan) => {
+                    const config = STATUS_CONFIG[plan.status] || STATUS_CONFIG.ORCAMENTO
 
-                  return (
-                    <tr key={plan.id} className={styles.row}>
-                      {/* Coluna 1: Paciente */}
-                      <td>
-                        <div className={styles.patientWrapper}>
-                          <div className={styles.patientAvatar}>
-                            <User size={15} />
+                    return (
+                      <tr key={plan.id} className={styles.row}>
+                        <td>
+                          <div className={styles.patientWrapper}>
+                            <div className={styles.patientAvatar}>
+                              <User size={15} />
+                            </div>
+                            <div className={styles.patientInfo}>
+                              <span className={styles.patientName}>{plan.patient?.name || 'Paciente'}</span>
+                              {plan.patient?.phone && (
+                                <span className={styles.patientPhone}>{plan.patient.phone}</span>
+                              )}
+                            </div>
                           </div>
-                          <div className={styles.patientInfo}>
-                            <span className={styles.patientName}>{plan.patient?.name || 'Paciente'}</span>
-                            {plan.patient?.phone && (
-                              <span className={styles.patientPhone}>{plan.patient.phone}</span>
-                            )}
+                        </td>
+
+                        <td>
+                          <div className={styles.planTitleCol}>
+                            <strong className={styles.planTitleText}>{plan.title}</strong>
+                            {plan.notes && <span className={styles.planNotes}>{plan.notes}</span>}
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Coluna 2: Título do Plano */}
-                      <td>
-                        <div className={styles.planTitleCol}>
-                          <strong className={styles.planTitleText}>{plan.title}</strong>
-                          {plan.notes && <span className={styles.planNotes}>{plan.notes}</span>}
-                        </div>
-                      </td>
+                        <td className={styles.amountCell}>
+                          {formatCurrency(plan.totalAmount)}
+                        </td>
 
-                      {/* Coluna 3: Valor Total */}
-                      <td className={styles.amountCell}>
-                        {formatCurrency(plan.totalAmount)}
-                      </td>
+                        <td>
+                          <select 
+                            className={`${styles.statusSelect} ${config.class}`}
+                            value={plan.status}
+                            disabled={updatingId === plan.id}
+                            onChange={(e) => handleUpdateStatus(plan.id, e.target.value)}
+                          >
+                            <option value="ORCAMENTO">Orçamento</option>
+                            <option value="APROVADO">Aprovado</option>
+                            <option value="EM_ANDAMENTO">Em Andamento</option>
+                            <option value="CONCLUIDO">Concluído</option>
+                            <option value="RECUSADO">Recusado</option>
+                          </select>
+                        </td>
 
-                      {/* Coluna 4: Status */}
-                      <td>
-                        <select 
-                          className={`${styles.statusSelect} ${config.class}`}
-                          value={plan.status}
-                          disabled={updatingId === plan.id}
-                          onChange={(e) => handleUpdateStatus(plan.id, e.target.value)}
-                        >
-                          <option value="ORCAMENTO">Orçamento</option>
-                          <option value="APROVADO">Aprovado</option>
-                          <option value="EM_ANDAMENTO">Em Andamento</option>
-                          <option value="CONCLUIDO">Concluído</option>
-                          <option value="RECUSADO">Recusado</option>
-                        </select>
-                      </td>
+                        <td className={styles.dateCell}>{formatDate(plan.createdAt)}</td>
 
-                      {/* Coluna 5: Criado Em */}
-                      <td className={styles.dateCell}>{formatDate(plan.createdAt)}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          <button 
+                            type="button" 
+                            className={styles.btnDelete} 
+                            title="Excluir Plano"
+                            onClick={() => handleDeletePlan(plan.id)}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-                      {/* Coluna 6: Ações */}
-                      <td style={{ textAlign: 'right' }}>
-                        <button 
-                          type="button" 
-                          className={styles.btnDelete} 
-                          title="Excluir Plano"
-                          onClick={() => handleDeletePlan(plan.id)}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+            {/* ─── Folhas / Paginação Numerada (1, 2, 3...) ─── */}
+            {meta.total > 0 && (
+              <div className={styles.paginationFooter}>
+                <div className={styles.paginationInfo}>
+                  <span>
+                    Exibindo <strong>{startIndex}</strong> a <strong>{endIndex}</strong> de <strong>{meta.total}</strong> orçamentos (20 por folha)
+                  </span>
+                </div>
+
+                {totalPages > 1 && (
+                  <div className={styles.paginationControls}>
+                    <button
+                      type="button"
+                      onClick={() => setPage(1)}
+                      disabled={page === 1}
+                      className={styles.pageBtnNav}
+                      title="Primeira folha"
+                    >
+                      <ChevronsLeft size={16} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+                      disabled={page === 1}
+                      className={styles.pageBtnNav}
+                      title="Folha anterior"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+
+                    <div className={styles.pageNumbersList}>
+                      {pageNumbers.map((p, idx) => {
+                        if (p === '...') {
+                          return (
+                            <span key={`dots-${idx}`} className={styles.pageDots}>
+                              ...
+                            </span>
+                          )
+                        }
+                        const pageNum = Number(p)
+                        const isActive = page === pageNum
+                        return (
+                          <button
+                            key={`page-${pageNum}`}
+                            type="button"
+                            onClick={() => setPage(pageNum)}
+                            className={`${styles.pageNumberBtn} ${isActive ? styles.pageNumberActive : ''}`}
+                          >
+                            {pageNum}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={page === totalPages}
+                      className={styles.pageBtnNav}
+                      title="Próxima folha"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPage(totalPages)}
+                      disabled={page === totalPages}
+                      className={styles.pageBtnNav}
+                      title="Última folha"
+                    >
+                      <ChevronsRight size={16} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
 
+      {/* Modal Padrão Ouro */}
       <CriarPlanoModal 
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+        primaryColor={customization.primaryColor}
+        accentColor={customization.accentColor} 
         onSuccess={() => {
           setIsCreateModalOpen(false)
-          loadPlans()
+          fetchPlans()
+          loadAuxiliaryData()
         }}
       />
     </div>

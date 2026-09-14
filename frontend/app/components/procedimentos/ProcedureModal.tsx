@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Lightbulb } from 'lucide-react'
+import { X, Lightbulb, Stethoscope, Clock, Tag, DollarSign, Loader2 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './modal.module.css'
 
@@ -10,6 +10,8 @@ interface ProcedureModalProps {
   onClose: () => void
   procedure?: any | null
   onSuccess: () => void
+  primaryColor?: string
+  accentColor?: string
 }
 
 const CATEGORIES = [
@@ -21,15 +23,27 @@ const CATEGORIES = [
   'Prótese Odontológica',
   'Implantodontia',
   'Odontopediatria',
-  'Prevencao / Odontopediatria',
+  'Prevenção & Profilaxia',
+  'Harmonização Orofacial',
   'Outros',
 ]
+
+function parsePrice(raw: string): number {
+  const str = String(raw || '').trim()
+  if (!str) return 0
+  if (str.includes(',')) {
+    return parseFloat(str.replace(/\./g, '').replace(',', '.'))
+  }
+  return parseFloat(str)
+}
 
 export default function ProcedureModal({
   isOpen,
   onClose,
   procedure,
   onSuccess,
+  primaryColor = '#06b6d4',
+  accentColor = '#0891b2'
 }: ProcedureModalProps) {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
@@ -42,7 +56,11 @@ export default function ProcedureModal({
     if (procedure) {
       setName(procedure.name || '')
       setCode(procedure.code || '')
-      setBasePrice(procedure.basePrice !== undefined && procedure.basePrice !== null ? String(procedure.basePrice) : '')
+      setBasePrice(
+        procedure.basePrice !== undefined && procedure.basePrice !== null
+          ? String(procedure.basePrice)
+          : ''
+      )
       setDurationMin(procedure.durationMin ? String(procedure.durationMin) : '30')
       setCategory(procedure.category || 'Dentística / Estética')
     } else {
@@ -52,14 +70,14 @@ export default function ProcedureModal({
       setDurationMin('30')
       setCategory('Dentística / Estética')
     }
-  }, [procedure])
+  }, [procedure, isOpen])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const parsedPrice = parseFloat(basePrice.replace(',', '.'))
-    if (isNaN(parsedPrice) || parsedPrice <= 0) {
-      alert('Informe um preço de venda válido.')
+    const parsed = parsePrice(basePrice)
+    if (isNaN(parsed) || parsed <= 0) {
+      alert('Informe um preço de venda válido maior que zero.')
       return
     }
 
@@ -69,7 +87,7 @@ export default function ProcedureModal({
       const payload = {
         name: name.trim(),
         code: code.trim() || undefined,
-        basePrice: parsedPrice,
+        basePrice: parsed,
         durationMin: Number(durationMin),
         category,
       }
@@ -97,25 +115,37 @@ export default function ProcedureModal({
   if (!isOpen) return null
 
   return (
-    <div className={styles.overlay}>
+    <div 
+      className={styles.overlay}
+      style={{
+        '--brand-primary': primaryColor,
+        '--brand-accent': accentColor,
+      } as React.CSSProperties}
+    >
       <div className={`${styles.container} ${styles.containerSm}`}>
+        {/* Header com ícone de especialidade */}
         <div className={styles.header}>
-          <div>
-            <h2 className={styles.title}>
-              {procedure ? 'Editar Procedimento' : 'Novo Procedimento'}
-            </h2>
-            <p className={styles.subtitle}>
-              Configure os detalhes comerciais e de agenda
-            </p>
+          <div className={styles.headerContent}>
+            <div className={styles.headerIconWrapper}>
+              <Stethoscope size={18} className={styles.headerIcon} />
+            </div>
+            <div>
+              <h2 className={styles.title}>
+                {procedure ? 'Editar Procedimento' : 'Novo Procedimento'}
+              </h2>
+              <p className={styles.subtitle}>
+                Configure os parâmetros clínicos, comerciais e tempo de agenda
+              </p>
+            </div>
           </div>
-          <button onClick={onClose} className={styles.closeBtn} type="button">
+          <button onClick={onClose} className={styles.closeBtn} type="button" title="Fechar">
             <X size={18} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className={styles.body}>
-            {/* Nome do Procedimento */}
+            {/* Nome */}
             <div className={styles.formGroup}>
               <label className={styles.label}>Nome do Procedimento *</label>
               <input
@@ -128,7 +158,7 @@ export default function ProcedureModal({
               />
             </div>
 
-            {/* Categoria / Especialidade */}
+            {/* Categoria */}
             <div className={styles.formGroup}>
               <label className={styles.label}>Categoria / Especialidade</label>
               <select
@@ -144,56 +174,64 @@ export default function ProcedureModal({
               </select>
             </div>
 
-            {/* Código + Preço de Venda */}
+            {/* Código + Preço */}
             <div className={styles.formRow}>
               <div className={styles.formGroup}>
-                <label className={styles.label}>Código (Opcional)</label>
-                <input
-                  type="text"
-                  placeholder="PROC-001"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  className={styles.input}
-                />
+                <label className={styles.label}>Código do Procedimento</label>
+                <div className={styles.inputWrapper}>
+                  <Tag size={14} className={styles.inputIcon} />
+                  <input
+                    type="text"
+                    placeholder="PROC-001"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    className={styles.inputWithIcon}
+                  />
+                </div>
               </div>
 
               <div className={styles.formGroup}>
                 <label className={styles.label}>Preço de Venda (R$) *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="150.00"
-                  value={basePrice}
-                  onChange={(e) => setBasePrice(e.target.value)}
-                  className={styles.input}
-                />
+                <div className={styles.inputWrapper}>
+                  <DollarSign size={14} className={styles.inputIcon} />
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    required
+                    placeholder="Ex: 150,00"
+                    value={basePrice}
+                    onChange={(e) => setBasePrice(e.target.value)}
+                    className={styles.inputWithIcon}
+                  />
+                </div>
               </div>
             </div>
 
             {/* Duração Estimada */}
             <div className={styles.formGroup}>
-              <label className={styles.label}>Duração Estimada na Agenda (minutos)</label>
+              <label className={styles.label}>
+                <Clock size={13} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} />
+                Duração Estimada na Agenda
+              </label>
               <select
                 value={durationMin}
                 onChange={(e) => setDurationMin(e.target.value)}
                 className={styles.select}
               >
-                <option value="15">15 min</option>
-                <option value="30">30 min (Padrão)</option>
-                <option value="45">45 min</option>
-                <option value="60">60 min (1 hora)</option>
-                <option value="90">90 min (1h 30m)</option>
-                <option value="120">120 min (2 horas)</option>
+                <option value="15">15 minutos (Rápido / Ajuste)</option>
+                <option value="30">30 minutos (Padrão de Consulta)</option>
+                <option value="45">45 minutos</option>
+                <option value="60">60 minutos (1 hora)</option>
+                <option value="90">90 minutos (1h 30m)</option>
+                <option value="120">120 minutos (2 horas - Cirurgias)</option>
               </select>
             </div>
 
-            {/* Card Guia */}
-            <div className={styles.alertBox} style={{ backgroundColor: '#ecfeff', borderColor: '#cff4fc', color: '#0891b2' }}>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                <Lightbulb size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-                <span>
-                  Após cadastrar, clique em <strong>"+ Configurar Ficha"</strong> na tabela para associar os insumos do estoque. O OdontoFlow calculará seu custo real e margem de lucro por procedimento automaticamente!
-                </span>
+            {/* Guia Informativo de Ficha Técnica */}
+            <div className={styles.alertBox}>
+              <Lightbulb size={16} className={styles.alertIcon} />
+              <div className={styles.alertText}>
+                Após cadastrar, configure a <strong>Ficha Técnica</strong> para atrelar anestésicos, resinas e brocas. O sistema fará a <strong>baixa automática do estoque</strong> e o cálculo da sua <strong>margem de lucro real</strong>.
               </div>
             </div>
           </div>
@@ -203,7 +241,14 @@ export default function ProcedureModal({
               Cancelar
             </button>
             <button type="submit" disabled={saving} className={styles.btnPrimary}>
-              {saving ? 'Salvando...' : procedure ? 'Atualizar Procedimento' : 'Salvar Procedimento'}
+              {saving ? (
+                <>
+                  <Loader2 size={15} className={styles.spinner} />
+                  <span>Salvando...</span>
+                </>
+              ) : (
+                <span>{procedure ? 'Atualizar Procedimento' : 'Salvar Procedimento'}</span>
+              )}
             </button>
           </div>
         </form>

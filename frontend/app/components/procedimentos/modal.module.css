@@ -1,12 +1,9 @@
-/* ─── Overlay / Backdrop Fixo ─── */
+/* ─── Overlay / Backdrop com Glassmorphism ─── */
 .overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(4px);
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(5px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -14,45 +11,66 @@
   padding: 16px;
 }
 
-/* ─── Card Container do Modal ─── */
+/* ─── Card Container ─── */
 .container {
   background: #ffffff;
-  border-radius: 12px;
+  border-radius: 14px;
   width: 100%;
-  max-width: 520px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  max-width: 540px;
+  box-shadow: 0 25px 35px -5px rgba(0, 0, 0, 0.15), 0 10px 15px -5px rgba(0, 0, 0, 0.05);
   overflow: hidden;
   border: 1px solid #e2e8f0;
-  animation: fadeIn 0.15s ease-out;
+  animation: modalEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .containerSm {
-  max-width: 440px;
+  max-width: 460px;
 }
 
-@keyframes fadeIn {
+@keyframes modalEnter {
   from {
     opacity: 0;
-    transform: scale(0.97);
+    transform: scale(0.96) translateY(6px);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1) translateY(0);
   }
 }
 
-/* ─── Header ─── */
+/* ─── Header Estruturado ─── */
 .header {
-  padding: 16px 20px;
+  padding: 16px 22px;
   background-color: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #eef2f6;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
+.headerContent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.headerIconWrapper {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background-color: #ecfeff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.headerIcon {
+  color: var(--brand-accent, #0891b2);
+}
+
 .title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
@@ -69,12 +87,12 @@
   background: transparent;
   color: #94a3b8;
   cursor: pointer;
-  padding: 4px;
+  padding: 6px;
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.15s ease-in-out;
 }
 
 .closeBtn:hover {
@@ -84,20 +102,10 @@
 
 /* ─── Body & Form ─── */
 .body {
-  padding: 20px;
+  padding: 22px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.alertBox {
-  background-color: #ecfeff;
-  border: 1px solid #cff4fc;
-  color: #0891b2;
-  padding: 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .formGroup {
@@ -109,24 +117,14 @@
 .formRow {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.formRowCustom {
-  display: grid;
-  grid-template-columns: 1fr 90px auto;
-  gap: 8px;
-  align-items: flex-end;
-  background-color: #f8fafc;
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  gap: 14px;
 }
 
 .label {
   font-size: 12px;
   font-weight: 600;
-  color: #475569;
+  color: #334155;
+  letter-spacing: 0.01em;
 }
 
 .input,
@@ -139,16 +137,138 @@
   color: #0f172a;
   background-color: #ffffff;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: all 0.15s ease;
+}
+
+.inputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inputIcon {
+  position: absolute;
+  left: 11px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.inputWithIcon {
+  width: 100%;
+  padding: 9px 12px 9px 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #0f172a;
+  background-color: #ffffff;
+  outline: none;
+  transition: all 0.15s ease;
 }
 
 .input:focus,
-.select:focus {
-  border-color: #06b6d4;
+.select:focus,
+.inputWithIcon:focus {
+  border-color: var(--brand-primary, #06b6d4);
   box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
 }
 
-/* ─── Lista de Insumos / Itens ─── */
+/* ─── Box de Ajuda e Informativo ─── */
+.alertBox {
+  background-color: #ecfeff;
+  border: 1px solid #cffafe;
+  color: var(--brand-accent, #0891b2);
+  padding: 12px 14px;
+  border-radius: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.alertIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--brand-accent, #0891b2);
+}
+
+.alertText {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #0e7490;
+}
+
+/* ─── Cards de Margem e Rentabilidade ─── */
+.kpiProfitContainer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  background: #f8fafc;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.kpiProfitCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kpiProfitRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kpiProfitLabel {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.kpiBadgePercent {
+  background-color: #dcfce7;
+  color: #15803d;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.kpiProfitVal {
+  font-size: 17px;
+  font-weight: 800;
+  margin: 2px 0 0 0;
+}
+
+.valRed { color: #dc2626; }
+.valGreen { color: #16a34a; }
+.valMuted { color: #94a3b8; }
+
+.kpiProfitSub {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* ─── Grid de Adição de Insumo ─── */
+.formRowCustom {
+  display: grid;
+  grid-template-columns: 1fr 70px 105px auto;
+  gap: 8px;
+  align-items: flex-end;
+  background-color: #f8fafc;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.selectProductCol { flex: 1; }
+.inputQtyCol { width: 70px; }
+.selectUnitCol { width: 105px; }
+.btnAddCol { display: flex; align-items: flex-end; }
+
+/* ─── Lista de Insumos da Ficha ─── */
 .itemList {
   max-height: 220px;
   overflow-y: auto;
@@ -161,19 +281,43 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: 10px 14px;
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
+  transition: border-color 0.15s ease;
+}
+
+.itemCard:hover {
+  border-color: #cbd5e1;
+}
+
+.itemInfoGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .itemName {
   font-size: 13px;
   font-weight: 600;
-  color: #334155;
+  color: #1e293b;
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.itemIconBox {
+  color: #64748b;
+}
+
+.convertedNotice {
+  font-size: 10px;
+  color: #0284c7;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 21px;
 }
 
 .itemActions {
@@ -182,12 +326,18 @@
   gap: 10px;
 }
 
+.itemCostVal {
+  font-size: 12px;
+  font-weight: 700;
+  color: #dc2626;
+}
+
 .qtyBadge {
   background-color: #f1f5f9;
   color: #475569;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 3px 8px;
   border-radius: 6px;
 }
 
@@ -201,6 +351,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.15s;
 }
 
 .deleteBtn:hover {
@@ -208,18 +359,38 @@
   background-color: #fef2f2;
 }
 
-.emptyText {
+.emptyStateContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 12px;
   text-align: center;
+}
+
+.emptyStateIcon {
+  color: #cbd5e1;
+  margin-bottom: 6px;
+}
+
+.emptyText {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.emptyStateContainer small {
   color: #94a3b8;
-  font-size: 12px;
-  padding: 24px 0;
+  font-size: 11px;
+  margin-top: 2px;
 }
 
 /* ─── Footer & Botões ─── */
 .footer {
-  padding: 16px 20px;
+  padding: 14px 22px;
   background-color: #f8fafc;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid #eef2f6;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -235,7 +406,7 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
 
 .btnSecondary:hover {
@@ -245,35 +416,53 @@
 
 .btnPrimary {
   border: none;
-  background-color: #06b6d4;
+  background-color: var(--brand-primary, #06b6d4);
   color: #ffffff;
-  padding: 8px 16px;
+  padding: 8px 18px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.15s ease;
 }
 
 .btnPrimary:hover {
-  background-color: #0891b2;
+  opacity: 0.92;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btnPrimarySm {
   border: none;
-  background-color: #06b6d4;
+  background-color: var(--brand-primary, #06b6d4);
   color: #ffffff;
   height: 36px;
-  padding: 0 14px;
+  padding: 0 12px;
   border-radius: 8px;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 4px;
+  transition: opacity 0.15s;
 }
 
 .btnPrimarySm:hover {
-  background-color: #0891b2;
+  opacity: 0.9;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
