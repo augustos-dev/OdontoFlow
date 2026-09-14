@@ -53,6 +53,13 @@ interface Procedure {
   executionCount?: number
 }
 
+interface ClinicCustomization {
+  primaryColor: string
+  accentColor: string
+  secondaryColor?: string | null
+  fontFamily: string
+}
+
 const PIE_COLORS = ['#06b6d4', '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899']
 
 export default function ProcedimentosPage() {
@@ -60,6 +67,14 @@ export default function ProcedimentosPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'WITH_RECIPE' | 'WITHOUT_RECIPE'>('ALL')
+
+  // White-label da Clínica
+  const [customization, setCustomization] = useState<ClinicCustomization>({
+    primaryColor: '#06b6d4',
+    accentColor: '#0891b2',
+    secondaryColor: '#0f172a',
+    fontFamily: 'Inter'
+  })
 
   const [isProcedureModalOpen, setIsProcedureModalOpen] = useState(false)
   const [editingProcedure, setEditingProcedure] = useState<Procedure | null>(null)
@@ -70,8 +85,21 @@ export default function ProcedimentosPage() {
   async function loadProcedures() {
     setLoading(true)
     try {
-      const res = await api.get('/procedures')
-      setProcedures(res.data.data || res.data || [])
+      const [proceduresRes, clinicsRes] = await Promise.all([
+        api.get('/procedures'),
+        api.get('/clinics').catch(() => ({ data: [] }))
+      ])
+
+      setProcedures(proceduresRes.data.data || proceduresRes.data || [])
+
+      const clinicList = Array.isArray(clinicsRes.data) ? clinicsRes.data : clinicsRes.data?.data || []
+      const currentClinic = clinicList[0]
+      if (currentClinic?.id) {
+        const customRes = await api.get(`/clinics/${currentClinic.id}/customization`).catch(() => null)
+        if (customRes?.data?.primaryColor) {
+          setCustomization(customRes.data)
+        }
+      }
     } catch (err) {
       console.error('Erro ao carregar procedimentos do banco:', err)
       setProcedures([])
@@ -183,7 +211,15 @@ export default function ProcedimentosPage() {
   }
 
   return (
-    <div className={styles.page}>
+    <div 
+      className={styles.page}
+      style={{
+        '--brand-primary': customization.primaryColor || '#06b6d4',
+        '--brand-accent': customization.accentColor || '#0891b2',
+        '--primary-color': customization.primaryColor || '#06b6d4',
+        fontFamily: customization.fontFamily || 'Inter'
+      } as React.CSSProperties}
+    >
       {/* ─── Header da Página ─── */}
       <div className={styles.pageHeader}>
         <div className={styles.pageHeaderInfo}>
@@ -304,7 +340,7 @@ export default function ProcedimentosPage() {
                         {pieData.map((_, index) => (
                           <Cell 
                             key={`cell-${index}`} 
-                            fill={index === 0 ? 'var(--primary-color, #06b6d4)' : PIE_COLORS[index % PIE_COLORS.length]} 
+                            fill={index === 0 ? (customization.primaryColor || '#06b6d4') : PIE_COLORS[index % PIE_COLORS.length]} 
                           />
                         ))}
                       </Pie>
@@ -320,7 +356,7 @@ export default function ProcedimentosPage() {
                 <div className={styles.legendList}>
                   {pieData.map((item, idx) => {
                     const percent = totalCatalogValue > 0 ? Math.round((item.value / totalCatalogValue) * 100) : 0
-                    const color = idx === 0 ? 'var(--primary-color, #06b6d4)' : PIE_COLORS[idx % PIE_COLORS.length]
+                    const color = idx === 0 ? (customization.primaryColor || '#06b6d4') : PIE_COLORS[idx % PIE_COLORS.length]
 
                     return (
                       <div key={item.name} className={styles.legendItem}>
@@ -370,7 +406,10 @@ export default function ProcedimentosPage() {
             <div className={styles.progressTrack}>
               <div 
                 className={styles.progressBar} 
-                style={{ width: `${totalProcedures > 0 ? (proceduresWithRecipe / totalProcedures) * 100 : 0}%` }} 
+                style={{ 
+                  width: `${totalProcedures > 0 ? (proceduresWithRecipe / totalProcedures) * 100 : 0}%`,
+                  backgroundColor: customization.primaryColor || '#06b6d4'
+                }} 
               />
             </div>
           </div>
@@ -528,6 +567,8 @@ export default function ProcedimentosPage() {
           onClose={() => setIsProcedureModalOpen(false)}
           procedure={editingProcedure}
           onSuccess={loadProcedures}
+          primaryColor={customization.primaryColor}
+          accentColor={customization.accentColor}
         />
       )}
 
@@ -537,6 +578,8 @@ export default function ProcedimentosPage() {
           onClose={() => setIsProductsModalOpen(false)}
           procedure={selectedProcedureForProducts}
           onSuccess={loadProcedures}
+          primaryColor={customization.primaryColor}
+          accentColor={customization.accentColor}
         />
       )}
     </div>

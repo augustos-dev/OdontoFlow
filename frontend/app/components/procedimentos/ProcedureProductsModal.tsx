@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, Boxes, AlertCircle } from 'lucide-react'
+import { X, Plus, Trash2, Boxes, AlertCircle, TrendingUp, DollarSign, Loader2, Sparkles } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './modal.module.css'
 
@@ -15,10 +15,12 @@ interface ProcedureProductsModalProps {
     procedureProducts?: any[]
   }
   onSuccess: () => void
+  primaryColor?: string
+  accentColor?: string
 }
 
 const UNIT_OPTIONS = [
-  { value: 'UN', label: 'un (Unidade/Par)' },
+  { value: 'UN', label: 'un (Unidade/Tubo)' },
   { value: 'ML', label: 'ml (Mililitro)' },
   { value: 'MG', label: 'mg (Miligrama)' },
   { value: 'G', label: 'g (Grama)' },
@@ -30,6 +32,8 @@ export default function ProcedureProductsModal({
   onClose,
   procedure,
   onSuccess,
+  primaryColor = '#06b6d4',
+  accentColor = '#0891b2',
 }: ProcedureProductsModalProps) {
   const [availableProducts, setAvailableProducts] = useState<any[]>([])
   const [selectedProductId, setSelectedProductId] = useState('')
@@ -67,10 +71,10 @@ export default function ProcedureProductsModal({
       }
     }
 
-    if (procedure.id) {
+    if (procedure?.id && isOpen) {
       loadInitialData()
     }
-  }, [procedure])
+  }, [procedure, isOpen])
 
   const handleSelectProduct = (productId: string) => {
     setSelectedProductId(productId)
@@ -97,7 +101,7 @@ export default function ProcedureProductsModal({
     if (!productObj) return
 
     if (items.some((i) => (i.productId || i.product?.id) === selectedProductId)) {
-      alert('Este produto já está na ficha técnica.')
+      alert('Este produto já está adicionado na ficha técnica.')
       return
     }
 
@@ -120,11 +124,14 @@ export default function ProcedureProductsModal({
     setItems((prev) => prev.filter((_, i) => i !== index))
   }
 
-  // 🧮 Custo com suporte universal a Caixas (CX), Líquidos (ML/L) e Massas (G/MG)
+  // Cálculo proporcional inteligente de custo
   function calculateItemCost(item: any) {
-    const rawCost = item.product?.costPrice !== undefined && item.product?.costPrice !== null
-      ? parseFloat(String(item.product.costPrice))
-      : (item.product?.unitPrice ? parseFloat(String(item.product.unitPrice)) : 0)
+    const rawCost =
+      item.product?.costPrice !== undefined && item.product?.costPrice !== null
+        ? parseFloat(String(item.product.costPrice))
+        : item.product?.unitPrice
+        ? parseFloat(String(item.product.unitPrice))
+        : 0
 
     if (isNaN(rawCost) || rawCost <= 0) return 0
 
@@ -133,23 +140,19 @@ export default function ProcedureProductsModal({
     const qty = Number(item.quantity) || 0
     const itemsPerPackage = Number(item.product?.itemsPerPackage) || 1
 
-    // 1. Caixa para Unidade
     if (productStockUnit === 'CX' && recipeUnit === 'UN') {
       const divisor = itemsPerPackage > 0 ? itemsPerPackage : 100
       return (rawCost / divisor) * qty
     }
 
-    // 2. Unidade/Seringa para Gramas ou ML (Ex: resina 4g)
     if (productStockUnit === 'UN' && (recipeUnit === 'G' || recipeUnit === 'ML') && itemsPerPackage > 1) {
       return (rawCost / itemsPerPackage) * qty
     }
 
-    // 3. Litros para ML
     if (productStockUnit === 'L' && recipeUnit === 'ML') {
       return (rawCost / 1000) * qty
     }
 
-    // 4. Grama para MG
     if (productStockUnit === 'G' && recipeUnit === 'MG') {
       return (rawCost / 1000) * qty
     }
@@ -160,6 +163,7 @@ export default function ProcedureProductsModal({
   const totalCost = items.reduce((acc, item) => acc + calculateItemCost(item), 0)
   const salePrice = Number(procedure.basePrice || 0)
   const profitMargin = salePrice > 0 ? salePrice - totalCost : 0
+  const marginPercent = salePrice > 0 ? ((profitMargin / salePrice) * 100).toFixed(0) : '0'
 
   const handleSave = async () => {
     setSaving(true)
@@ -187,37 +191,56 @@ export default function ProcedureProductsModal({
   if (!isOpen) return null
 
   return (
-    <div className={styles.overlay}>
+    <div 
+      className={styles.overlay}
+      style={{
+        '--brand-primary': primaryColor,
+        '--brand-accent': accentColor,
+      } as React.CSSProperties}
+    >
       <div className={styles.container}>
         <div className={styles.header}>
-          <div>
-            <h2 className={styles.title}>Ficha Técnica (Exit Inteligente)</h2>
-            <p className={styles.subtitle}>{procedure.name}</p>
+          <div className={styles.headerContent}>
+            <div className={styles.headerIconWrapper}>
+              <Boxes size={18} className={styles.headerIcon} />
+            </div>
+            <div>
+              <h2 className={styles.title}>Ficha Técnica (Exit Inteligente de Estoque)</h2>
+              <p className={styles.subtitle}>{procedure.name}</p>
+            </div>
           </div>
-          <button onClick={onClose} className={styles.closeBtn} type="button">
+          <button onClick={onClose} className={styles.closeBtn} type="button" title="Fechar">
             <X size={18} />
           </button>
         </div>
 
         <div className={styles.body}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-            <div>
-              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>CUSTO DOS INSUMOS</span>
-              <p style={{ fontSize: '16px', fontWeight: 700, color: totalCost > 0 ? '#dc2626' : '#64748b', margin: '2px 0 0 0' }}>
+          {/* Card Duplo de Rentabilidade */}
+          <div className={styles.kpiProfitContainer}>
+            <div className={styles.kpiProfitCard}>
+              <span className={styles.kpiProfitLabel}>CUSTO TOTAL DE INSUMOS</span>
+              <p className={`${styles.kpiProfitVal} ${totalCost > 0 ? styles.valRed : styles.valMuted}`}>
                 R$ {totalCost.toFixed(2)}
               </p>
+              <small className={styles.kpiProfitSub}>Débito automático no estoque por sessão</small>
             </div>
-            <div>
-              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>LUCRO ESTIMADO</span>
-              <p style={{ fontSize: '16px', fontWeight: 700, color: profitMargin >= 0 ? '#16a34a' : '#dc2626', margin: '2px 0 0 0' }}>
+
+            <div className={styles.kpiProfitCard}>
+              <div className={styles.kpiProfitRow}>
+                <span className={styles.kpiProfitLabel}>MARGEM LÍQUIDA ESTIMADA</span>
+                <span className={styles.kpiBadgePercent}>{marginPercent}%</span>
+              </div>
+              <p className={`${styles.kpiProfitVal} ${profitMargin >= 0 ? styles.valGreen : styles.valRed}`}>
                 R$ {profitMargin.toFixed(2)}
               </p>
+              <small className={styles.kpiProfitSub}>Preço de Venda: R$ {salePrice.toFixed(2)}</small>
             </div>
           </div>
 
-          <div className={styles.formRowCustom} style={{ gridTemplateColumns: '1fr 80px 100px auto' }}>
-            <div>
-              <label className={styles.label}>Insumo do Estoque</label>
+          {/* Seletor de Insumos */}
+          <div className={styles.formRowCustom}>
+            <div className={styles.selectProductCol}>
+              <label className={styles.label}>Insumo / Material do Estoque</label>
               <select
                 value={selectedProductId}
                 onChange={(e) => handleSelectProduct(e.target.value)}
@@ -225,78 +248,97 @@ export default function ProcedureProductsModal({
                 disabled={loadingProducts}
               >
                 <option value="">
-                  {loadingProducts ? 'Carregando estoque...' : 'Selecione um produto...'}
+                  {loadingProducts ? 'Carregando estoque da unidade...' : 'Selecione um insumo...'}
                 </option>
                 {availableProducts.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} ({p.quantity} {p.unit || 'UN'}) - R$ {Number(p.costPrice || 0).toFixed(2)}/{p.unit || 'UN'}
+                    {p.name} ({p.quantity} {p.unit || 'UN'}) - R$ {Number(p.costPrice || p.unitPrice || 0).toFixed(2)}
                   </option>
                 ))}
               </select>
             </div>
 
-            <div>
+            <div className={styles.inputQtyCol}>
               <label className={styles.label}>Qtd</label>
               <input
                 type="text"
-                placeholder="2"
+                placeholder="1"
                 value={quantityInput}
                 onChange={(e) => setQuantityInput(e.target.value)}
                 className={styles.input}
               />
             </div>
 
-            <div>
-              <label className={styles.label}>Unid</label>
+            <div className={styles.selectUnitCol}>
+              <label className={styles.label}>Unidade</label>
               <select
                 value={selectedUnit}
                 onChange={(e) => setSelectedUnit(e.target.value)}
                 className={styles.select}
               >
                 {UNIT_OPTIONS.map((u) => (
-                  <option key={u.value} value={u.value}>{u.label}</option>
+                  <option key={u.value} value={u.value}>
+                    {u.label}
+                  </option>
                 ))}
               </select>
             </div>
 
-            <div>
-              <button type="button" onClick={handleAddItem} className={styles.btnPrimarySm} title="Adicionar Insumo">
+            <div className={styles.btnAddCol}>
+              <button 
+                type="button" 
+                onClick={handleAddItem} 
+                className={styles.btnPrimarySm} 
+                title="Adicionar à ficha"
+              >
                 <Plus size={16} />
+                <span>Adicionar</span>
               </button>
             </div>
           </div>
 
+          {/* Lista de Insumos da Ficha */}
           <div className={styles.itemList}>
             {items.length === 0 ? (
-              <p className={styles.emptyText}>Nenhum insumo vinculado a este procedimento.</p>
+              <div className={styles.emptyStateContainer}>
+                <Boxes size={32} className={styles.emptyStateIcon} />
+                <p className={styles.emptyText}>Nenhum insumo vinculado a este procedimento ainda.</p>
+                <small>Selecione um produto acima para automatizar o controle de estoque.</small>
+              </div>
             ) : (
               items.map((item, idx) => {
                 const itemCost = calculateItemCost(item)
-                const isConverted = (item.product?.unit === 'CX' && item.unit === 'UN') ||
+                const isConverted =
+                  (item.product?.unit === 'CX' && item.unit === 'UN') ||
                   (item.product?.unit === 'UN' && (item.unit === 'G' || item.unit === 'ML'))
 
                 return (
                   <div key={idx} className={styles.itemCard}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <div className={styles.itemInfoGroup}>
                       <span className={styles.itemName}>
-                        <Boxes size={15} color="#64748b" />
+                        <Boxes size={15} className={styles.itemIconBox} />
                         {item.product?.name || 'Insumo'}
                       </span>
                       {isConverted && (
-                        <span style={{ fontSize: '10px', color: '#0284c7', display: 'flex', alignItems: 'center', gap: '3px', marginLeft: '20px' }}>
+                        <span className={styles.convertedNotice}>
                           <AlertCircle size={10} /> Custo fracionado proporcional
                         </span>
                       )}
                     </div>
 
                     <div className={styles.itemActions}>
-                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#dc2626' }}>
+                      <span className={styles.itemCostVal}>
                         + R$ {itemCost.toFixed(2)}
                       </span>
                       <span className={styles.qtyBadge}>
                         {item.quantity} {item.unit || 'UN'}
                       </span>
-                      <button type="button" onClick={() => handleRemoveItem(idx)} className={styles.deleteBtn} title="Remover">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(idx)}
+                        className={styles.deleteBtn}
+                        title="Remover insumo"
+                      >
                         <Trash2 size={15} />
                       </button>
                     </div>
@@ -312,7 +354,14 @@ export default function ProcedureProductsModal({
             Cancelar
           </button>
           <button type="button" onClick={handleSave} disabled={saving} className={styles.btnPrimary}>
-            {saving ? 'Salvando...' : 'Salvar Ficha'}
+            {saving ? (
+              <>
+                <Loader2 size={15} className={styles.spinner} />
+                <span>Salvando Ficha...</span>
+              </>
+            ) : (
+              <span>Salvar Ficha Técnica</span>
+            )}
           </button>
         </div>
       </div>
