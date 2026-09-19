@@ -10,33 +10,38 @@ import {
   PackageCheck, 
   TrendingUp, 
   Sparkles, 
-  ChevronDown,
-  ChevronUp,
-  Stethoscope,
-  Layers,
-  Lock,
-  Building2,
-  Crown
+  ChevronDown, 
+  ChevronUp, 
+  Stethoscope, 
+  Layers, 
+  Lock, 
+  Building2, 
+  Crown, 
+  Info, 
+  Bot, 
+  FileCheck, 
+  Link2, 
+  Percent 
 } from 'lucide-react'
 import Logo from '../../public/logo.svg'
 import styles from './landing.module.css'
 
 const FAQS = [
   {
-    q: 'Como funciona a dedução automática de estoque (Exit Inteligente)?',
-    a: 'Ao vincular insumos à Ficha Técnica de um procedimento (ex: 0,2g de resina ou 1 dose anestésica), o sistema efetua o fracionamento proporcional e debita as quantidades em segundo plano no exato instante em que o dentista conclui o atendimento ou evolução clínica.',
+    q: 'Como funciona a dedução automática de stock (Exit Inteligente)?',
+    a: 'Ao associar insumos a uma Ficha Técnica (ex: 0,2g de resina ou 1 dose anestésica), o sistema efetua o fracionamento proporcional e debita as quantidades em tempo real assim que o dentista encerra o atendimento na sala clínica.',
   },
   {
-    q: 'Como funciona a conformidade jurídica com o CFO e LGPD?',
-    a: 'Evoluções clínicas possuem assinatura com carimbo temporal e sofrem trava automática de imutabilidade após a janela de 24 horas. Qualquer retificação clínica posterior requer justificativa textual obrigatória gravada na trilha de auditoria (AuditLog).',
+    q: 'Como funciona a conformidade com o CFO e a LGPD?',
+    a: 'Evoluções clínicas possuem assinatura com carimbo temporal e sofrem trava automática de imutabilidade após a janela de 24 horas. Retificações posteriores exigem justificativa formal que fica gravada na trilha de auditoria (AuditLog).',
   },
   {
-    q: 'O que muda na White-Label do OdontoFlow?',
-    a: 'A sua clínica assume a interface: paleta primária, cores de destaque, fontes e logotipo oficial são incorporados via variáveis CSS personalizadas nos orçamentos, dashboard e fichas técnicas.',
+    q: 'O que é o link de cadastro prévio para o paciente?',
+    a: 'A sua clínica gera um link exclusivo para envio via WhatsApp. O paciente preenche a anamnese e os dados de identificação a partir do telemóvel antes de chegar ao consultório, adiantando a receção.',
   },
   {
-    q: 'Existe mecanismo contra duplicidade de baixa entre recepção e consultório?',
-    a: 'Sim. Implementamos trava de idempotência com chave atômica por consulta (appointmentId). Se o dentista lançar o procedimento na cadeira com Exit Inteligente, a recepção é bloqueada de duplicar a dedução financeira e de insumos ao receber o paciente.',
+    q: 'Como o OdontoFlow calcula as comissões dos profissionais?',
+    a: 'O sistema calcula o repasse percentual ou fixo do cirurgião-dentista com base no valor líquido real, permitindo descontar automaticamente o custo fracionado dos materiais consumidos no procedimento.',
   },
 ]
 
@@ -46,7 +51,7 @@ export default function LandingPage() {
 
   return (
     <div className={styles.wrapper}>
-      {/* ─── NAVBAR PÚBLICA ─── */}
+      {/* ─── NAVBAR ─── */}
       <header className={styles.navbar}>
         <div className={styles.navContainer}>
           <div className={styles.logoGroup}>
@@ -55,25 +60,24 @@ export default function LandingPage() {
             </div>
             <div className={styles.logoText}>
               <span className={styles.brandTitle}>OdontoFlow</span>
-              <span className={styles.brandSubtitle}>PLATAFORMA SAAS B2B</span>
+              <span className={styles.brandSubtitle}>GESTÃO CLÍNICA INTELIGENTE</span>
             </div>
           </div>
 
           <nav className={styles.navLinks}>
             <a href="#funcionalidades" className={styles.navLink}>Recursos</a>
-            <a href="#compliance" className={styles.navLink}>Compliance CFO</a>
-            <a href="#planos" className={styles.navLink}>Planos</a>
-            <a href="#faq" className={styles.navLink}>FAQ</a>
+            <a href="#planos" className={styles.navLink}>Preços</a>
+            <a href="#faq" className={styles.navLink}>Dúvidas Frequentes</a>
           </nav>
 
           <div className={styles.navActions}>
             <Link href="/login" className={styles.btnLogin}>
               Entrar
             </Link>
-            <Link href="/login" className={styles.btnCtaNav}>
-              <span>Acessar Demo</span>
+            <a href="#planos" className={styles.btnCtaNav}>
+              <span>Testar 7 dias grátis</span>
               <ArrowRight size={14} />
-            </Link>
+            </a>
           </div>
         </div>
       </header>
@@ -83,25 +87,25 @@ export default function LandingPage() {
         <div className={styles.heroContainer}>
           <div className={styles.pillBadge}>
             <Sparkles size={14} />
-            <span>SaaS B2B Multi-tenant de Alta Performance</span>
+            <span>Plataforma SaaS Odontológica Completa & Multi-Tenant</span>
           </div>
 
           <h1 className={styles.heroTitle}>
-            Gestão clínica odontológica com <br />
-            <span className={styles.textGradient}>Exit Inteligente & Lucratividade Real</span>
+            Gestão clínica sem complexidade: <br />
+            <span className={styles.textGradient}>do atendimento à margem líquida real.</span>
           </h1>
 
           <p className={styles.heroDescription}>
-            Automatize baixas fracionadas de estoque por procedimento, audite o DRE em tempo real e mantenha prontuários em conformidade estrita com as normas do CFO e LGPD.
+            Fichas clínicas com inteligência artificial, dedução inteligente de insumos fracionados, agendamento interativo com link para o paciente e conformidade legal rigorosa com o CFO e a LGPD.
           </p>
 
           <div className={styles.heroActions}>
             <a href="#planos" className={styles.btnHeroPrimary}>
-              <span>Ver Planos & Assinaturas</span>
+              <span>Testar 7 dias grátis</span>
               <ArrowRight size={16} />
             </a>
             <a href="#funcionalidades" className={styles.btnHeroSecondary}>
-              Conhecer a Arquitetura
+              Ver tabela comparativa
             </a>
           </div>
 
@@ -113,18 +117,18 @@ export default function LandingPage() {
             <div className={styles.proofDot} />
             <div className={styles.proofItem}>
               <PackageCheck size={15} color="#10b981" />
-              <span>Fracionamento (g, ml, doses)</span>
+              <span>Exit Inteligente (g, ml, doses)</span>
             </div>
             <div className={styles.proofDot} />
             <div className={styles.proofItem}>
-              <Layers size={15} color="#06b6d4" />
-              <span>Multi-Tenant & White-Label</span>
+              <Bot size={15} color="#38bdf8" />
+              <span>Evolução Clínica com IA</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ─── SHOWCASE TÉCNICO ─── */}
+      {/* ─── PREVIEW / SHOWCASE ─── */}
       <section className={styles.previewSection}>
         <div className={styles.previewContainer}>
           <div className={styles.previewCard}>
@@ -135,40 +139,40 @@ export default function LandingPage() {
                 <span />
               </div>
               <div className={styles.browserAddress}>
-                app.odontoflow.com.br/estoque
+                app.odontoflow.com.br/consultorio
               </div>
             </div>
 
             <div className={styles.previewInnerGrid}>
               <div className={styles.previewMetricMini}>
-                <span>MOTOR DE ESTOQUE</span>
-                <strong>EXIT_AUTO Ativo</strong>
-                <small className={styles.cyanText}>Dedução fracionada por Ficha Técnica</small>
+                <span>MOTOR DE INSUMOS</span>
+                <strong>Exit Inteligente Ativo</strong>
+                <small className={styles.cyanText}>Baixa fracionada de resinas e anestésicos</small>
               </div>
 
               <div className={styles.previewMetricMini}>
-                <span>GOVERNANÇA CFO / LGPD</span>
-                <strong>24h Lock Temporal</strong>
-                <small className={styles.greenText}>Evoluções protegidas contra edição</small>
+                <span>CONFORMIDADE REGULATÓRIA</span>
+                <strong>Trava CFO 24 Horas</strong>
+                <small className={styles.greenText}>Imutabilidade com carimbo digital</small>
               </div>
 
               <div className={styles.previewMetricMini}>
-                <span>FINANCEIRO ANALÍTICO</span>
-                <strong>Margem Real BRL</strong>
-                <small className={styles.blueText}>DRE discriminado por cadeira clínica</small>
+                <span>REPASSE DE COMISSÕES</span>
+                <strong>Margem Operacional Real</strong>
+                <small className={styles.blueText}>Custos de materiais deduzidos do líquido</small>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ─── PILARES FUNCIONAIS ─── */}
+      {/* ─── RECURSOS EM DESTAQUE ─── */}
       <section id="funcionalidades" className={styles.featuresSection}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionSub}>ENGENHARIA CLÍNICA</span>
-          <h2 className={styles.sectionTitle}>Feito para eliminar gargalos da rotina odontológica</h2>
+          <span className={styles.sectionSub}>FUNCIONALIDADES DO SISTEMA</span>
+          <h2 className={styles.sectionTitle}>Tecnologia desenhada para a rotina odontológica</h2>
           <p className={styles.sectionDesc}>
-            Elimine inconsistências de almoxarifado, cálculos manuais de seringas e orçamentos sem previsão de custo operacional.
+            Recursos projetados para eliminar atritos operacionais no consultório e na receção.
           </p>
         </div>
 
@@ -177,19 +181,39 @@ export default function LandingPage() {
             <div className={styles.featureIconBg}>
               <PackageCheck size={22} color="#06b6d4" />
             </div>
-            <h3>Exit Inteligente Fracionado</h3>
+            <h3>Exit Inteligente de Estoque</h3>
             <p>
-              Cadastre insumos em caixas, gramas (g), mililitros (ml) ou doses. Ao concluir restaurações ou raspagens, o estoque é recalculado com precisão milimétrica.
+              Abatimento fracionado com conversão de embalagem (caixas para tubetes, seringas para gramas ou mililitros). As baixas ocorrem automaticamente ao encerrar a evolução clínica.
             </p>
           </div>
 
           <div className={styles.featureCard}>
             <div className={styles.featureIconBg}>
-              <TrendingUp size={22} color="#10b981" />
+              <Bot size={22} color="#38bdf8" />
             </div>
-            <h3>DRE & Margem de Contribuição</h3>
+            <h3>Transcrição de Evolução com IA</h3>
             <p>
-              Preço de venda confrontado com o custo direto dos insumos consumidos. Saiba o lucro líquido de cada cadeira e cirurgião em moeda nacional (BRL).
+              Dite o atendimento com linguagem clínica natural e a inteligência artificial estrutura o prontuário, organiza queixas, condutas e prescrições.
+            </p>
+          </div>
+
+          <div className={styles.featureCard}>
+            <div className={styles.featureIconBg}>
+              <Link2 size={22} color="#10b981" />
+            </div>
+            <h3>Link de Pré-Cadastro & Anamnese</h3>
+            <p>
+              Envie um link pelo WhatsApp para o paciente preencher os dados de cadastro e histórico de saúde antes mesmo de sair de casa.
+            </p>
+          </div>
+
+          <div className={styles.featureCard}>
+            <div className={styles.featureIconBg}>
+              <Percent size={22} color="#f59e0b" />
+            </div>
+            <h3>Gestão de Comissões Cirúrgicas</h3>
+            <p>
+              Defina comissões com base no lucro líquido real. O sistema confronta honorários com os insumos consumidos na cadeira.
             </p>
           </div>
 
@@ -197,149 +221,208 @@ export default function LandingPage() {
             <div className={styles.featureIconBg}>
               <ShieldCheck size={22} color="#0284c7" />
             </div>
-            <h3>Conformidade CFO & Trilha Auditada</h3>
+            <h3>Trava Jurídica CFO (24h)</h3>
             <p>
-              Prontuários eletrônicos com trava imutável após 24 horas. Auditoria completa (AuditLog) de criação, exclusão, acessos e alterações com registro de IP.
+              Garantia de conformidade legal. Registos clínicos são trancados após a janela regulamentar, exigindo justificativa auditada para qualquer retificação.
             </p>
           </div>
 
           <div className={styles.featureCard}>
             <div className={styles.featureIconBg}>
-              <Stethoscope size={22} color="#8b5cf6" />
-            </div>
-            <h3>Sala do Cirurgião-Dentista</h3>
-            <p>
-              Visão limpa da fila do dia. Chame o paciente, abra o odontograma, descreva a evolução clínica e finalize com baixa de estoque num único fluxo.
-            </p>
-          </div>
-
-          <div className={styles.featureCard}>
-            <div className={styles.featureIconBg}>
-              <Layers size={22} color="#06b6d4" />
+              <Layers size={22} color="#8b5cf6" />
             </div>
             <h3>White-Label Completo</h3>
             <p>
-              Multi-tenancy nativo com injeção dinâmica de CSS: a clínica utiliza o próprio logotipo, nome empresarial e paleta de cores institucional.
-            </p>
-          </div>
-
-          <div className={styles.featureCard}>
-            <div className={styles.featureIconBg}>
-              <Building2 size={22} color="#f59e0b" />
-            </div>
-            <h3>Gestão Multi-Unidades</h3>
-            <p>
-              Pronto para redes e franquias. Separe filiais por clinicId ou isole instâncias corporativas dedicadas com escalabilidade nativa.
+              Identidade visual sob medida. Aplique o logotipo da clínica, paleta de cores e tipografia no portal e nos documentos gerados.
             </p>
           </div>
         </div>
       </section>
 
-      {/* ─── TABELA DE PREÇOS / PLANOS (OFICIAL FASE 15) ─── */}
+      {/* ─── TABELA DE PREÇOS (INSPIRAÇÃO CODENTAL + MATRIZ ODONTOFLOW) ─── */}
       <section id="planos" className={styles.pricingSection}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionSub}>INVESTIMENTO TRANSPARENTE</span>
-          <h2 className={styles.sectionTitle}>Planos à medida do tamanho da sua clínica[cite: 14]</h2>
-          
-          <div className={styles.billingToggle}>
-            <button 
-              type="button" 
-              onClick={() => setBillingPeriod('monthly')}
-              className={`${styles.toggleBtn} ${billingPeriod === 'monthly' ? styles.toggleActive : ''}`}
-            >
-              Mensal[cite: 14]
-            </button>
-            <button 
-              type="button" 
-              onClick={() => setBillingPeriod('annual')}
-              className={`${styles.toggleBtn} ${billingPeriod === 'annual' ? styles.toggleActive : ''}`}
-            >
-              Anual <span className={styles.discountBadge}>2 Meses Grátis</span>[cite: 14]
-            </button>
+          <span className={styles.sectionSub}>PLANOS FLEXÍVEIS</span>
+          <h2 className={styles.sectionTitle}>Escolha o plano ideal para a sua estrutura</h2>
+
+          <div className={styles.billingToggleWrapper}>
+            <div className={styles.billingToggle}>
+              <button 
+                type="button" 
+                onClick={() => setBillingPeriod('monthly')}
+                className={`${styles.toggleBtn} ${billingPeriod === 'monthly' ? styles.toggleActive : ''}`}
+              >
+                Mensal[cite: 14]
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setBillingPeriod('annual')}
+                className={`${styles.toggleBtn} ${billingPeriod === 'annual' ? styles.toggleActive : ''}`}
+              >
+                Anual <span className={styles.discountBadge}>10% OFF</span>[cite: 16, 17]
+              </button>
+            </div>
+            <span className={styles.installmentNote}>
+              {billingPeriod === 'annual' ? 'Pagamento anual em até 12x sem juros no cartão' : 'Sem fidelidade contratual'}[cite: 16, 17]
+            </span>
           </div>
         </div>
 
         <div className={styles.pricingGrid}>
-          {/* 1. PLANO BÁSICO */}
+          {/* 1. PLANO ESSENCIAL */}
           <div className={styles.pricingCard}>
-            <span className={styles.planBadge}>CONSULTÓRIOS INDIVIDUAIS[cite: 14]</span>
-            <h3 className={styles.planName}>Básico</h3>
-            <p className={styles.planSubtitle}>Agenda integrada, prontuário digital com odontograma e gestão de estoque manual.</p>
+            <span className={styles.planBadge}>CONSULTÓRIO INDIVIDUAL[cite: 14]</span>
+            <h3 className={styles.planName}>Essencial[cite: 14, 18]</h3>
+            <p className={styles.planSubtitle}>Tudo o que precisa para organizar agendamentos, prontuários digitais e orçamentos.</p>
 
             <div className={styles.priceContainer}>
               <span className={styles.currency}>R$</span>
               <span className={styles.priceValue}>
-                {billingPeriod === 'annual' ? '124,99' : '149,99'}
+                {billingPeriod === 'annual' ? '134,90' : '149,99'}
               </span>
               <span className={styles.period}>/mês</span>
             </div>
 
-            <ul className={styles.featureList}>
-              <li><CheckCircle2 size={16} color="#10b981" /> 1 Cirurgião-Dentista</li>
-              <li><CheckCircle2 size={16} color="#10b981" /> Agenda Clínica por Sala & Horário</li>
-              <li><CheckCircle2 size={16} color="#10b981" /> Prontuário Eletrônico & Odontograma</li>
-              <li><CheckCircle2 size={16} color="#10b981" /> Gestão de Estoque e Insumos Manual</li>
-              <li><CheckCircle2 size={16} color="#10b981" /> Emissão de Orçamentos em PDF</li>
-            </ul>
+            <div className={styles.featuresIncludedBlock}>
+              <span className={styles.featuresBlockTitle}>Recursos inclusos:[cite: 18]</span>
+              <ul className={styles.featureList}>
+                <li>
+                  <CheckCircle2 size={15} color="#10b981" />
+                  <span>1 Agenda / Dentista[cite: 18]</span>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#10b981" />
+                  <span>Prontuário digital & Odontograma[cite: 18]</span>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#10b981" />
+                  <span>Anamnese inteligente[cite: 18]</span>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#10b981" />
+                  <span>Link de pré-cadastro para o paciente[cite: 16]</span>
+                  <span className={styles.infoTooltip} title="O paciente preenche os dados cadastrais antes da consulta.">i</span>[cite: 16, 17, 18]
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#10b981" />
+                  <span>Emissão de receitas, docs e atestados[cite: 18]</span>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#10b981" />
+                  <span>Controlo financeiro e de recebíveis[cite: 18]</span>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#10b981" />
+                  <span>Upload de exames e radiografias[cite: 18]</span>
+                </li>
+              </ul>
+            </div>
 
             <Link href="/login" className={styles.btnPlanOutline}>
-              Assinar Plano Básico
+              Testar 7 dias grátis →[cite: 16, 17, 18]
             </Link>
           </div>
 
-          {/* 2. PLANO PREMIUM (DESTAQUE) */}
+          {/* 2. PLANO CLÍNICA PRO (DESTAQUE) */}
           <div className={`${styles.pricingCard} ${styles.pricingCardFeatured}`}>
             <div className={styles.popularRibbon}>MAIS ESCOLHIDO[cite: 14]</div>
-            <span className={styles.planBadgeHighlight}>CLÍNICAS & EQUIPAS[cite: 14]</span>
-            <h3 className={styles.planName}>Premium</h3>
-            <p className={styles.planSubtitle}>Exit Inteligente na evolução, conversão de embalagem e compliance integral CFO/LGPD.</p>
+            <span className={styles.planBadgeHighlight}>CLÍNICAS EM CRESCIMENTO[cite: 14]</span>
+            <h3 className={styles.planName}>Clínica Pro[cite: 14]</h3>
+            <p className={styles.planSubtitle}>Exit Inteligente de materiais, transcrição por IA e gestão de comissões cirúrgicas[cite: 16].</p>
 
             <div className={styles.priceContainer}>
               <span className={styles.currency}>R$</span>
               <span className={styles.priceValue}>
-                {billingPeriod === 'annual' ? '189,99' : '229,99'}
+                {billingPeriod === 'annual' ? '206,90' : '229,99'}
               </span>
               <span className={styles.period}>/mês</span>
             </div>
 
-            <ul className={styles.featureList}>
-              <li><CheckCircle2 size={16} color="#06b6d4" /> <strong>Até 5 Cirurgiões-Dentistas</strong></li>
-              <li><CheckCircle2 size={16} color="#06b6d4" /> <strong>Exit Inteligente de Estoque (Baixa Automática)</strong></li>
-              <li><CheckCircle2 size={16} color="#06b6d4" /> <strong>Fracionamento Universal (g, ml, doses, cx)</strong></li>
-              <li><CheckCircle2 size={16} color="#06b6d4" /> <strong>Trava de Imutabilidade CFO (Janela de 24h)</strong></li>
-              <li><CheckCircle2 size={16} color="#06b6d4" /> White-Label Dinâmico (Sua Marca & Cores)</li>
-              <li><CheckCircle2 size={16} color="#06b6d4" /> Trilha de Auditoria (AuditLog por IP)</li>
-            </ul>
+            <div className={styles.featuresIncludedBlock}>
+              <span className={styles.featuresBlockTitle}>Recursos do Essencial, mais:[cite: 16, 17]</span>
+              <ul className={styles.featureList}>
+                <li>
+                  <CheckCircle2 size={15} color="#06b6d4" />
+                  <strong>Até 5 Cirurgiões-Dentistas[cite: 14]</strong>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#06b6d4" />
+                  <strong>Exit Inteligente (Dedução fracionada)[cite: 14]</strong>
+                  <span className={styles.infoTooltip} title="Debita gramas, doses e mililitros direto na evolução clínica.">i</span>[cite: 16, 17, 18]
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#06b6d4" />
+                  <strong>Transcrição de evolução com IA[cite: 16]</strong>
+                  <span className={styles.infoTooltip} title="Estruturação do prontuário por voz com inteligência artificial.">i</span>[cite: 16, 17, 18]
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#06b6d4" />
+                  <span>Gestão de comissões por procedimento[cite: 16]</span>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#06b6d4" />
+                  <span>Trava legal temporal CFO de 24 horas</span>
+                  <span className={styles.infoTooltip} title="Conformidade estrita contra adulterações retroativas em prontuários.">i</span>[cite: 16, 17, 18]
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#06b6d4" />
+                  <span>White-Label Completo (Cores & Logotipo)[cite: 14]</span>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#06b6d4" />
+                  <span>Prescrição com assinatura digitalizada[cite: 17]</span>
+                </li>
+              </ul>
+            </div>
 
             <Link href="/login" className={styles.btnPlanPrimary}>
-              Experimentar 14 Dias Grátis[cite: 14]
+              Testar 7 dias grátis →[cite: 16, 17, 18]
             </Link>
           </div>
 
           {/* 3. PLANO ENTERPRISE */}
           <div className={styles.pricingCard}>
             <div className={styles.enterpriseRibbon}>
-              <Crown size={12} /> ALTA ESCALA
+              <Crown size={12} /> REDES & POLICLÍNICAS
             </div>
-            <span className={styles.planBadge}>REDES & POLICLÍNICAS</span>
+            <span className={styles.planBadge}>MÚLTIPLAS UNIDADES</span>
             <h3 className={styles.planName}>Enterprise</h3>
-            <p className={styles.planSubtitle}>Baixa dupla na recepção, governança de redes e relatórios executivos avançados.</p>
+            <p className={styles.planSubtitle}>Solução para clínicas de grande volume que exigem auditoria avançada e suporte prioritário.</p>
 
             <div className={styles.priceContainer}>
               <span className={styles.currency}>R$</span>
               <span className={styles.priceValue}>
-                {billingPeriod === 'annual' ? '269,99' : '319,99'}
+                {billingPeriod === 'annual' ? '287,90' : '319,99'}
               </span>
               <span className={styles.period}>/mês</span>
             </div>
 
-            <ul className={styles.featureList}>
-              <li><CheckCircle2 size={16} color="#10b981" /> <strong>Dentistas e Cadeiras Ilimitadas</strong></li>
-              <li><CheckCircle2 size={16} color="#10b981" /> <strong>Trava de Idempotência Recepção / Sala</strong></li>
-              <li><CheckCircle2 size={16} color="#10b981" /> DRE Executivo & Fluxo de Caixa Preditivo</li>
-              <li><CheckCircle2 size={16} color="#10b981" /> Gestão Multi-Filiais (Add-on Unidades)</li>
-              <li><CheckCircle2 size={16} color="#10b981" /> Suporte Prioritário Direto via WhatsApp</li>
-            </ul>
+            <div className={styles.featuresIncludedBlock}>
+              <span className={styles.featuresBlockTitle}>Recursos do Clínica Pro, mais:[cite: 16]</span>
+              <ul className={styles.featureList}>
+                <li>
+                  <CheckCircle2 size={15} color="#10b981" />
+                  <strong>Agendas ilimitadas[cite: 16]</strong>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#10b981" />
+                  <span>Trava de idempotência sala/receção</span>
+                  <span className={styles.infoTooltip} title="Evita baixas financeiras e de insumos duplicadas no mesmo agendamento.">i</span>[cite: 16, 17, 18]
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#10b981" />
+                  <span>DRE Executivo & Balancete contínuo</span>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#10b981" />
+                  <span>Módulo multi-filiais integrado</span>
+                </li>
+                <li>
+                  <CheckCircle2 size={15} color="#10b981" />
+                  <span>Suporte prioritário dedicado via WhatsApp</span>
+                </li>
+              </ul>
+            </div>
 
             <Link href="/login" className={styles.btnPlanOutline}>
               Falar com Consultor
@@ -348,11 +431,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── FAQ ─── */}
+      {/* ─── FAQ INTERATIVO ─── */}
       <section id="faq" className={styles.faqSection}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionSub}>DÚVIDAS FREQUENTES</span>
-          <h2 className={styles.sectionTitle}>Perguntas Respondidas</h2>
+          <span className={styles.sectionSub}>TIRA-DÚVIDAS</span>
+          <h2 className={styles.sectionTitle}>Perguntas frequentes</h2>
         </div>
 
         <div className={styles.faqContainer}>
@@ -394,25 +477,19 @@ export default function LandingPage() {
           <div className={styles.footerLinksGroup}>
             <h4>Navegação</h4>
             <a href="#funcionalidades">Recursos</a>
-            <a href="#planos">Tabela de Preços</a>
-            <a href="#faq">Perguntas Frequentes</a>
+            <a href="#planos">Planos & Preços</a>
+            <a href="#faq">Dúvidas Frequentes</a>
           </div>
 
           <div className={styles.footerLinksGroup}>
-            <h4>SaaS Engine</h4>
-            <Link href="/login">Portal da Clínica</Link>
-            <a href="https://odontoflow-bbcl.onrender.com/docs" target="_blank" rel="noopener noreferrer">
-              Documentação API Swagger
-            </a>
+            <h4>Segurança & Legal</h4>
+            <span>Conformidade CFO & LGPD</span>
+            <span>Criptografia de Ponta a Ponta</span>
           </div>
         </div>
 
         <div className={styles.footerBottom}>
           <p>© {new Date().getFullYear()} OdontoFlow. Todos os direitos reservados.</p>
-          <div className={styles.footerLegal}>
-            <span>LGPD & CFO Compliant</span>
-            <span>Ambiente Criptografado</span>
-          </div>
         </div>
       </footer>
     </div>
