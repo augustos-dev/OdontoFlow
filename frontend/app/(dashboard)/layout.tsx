@@ -25,7 +25,9 @@ import {
   Info,
   Loader2,
   X,
-  FileText
+  FileText,
+  Activity,
+  ShieldAlert
 } from 'lucide-react'
 import styles from './layout.module.css'
 import { ModalProvider, useModal } from '@/app/components/ModalContext'
@@ -33,43 +35,60 @@ import Logo from '../../public/logo.svg'
 import Image from 'next/image'
 import api from '@/lib/api'
 
-interface NavGroup {
+type UserRole = 'ADMIN' | 'DENTIST' | 'SECRETARY'
+
+interface NavItem {
+  href: string
   label: string
-  items: {
-    href: string
-    label: string
-    icon: any
-    adminOnly?: boolean
-  }[]
+  icon: any
+  roles?: UserRole[]
 }
 
+interface NavGroup {
+  label: string
+  roles?: UserRole[]
+  items: NavItem[]
+}
+
+// 🛡️ Matriz de Navegação com RBAC por Roles
 const NAV_GROUPS: NavGroup[] = [
   {
     label: 'VISÃO GERAL',
+    roles: ['ADMIN', 'SECRETARY'],
     items: [
-      { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/', label: 'Dashboard Geral', icon: LayoutDashboard, roles: ['ADMIN', 'SECRETARY'] },
+    ],
+  },
+  {
+    label: 'ATENDIMENTO CLÍNICO',
+    roles: ['ADMIN', 'DENTIST'],
+    items: [
+      { href: '/consultorio', label: 'Meu Consultório', icon: Activity, roles: ['DENTIST', 'ADMIN'] },
     ],
   },
   {
     label: 'OPERAÇÃO CLÍNICA',
+    roles: ['ADMIN', 'DENTIST', 'SECRETARY'],
     items: [
-      { href: '/agenda', label: 'Agenda', icon: Calendar },
-      { href: '/pacientes', label: 'Pacientes', icon: Users },
-      { href: '/tratamentos', label: 'Planos & Tratamentos', icon: ClipboardList },
-      { href: '/procedimentos', label: 'Procedimentos', icon: Stethoscope },
+      { href: '/agenda', label: 'Agenda Integrada', icon: Calendar, roles: ['ADMIN', 'DENTIST', 'SECRETARY'] },
+      { href: '/pacientes', label: 'Pacientes & Prontuários', icon: Users, roles: ['ADMIN', 'DENTIST', 'SECRETARY'] },
+      { href: '/tratamentos', label: 'Planos & Orçamentos', icon: ClipboardList, roles: ['ADMIN', 'DENTIST', 'SECRETARY'] },
+      { href: '/procedimentos', label: 'Tabela de Procedimentos', icon: Stethoscope, roles: ['ADMIN', 'DENTIST'] },
     ],
   },
   {
     label: 'GESTÃO & ESTOQUE',
+    roles: ['ADMIN', 'SECRETARY'],
     items: [
-      { href: '/estoque', label: 'Estoque & Insumos', icon: Package },
-      { href: '/financeiro', label: 'Financeiro & Caixa', icon: CreditCard, adminOnly: true },
+      { href: '/estoque', label: 'Estoque & Insumos', icon: Package, roles: ['ADMIN', 'SECRETARY'] },
+      { href: '/financeiro', label: 'Financeiro & DRE', icon: CreditCard, roles: ['ADMIN'] },
     ],
   },
   {
     label: 'SISTEMA',
+    roles: ['ADMIN'],
     items: [
-      { href: '/configuracoes', label: 'Configurações', icon: Settings, adminOnly: true },
+      { href: '/configuracoes', label: 'Configurações & Visual', icon: Settings, roles: ['ADMIN'] },
     ],
   },
 ]
@@ -116,14 +135,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     logoUrl: null,
   })
 
-  // ─── Busca Global ───
+  // Busca Global
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
-  // ─── Notificações Dinâmicas ───
+  // Notificações Dinâmicas
   const [isNotifOpen, setIsNotifOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [loadingNotifs, setLoadingNotifs] = useState(false)
@@ -131,7 +150,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications])
 
-  // Função auxiliar para calcular tempo relativo legível
   function getRelativeTime(dateStr: string) {
     try {
       const diffMs = new Date().getTime() - new Date(dateStr).getTime()
@@ -146,7 +164,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // ─── Busca de Alertas Reais no Backend ───
+  // Carregar Notificações do Backend
   const loadDynamicNotifications = useCallback(async () => {
     try {
       setLoadingNotifs(true)
@@ -161,7 +179,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       const generatedNotifs: NotificationItem[] = []
       const readNotifIds = JSON.parse(localStorage.getItem('odontoflow_read_notifs') || '[]')
 
-      // 1. Alertas de Estoque Crítico
       if (stockRes.status === 'fulfilled') {
         const rawStock = stockRes.value.data?.data || stockRes.value.data || []
         const lowItems = Array.isArray(rawStock)
@@ -182,30 +199,28 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         })
       }
 
-      // 2. Consultas do Dia (Confirmadas ou Em Atendimento)
       if (apptRes.status === 'fulfilled') {
         const rawAppts = apptRes.value.data?.data || apptRes.value.data || []
         const activeAppts = Array.isArray(rawAppts)
-          ? rawAppts.filter((a: any) => a.status === 'CONFIRMADO' || a.status === 'EM_ATENDIMENTO').slice(0, 2)
+          ? rawAppts.filter((a: any) => a.status === 'CONFIRMADO' || a.status === 'EM_ANDAMENTO').slice(0, 2)
           : []
 
         activeAppts.forEach((a: any) => {
           const id = `appt-${a.id}`
-          const timeFormatted = new Date(a.dateTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          const timeFormatted = new Date(a.dateTime || a.scheduledAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
           generatedNotifs.push({
             id,
             title: a.status === 'CONFIRMADO' ? 'Consulta Confirmada' : 'Em Atendimento',
             description: `${a.patient?.name || 'Paciente'} às ${timeFormatted} na ${a.room ? a.room.replace('_', ' ') : 'SALA 1'}.`,
-            time: getRelativeTime(a.dateTime),
+            time: getRelativeTime(a.dateTime || a.scheduledAt),
             type: 'info',
             read: readNotifIds.includes(id),
-            targetPath: '/agenda',
+            targetPath: user?.role === 'DENTIST' ? '/consultorio' : '/agenda',
           })
         })
       }
 
-      // 3. Faturamentos / Transações Recebidas
-      if (transRes.status === 'fulfilled') {
+      if (transRes.status === 'fulfilled' && user?.role === 'ADMIN') {
         const rawTrans = transRes.value.data?.data || transRes.value.data || []
         const recentTrans = Array.isArray(rawTrans) ? rawTrans.slice(0, 2) : []
 
@@ -230,9 +245,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     } finally {
       setLoadingNotifs(false)
     }
-  }, [])
+  }, [user?.role])
 
-  // Aplica variáveis CSS globais
   const applyThemeVariables = useCallback((theme: ClinicVisualState) => {
     if (typeof document === 'undefined') return
     const root = document.documentElement
@@ -244,7 +258,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Sincroniza customizações da clínica
   const fetchClinicCustomization = useCallback(async () => {
     try {
       const res = await api.get('/clinics')
@@ -288,11 +301,27 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       return
     }
 
+    let parsedUser: any = null
     if (stored) {
       try {
-        setUser(JSON.parse(stored))
+        parsedUser = JSON.parse(stored)
+        setUser(parsedUser)
       } catch (e) {
         console.error('Erro ao ler usuário:', e)
+      }
+    }
+
+    // 🛡️ Guarda de Rota no Cliente: Bloqueia acesso direto a URLs não autorizadas
+    if (parsedUser) {
+      const currentRole: UserRole = parsedUser.role || 'SECRETARY'
+      if (currentRole === 'DENTIST') {
+        if (pathname === '/financeiro' || pathname === '/configuracoes') {
+          router.replace('/consultorio')
+        }
+      } else if (currentRole === 'SECRETARY') {
+        if (pathname === '/financeiro' || pathname === '/configuracoes' || pathname === '/consultorio') {
+          router.replace('/agenda')
+        }
       }
     }
 
@@ -302,7 +331,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     fetchClinicCustomization()
     loadDynamicNotifications()
 
-    // Atualiza notificações a cada 2 minutos
     const notifInterval = setInterval(loadDynamicNotifications, 120000)
 
     const handleThemeUpdate = () => fetchClinicCustomization()
@@ -323,9 +351,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       window.removeEventListener('clinic_customization_updated', handleThemeUpdate)
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [router, fetchClinicCustomization, loadDynamicNotifications])
+  }, [router, pathname, fetchClinicCustomization, loadDynamicNotifications])
 
-  // Busca global paralela com Pacientes, Procedimentos e Planos
+  // Busca global paralela
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([])
@@ -344,7 +372,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           api.get(`/treatment-plans?limit=20`).catch(() => ({ data: [] })),
         ])
 
-        // 1. Pacientes
         const patientItems: SearchResultItem[] = (patientsRes.data?.data || patientsRes.data || []).map((p: any) => ({
           id: p.id,
           type: 'PATIENT' as const,
@@ -353,7 +380,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           link: `/pacientes`,
         }))
 
-        // 2. Procedimentos
         const procedureItems: SearchResultItem[] = (proceduresRes.data?.data || proceduresRes.data || []).map((pr: any) => ({
           id: pr.id,
           type: 'PROCEDURE' as const,
@@ -362,7 +388,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           link: `/procedimentos`,
         }))
 
-        // 3. Planos & Orçamentos
         const planList = Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data || []
         const queryLower = searchQuery.toLowerCase()
         const planItems: SearchResultItem[] = planList
@@ -442,8 +467,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     router.push('/login')
   }
 
+  const userRole: UserRole = user?.role || 'SECRETARY'
+
   return (
-    <div className={`${styles.shell} ${isCollapsed ? styles.collapsedShell : ''}`}>
+    <div 
+      className={`${styles.shell} ${isCollapsed ? styles.collapsedShell : ''}`}
+      style={{
+        '--primary-color': clinicVisual.primaryColor,
+        '--primary-accent': clinicVisual.accentColor,
+        '--app-font': clinicVisual.fontFamily,
+      } as React.CSSProperties}
+    >
       {/* ─── Sidebar ─── */}
       <aside className={`${styles.sidebar} ${isCollapsed ? styles.sidebarCollapsed : ''}`}>
         <div className={styles.sidebarLogo}>
@@ -467,10 +501,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
+        {/* Links Filtrados com RBAC */}
         <nav className={styles.nav}>
           {NAV_GROUPS.map((group) => {
+            if (group.roles && !group.roles.includes(userRole)) {
+              return null
+            }
+
             const visibleItems = group.items.filter(
-              (item) => !item.adminOnly || user?.role === 'ADMIN'
+              (item) => !item.roles || item.roles.includes(userRole)
             )
 
             if (visibleItems.length === 0) return null
@@ -511,13 +550,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           {!isCollapsed && <span>Recolher menu</span>}
         </button>
 
+        {/* Footer com Perfil do Usuário */}
         <div className={styles.sidebarFooter}>
           <div className={styles.avatar}>{initials}</div>
           {!isCollapsed && (
             <div className={styles.userInfo}>
               <div className={styles.userName}>{user?.name ?? 'Usuário'}</div>
-              <div className={styles.userRole}>
-                {user?.role === 'ADMIN' ? 'Administrador' : user?.role === 'DENTIST' ? 'Dentista' : 'Secretária'}
+              <div className={styles.userRoleBadge}>
+                {userRole === 'ADMIN' ? 'Administrador' : userRole === 'DENTIST' ? 'Cirurgião-Dentista' : 'Recepção / Secretária'}
               </div>
             </div>
           )}
@@ -538,7 +578,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <div className={styles.headerLeft}>
             <div className={styles.clinicName}>
               <span>{clinicVisual.name}</span>
-              <span className={styles.mvpBadge}>MVP</span>
+              <span className={styles.roleHeaderPill}>{userRole}</span>
             </div>
             <h1 className={styles.pageTitle}>{pageTitle}</h1>
           </div>
@@ -546,7 +586,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <div className={styles.headerRight}>
             <span className={styles.headerDate}>{todayFormatted}</span>
             
-            {/* ─── Campo de Busca Global ─── */}
+            {/* Campo de Busca Global */}
             <div className={styles.searchWrapper} ref={searchRef}>
               <div className={styles.headerSearch}>
                 {isSearching ? (
@@ -611,7 +651,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               )}
             </div>
             
-            {/* ─── Central de Notificações Dinâmica ─── */}
+            {/* Notificações Dinâmicas */}
             <div className={styles.notifWrapper} ref={notifRef}>
               <button 
                 className={`${styles.notifBtn} ${isNotifOpen ? styles.notifBtnActive : ''}`} 

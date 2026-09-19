@@ -7,11 +7,10 @@
 }
 
 /* ─── Sidebar ──────────────────────────────────────────────── */
-
 .sidebar {
   width: 250px;
   min-width: 250px;
-  background: #0b132b; /* Escuro Omnia Hub */
+  background: #0b132b;
   display: flex;
   flex-direction: column;
   border-right: 1px solid rgba(255, 255, 255, 0.05);
@@ -130,9 +129,9 @@
 
 .navItemActive {
   background: #111c44 !important;
-  color: var(--primary-color, #38bdf8) !important;
+  color: var(--primary-color, #06b6d4) !important;
   font-weight: 600;
-  box-shadow: inset 2px 0 0 var(--primary-color, #38bdf8);
+  box-shadow: inset 3px 0 0 var(--primary-color, #06b6d4);
 }
 
 .navIcon {
@@ -143,7 +142,7 @@
 .navItem:hover .navIcon,
 .navItemActive .navIcon {
   opacity: 1;
-  color: var(--primary-color, #38bdf8);
+  color: var(--primary-color, #06b6d4);
 }
 
 /* Botão Toggle */
@@ -168,7 +167,7 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
-/* Footer do Usuário */
+/* Footer do Usuário & Badges de Papel */
 .sidebarFooter {
   display: flex;
   align-items: center;
@@ -182,7 +181,7 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary-color, #06b6d4), var(--primary-accent, #0284c7));
+  background: linear-gradient(135deg, var(--primary-color, #06b6d4), var(--primary-accent, #0891b2));
   color: white;
   font-size: 12px;
   font-weight: 700;
@@ -206,9 +205,10 @@
   text-overflow: ellipsis;
 }
 
-.userRole {
-  font-size: 11px;
-  color: #64748b;
+.userRoleBadge {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--primary-color, #38bdf8);
 }
 
 .logoutBtn {
@@ -230,7 +230,6 @@
 }
 
 /* ─── Main & Header ────────────────────────────────────────── */
-
 .main {
   flex: 1;
   display: flex;
@@ -258,13 +257,15 @@
   gap: 6px;
 }
 
-.mvpBadge {
+.roleHeaderPill {
   background: #ecfeff;
   color: var(--primary-color, #0891b2);
+  border: 1px solid #cffafe;
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
   border-radius: 4px;
+  letter-spacing: 0.04em;
 }
 
 .pageTitle {
@@ -285,76 +286,6 @@
   color: #64748b;
   white-space: nowrap;
 }
-
-.headerSearch {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 6px 12px;
-}
-
-.searchIcon {
-  color: #94a3b8;
-}
-
-.searchInput {
-  border: none;
-  background: none;
-  outline: none;
-  font-size: 13px;
-  color: #0f172a;
-  width: 200px;
-}
-
-.searchInput::placeholder { color: #94a3b8; }
-
-.notifBtn {
-  background: none;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  color: #64748b;
-  padding: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.notifBtn:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.newAppointmentBtn {
-  background: var(--primary-color, #06b6d4);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.newAppointmentBtn:hover { 
-  opacity: 0.9; 
-}
-
-.content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px 28px;
-}
-/* ─── Search & Dropdown ─────────────────────────────────────── */
 
 .searchWrapper {
   position: relative;
@@ -483,6 +414,18 @@
   flex-shrink: 0;
 }
 
+.searchItemIconPlan {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #f5f3ff;
+  color: #7c3aed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 .searchItemInfo {
   display: flex;
   flex-direction: column;
@@ -506,8 +449,7 @@
   text-overflow: ellipsis;
 }
 
-/* ─── Notifications & Dropdown ──────────────────────────────── */
-
+/* Central de Notificações */
 .notifWrapper {
   position: relative;
 }
@@ -678,16 +620,31 @@
   margin: 3px 0 0;
   line-height: 1.4;
 }
-.searchItemIconPlan {
-  width: 30px;
-  height: 30px;
+
+.newAppointmentBtn {
+  background: var(--primary-color, #06b6d4);
+  color: white;
+  border: none;
   border-radius: 8px;
-  background: #f5f3ff;
-  color: #7c3aed;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  gap: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.newAppointmentBtn:hover { 
+  opacity: 0.9; 
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
 }
 
 @keyframes spin {

@@ -26,7 +26,9 @@ import {
   ShieldAlert,
   CalendarClock,
   ArrowDownToLine,
-  Layers
+  Scale,
+  Target,
+  User
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -61,6 +63,8 @@ interface StockMovement {
   user?: { name: string }
 }
 
+export type ConsumptionMode = 'UNIT' | 'VOLUME_MASS' | 'ESTIMATED_DOSES'
+
 interface Product {
   id: string
   name: string
@@ -69,6 +73,8 @@ interface Product {
   quantity: number
   minQuantity: number
   unit?: string
+  fractionUnit?: 'g' | 'ml' | 'mg'
+  consumptionMode?: ConsumptionMode
   costPrice?: number
   itemsPerPackage?: number
   expiryDate?: string
@@ -81,12 +87,11 @@ interface Product {
 }
 
 const UNIT_OPTIONS = [
-  { value: 'UN', label: 'un (Unidade / Seringa)' },
-  { value: 'ML', label: 'ml (Mililitro)' },
-  { value: 'MG', label: 'mg (Miligrama)' },
+  { value: 'UN', label: 'un (Unidade / Seringa / Frasco)' },
+  { value: 'CX', label: 'cx (Caixa Fechada)' },
   { value: 'G', label: 'g (Grama)' },
+  { value: 'ML', label: 'ml (Mililitro)' },
   { value: 'L', label: 'L (Litro)' },
-  { value: 'CX', label: 'cx (Caixa / Embalagem)' },
 ]
 
 export default function EstoquePage() {
@@ -103,12 +108,13 @@ export default function EstoquePage() {
   
   const [isManagementModalOpen, setIsManagementModalOpen] = useState(false)
 
-  // Modal Edição Detalhada
+  // Modal Edição Detalhada + Histórico
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isEditingModalOpen, setIsEditingModalOpen] = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
+  const [loadingMovements, setLoadingMovements] = useState(false)
 
-  // Modal Reposição Rápida (Resolve itens críticos na hora)
+  // Modal Reposição Rápida
   const [quickRestockProduct, setQuickRestockProduct] = useState<Product | null>(null)
   const [quickAddQty, setQuickAddQty] = useState<number>(10)
   const [quickLotNumber, setQuickLotNumber] = useState('')
@@ -138,16 +144,15 @@ export default function EstoquePage() {
 
       try {
         const lowRes = await api.get('/products/low-stock')
-        setLowStock(lowRes.data || [])
+        setLowStock(lowRes.data?.data || lowRes.data || [])
       } catch {
         setLowStock(mappedProducts.filter((p) => p.quantity <= p.minQuantity))
       }
 
       try {
         const expRes = await api.get('/products/expiring')
-        setExpiring(expRes.data || [])
+        setExpiring(expRes.data?.data || expRes.data || [])
       } catch {
-        // Fallback: busca itens que vencem nos próximos 30 dias
         const now = new Date()
         const in30Days = new Date()
         in30Days.setDate(now.getDate() + 30)
@@ -172,7 +177,7 @@ export default function EstoquePage() {
     setLoadingSuppliers(true)
     try {
       const res = await api.get('/suppliers')
-      setSuppliers(res.data.data || res.data || [])
+      setSuppliers(res.data?.data || res.data || [])
     } catch (err) {
       console.error('Erro ao carregar fornecedores:', err)
     } finally {
@@ -186,13 +191,29 @@ export default function EstoquePage() {
   }, [loadStockData, loadSuppliers])
 
   const handleOpenEditProduct = async (product: Product) => {
+    setIsEditingModalOpen(true)
+    setLoadingMovements(true)
     try {
       const res = await api.get(`/products/${product.id}`)
-      setEditingProduct(res.data || product)
+      const fullProd = res.data?.data || res.data || product
+
+      let inferredMode: ConsumptionMode = 'UNIT'
+      if (fullProd.unit === 'G' || fullProd.unit === 'ML') {
+        inferredMode = 'VOLUME_MASS'
+      } else if (fullProd.itemsPerPackage && fullProd.itemsPerPackage > 1 && fullProd.unit !== 'CX') {
+        inferredMode = 'ESTIMATED_DOSES'
+      }
+
+      setEditingProduct({
+        ...fullProd,
+        consumptionMode: fullProd.consumptionMode || inferredMode,
+        fractionUnit: fullProd.fractionUnit || (fullProd.unit === 'ML' ? 'ml' : 'g'),
+      })
     } catch {
       setEditingProduct(product)
+    } finally {
+      setLoadingMovements(false)
     }
-    setIsEditingModalOpen(true)
   }
 
   const handleOpenQuickRestock = (product: Product) => {
@@ -203,7 +224,6 @@ export default function EstoquePage() {
     setQuickExpiryDate(product.expiryDate ? product.expiryDate.split('T')[0] : '')
   }
 
-  // Executa reposição de lote e quantidade
   const handleConfirmQuickRestock = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!quickRestockProduct || quickAddQty <= 0) return
@@ -247,6 +267,7 @@ export default function EstoquePage() {
         quantity: Number(editingProduct.quantity) || 0,
         minQuantity: Number(editingProduct.minQuantity) || 0,
         unit: editingProduct.unit || 'UN',
+        fractionUnit: editingProduct.fractionUnit || 'g',
         costPrice: parsedCost,
         itemsPerPackage: parsedItemsPerPkg,
         supplierId: editingProduct.supplierId || undefined,
@@ -323,7 +344,6 @@ export default function EstoquePage() {
     (s.contact && s.contact.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
-  const totalOk = products.filter((p) => getComputedStatus(p) === 'OK').length
   const totalCritico = products.filter((p) => {
     const status = getComputedStatus(p)
     return status === 'CRITICO' || status === 'BAIXO'
@@ -331,7 +351,6 @@ export default function EstoquePage() {
 
   const totalStockValue = products.reduce((acc, p) => acc + (p.costPrice || 0) * p.quantity, 0)
 
-  // Dados para o Recharts (Top 5 Mais Consumidos)
   const chartData = useMemo(() => {
     return [...products]
       .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))
@@ -353,7 +372,6 @@ export default function EstoquePage() {
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
 
-  // Avalia status de validade e lote
   function getExpiryStatus(expiryDate?: string) {
     if (!expiryDate) return { label: 'Indeterminado', cls: styles.expiryNeutral }
     const now = new Date()
@@ -393,9 +411,13 @@ export default function EstoquePage() {
     return `mailto:${sup.email}?subject=${subject}&body=${body}`
   }
 
+  // Métricas do Modal de Edição
+  const editCostPrice = parseFloat(String(editingProduct?.costPrice || '').replace(',', '.')) || 0
+  const editCapacity = Number(editingProduct?.itemsPerPackage) || 1
+  const editCostPerFraction = editCostPrice > 0 && editCapacity > 0 ? editCostPrice / editCapacity : 0
+
   return (
     <div className={styles.page}>
-      
       {/* ─── BARRA DE AÇÃO RÁPIDA ─── */}
       <div className={styles.actionBar}>
         <div className={styles.contextInfo}>
@@ -415,7 +437,7 @@ export default function EstoquePage() {
 
           {mainTab === 'products' ? (
             <button 
-              type="button"
+              type="button" 
               className={styles.btnPrimary} 
               onClick={() => setIsManagementModalOpen(true)}
             >
@@ -424,7 +446,7 @@ export default function EstoquePage() {
             </button>
           ) : (
             <button 
-              type="button"
+              type="button" 
               className={styles.btnPrimary} 
               onClick={() => setIsSupplierModalOpen(true)}
             >
@@ -486,7 +508,6 @@ export default function EstoquePage() {
 
       {/* ─── ANALYTICS COM RECHARTS & URGÊNCIA DE REPOSIÇÃO ─── */}
       <div className={styles.adminAnalyticsGrid}>
-        {/* Gráfico Recharts: Insumos Mais Consumidos */}
         <div className={styles.chartCard}>
           <div className={styles.chartHeader}>
             <div className={styles.chartTitleWrapper}>
@@ -547,7 +568,6 @@ export default function EstoquePage() {
           </div>
         </div>
 
-        {/* Card Alerta de Reposição Imediata */}
         <div className={styles.chartCard}>
           <div className={styles.chartHeader}>
             <div className={styles.chartTitleWrapper}>
@@ -596,7 +616,6 @@ export default function EstoquePage() {
 
       {/* ─── TABELA PRINCIPAL ─── */}
       <div className={styles.agendaCard}>
-        {/* Controles de Busca e Abas */}
         <div className={styles.controlsBar}>
           <div className={styles.navTabsGroup}>
             <button 
@@ -655,7 +674,6 @@ export default function EstoquePage() {
           </div>
         </div>
 
-        {/* ─── TABELA DE PRODUTOS ─── */}
         {mainTab === 'products' && (
           loading ? (
             <div className={styles.loading}>
@@ -696,7 +714,7 @@ export default function EstoquePage() {
                             <div className={styles.productNameText}>{p.name}</div>
                             {p.itemsPerPackage && p.itemsPerPackage > 1 && (
                               <div className={styles.packageNote}>
-                                📦 {p.itemsPerPackage} {p.unit === 'CX' ? 'un/cx' : 'g/ml por frasco'}
+                                📦 {p.itemsPerPackage} {p.unit === 'CX' ? 'un/cx' : 'conteúdo/rendimento'}
                               </div>
                             )}
                           </td>
@@ -752,7 +770,7 @@ export default function EstoquePage() {
                                 type="button"
                                 onClick={() => handleOpenEditProduct(p)}
                                 className={styles.btnActionEdit}
-                                title="Editar Cadastro Completo"
+                                title="Editar Cadastro & Movimentações"
                               >
                                 <Edit2 size={14} />
                               </button>
@@ -768,7 +786,6 @@ export default function EstoquePage() {
           )
         )}
 
-        {/* ─── TABELA DE FORNECEDORES ─── */}
         {mainTab === 'suppliers' && (
           loadingSuppliers ? (
             <div className={styles.loading}>
@@ -950,10 +967,10 @@ export default function EstoquePage() {
         </div>
       )}
 
-      {/* ─── MODAL 2: EDIÇÃO COMPLETA DE PRODUTO ─── */}
+      {/* ─── MODAL 2: EDIÇÃO COMPLETA DE PRODUTO & HISTÓRICO ─── */}
       {isEditingModalOpen && editingProduct && (
         <div className={styles.modalOverlay} onClick={() => setIsEditingModalOpen(false)}>
-          <div className={styles.detailsModalCard} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
+          <div className={styles.detailsModalCard} onClick={(e) => e.stopPropagation()}>
             <div className={styles.detailsHeader}>
               <div className={styles.titleIconBg}>
                 <Edit2 size={18} color="var(--primary-color, #06b6d4)" />
@@ -972,145 +989,300 @@ export default function EstoquePage() {
             </div>
 
             <form onSubmit={handleSaveProductEdit} className={styles.supplierForm}>
-              <div className={styles.formGroup}>
-                <label>Nome do Produto *</label>
-                <input
-                  type="text"
-                  required
-                  value={editingProduct.name}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                />
-              </div>
-
-              <div className={styles.formTwoCols}>
+              <div className={styles.scrollableModalContent}>
                 <div className={styles.formGroup}>
-                  <label>Lote / Código</label>
+                  <label>Nome do Produto *</label>
                   <input
                     type="text"
-                    placeholder="Ex: LT-8842"
-                    value={editingProduct.lotNumber || editingProduct.batchNumber || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, lotNumber: e.target.value, batchNumber: e.target.value })}
-                  />
-                </div>
-                <div className={styles.formGroup}>
-                  <label>
-                    {editingProduct.unit === 'CX' ? 'Custo da Caixa (R$)' : 'Custo Unitário de Compra (R$)'}
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: 22.00"
-                    value={editingProduct.costPrice ?? ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, costPrice: e.target.value as any })}
-                  />
-                </div>
-              </div>
-
-              <div className={styles.formTwoCols}>
-                <div className={styles.formGroup}>
-                  <label>Quantidade Atual *</label>
-                  <input
-                    type="number"
                     required
-                    min="0"
-                    value={editingProduct.quantity}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, quantity: Number(e.target.value) })}
+                    value={editingProduct.name}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
                   />
                 </div>
+
+                <div className={styles.formTwoCols}>
+                  <div className={styles.formGroup}>
+                    <label>Lote / Código</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: LT-8842"
+                      value={editingProduct.lotNumber || editingProduct.batchNumber || ''}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, lotNumber: e.target.value, batchNumber: e.target.value })}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label>
+                      {editingProduct.unit === 'CX' ? 'Custo da Caixa (R$)' : 'Custo Unitário de Compra (R$)'}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: 45.00"
+                      value={editingProduct.costPrice ?? ''}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, costPrice: e.target.value as any })}
+                    />
+                  </div>
+                </div>
+
+                <div className={styles.formTwoCols}>
+                  <div className={styles.formGroup}>
+                    <label>Quantidade Atual *</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      value={editingProduct.quantity}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, quantity: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label>Unidade de Medida</label>
+                    <select
+                      value={editingProduct.unit || 'UN'}
+                      onChange={(e) => {
+                        const newUnit = e.target.value
+                        let newMode: ConsumptionMode = editingProduct.consumptionMode || 'UNIT'
+                        let itemsPerPkg = editingProduct.itemsPerPackage || 1
+
+                        if (newUnit === 'CX') {
+                          newMode = 'UNIT'
+                          itemsPerPkg = 100
+                        } else if (newUnit === 'G' || newUnit === 'ML') {
+                          newMode = 'VOLUME_MASS'
+                          itemsPerPkg = 10
+                        }
+
+                        setEditingProduct({
+                          ...editingProduct,
+                          unit: newUnit,
+                          consumptionMode: newMode,
+                          itemsPerPackage: itemsPerPkg,
+                          fractionUnit: newUnit === 'ML' ? 'ml' : 'g',
+                        })
+                      }}
+                      className={styles.selectInput}
+                    >
+                      {UNIT_OPTIONS.map((u) => (
+                        <option key={u.value} value={u.value}>
+                          {u.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* ─── RENDIMENTO CLÍNICO PROFISSIONAL ─── */}
+                <div className={styles.yieldBoxContainer}>
+                  <label className={styles.yieldBoxHeader}>Como este insumo rende e é consumido na clínica?</label>
+                  
+                  {editingProduct.unit === 'CX' ? (
+                    <div className={styles.yieldRowBox}>
+                      <div className={styles.formGroup} style={{ width: '180px' }}>
+                        <label>Itens por Caixa *</label>
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="Ex: 100"
+                          value={editingProduct.itemsPerPackage || 100}
+                          onChange={(e) => setEditingProduct({ ...editingProduct, itemsPerPackage: Math.max(1, Number(e.target.value)) })}
+                        />
+                      </div>
+                      <span className={styles.yieldFeedbackInline}>
+                        📦 Custo fracionado: <strong>R$ {editCostPerFraction.toFixed(2)} por unidade</strong>
+                      </span>
+                    </div>
+                  ) : (
+                    <div className={styles.yieldOptionsWrapper}>
+                      <div className={styles.yieldButtonSelector}>
+                        <button
+                          type="button"
+                          onClick={() => setEditingProduct({ ...editingProduct, consumptionMode: 'UNIT', itemsPerPackage: 1 })}
+                          className={`${styles.yieldBtn} ${(editingProduct.consumptionMode || 'UNIT') === 'UNIT' ? styles.yieldBtnActive : ''}`}
+                        >
+                          <Package size={13} />
+                          <span>Unidade Inteira</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingProduct({ 
+                            ...editingProduct, 
+                            consumptionMode: 'VOLUME_MASS', 
+                            itemsPerPackage: editingProduct.itemsPerPackage && editingProduct.itemsPerPackage > 1 ? editingProduct.itemsPerPackage : 12,
+                            fractionUnit: editingProduct.fractionUnit || 'g'
+                          })}
+                          className={`${styles.yieldBtn} ${editingProduct.consumptionMode === 'VOLUME_MASS' ? styles.yieldBtnActive : ''}`}
+                        >
+                          <Scale size={13} />
+                          <span>Peso / Volume (g ou ml)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingProduct({ 
+                            ...editingProduct, 
+                            consumptionMode: 'ESTIMATED_DOSES', 
+                            itemsPerPackage: editingProduct.itemsPerPackage && editingProduct.itemsPerPackage > 1 ? editingProduct.itemsPerPackage : 50 
+                          })}
+                          className={`${styles.yieldBtn} ${editingProduct.consumptionMode === 'ESTIMATED_DOSES' ? styles.yieldBtnActive : ''}`}
+                        >
+                          <Target size={13} />
+                          <span>Aplicações / Gotas</span>
+                        </button>
+                      </div>
+
+                      {editingProduct.consumptionMode === 'VOLUME_MASS' && (
+                        <div className={styles.yieldSubSection}>
+                          <div className={styles.fractionInputWrapper}>
+                            <label className={styles.miniLabel}>Conteúdo por Embalagem:</label>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0.1"
+                                value={editingProduct.itemsPerPackage || 12}
+                                onChange={(e) => setEditingProduct({ ...editingProduct, itemsPerPackage: Math.max(0.1, Number(e.target.value)) })}
+                                className={styles.inputYieldNumber}
+                              />
+                              <select
+                                value={editingProduct.fractionUnit || 'g'}
+                                onChange={(e) => setEditingProduct({ ...editingProduct, fractionUnit: e.target.value as any })}
+                                className={styles.selectFractionUnit}
+                              >
+                                <option value="g">g</option>
+                                <option value="ml">ml</option>
+                                <option value="mg">mg</option>
+                              </select>
+                            </div>
+                          </div>
+                          <span className={styles.yieldFeedbackInline}>
+                            ⚖️ Custo na baixa clínica: <strong>R$ {editCostPerFraction.toFixed(2)} por {editingProduct.fractionUnit || 'g'}</strong>
+                          </span>
+                        </div>
+                      )}
+
+                      {editingProduct.consumptionMode === 'ESTIMATED_DOSES' && (
+                        <div className={styles.yieldSubSection}>
+                          <div className={styles.fractionInputWrapper}>
+                            <label className={styles.miniLabel}>Rendimento Estimado:</label>
+                            <div className={styles.inputWithSuffixWrapper}>
+                              <input
+                                type="number"
+                                min="1"
+                                value={editingProduct.itemsPerPackage || 50}
+                                onChange={(e) => setEditingProduct({ ...editingProduct, itemsPerPackage: Math.max(1, Number(e.target.value)) })}
+                                className={styles.inputYieldNumber}
+                              />
+                              <span className={styles.inputSuffix}>doses</span>
+                            </div>
+                          </div>
+                          <span className={styles.yieldFeedbackInline}>
+                            🎯 Custo por aplicação: <strong>R$ {editCostPerFraction.toFixed(2)}</strong>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className={styles.formTwoCols}>
+                  <div className={styles.formGroup}>
+                    <label>Estoque Mínimo de Alerta</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingProduct.minQuantity}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, minQuantity: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label>Data de Validade</label>
+                    <input
+                      type="date"
+                      value={editingProduct.expiryDate ? new Date(editingProduct.expiryDate).toISOString().split('T')[0] : ''}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, expiryDate: e.target.value })}
+                    />
+                  </div>
+                </div>
+
                 <div className={styles.formGroup}>
-                  <label>Unidade de Medida</label>
+                  <label>Fornecedor Vinculado</label>
                   <select
-                    value={editingProduct.unit || 'UN'}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, unit: e.target.value })}
+                    value={editingProduct.supplierId || ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, supplierId: e.target.value })}
                     className={styles.selectInput}
                   >
-                    {UNIT_OPTIONS.map((u) => (
-                      <option key={u.value} value={u.value}>
-                        {u.label}
+                    <option value="">Nenhum / Não especificado</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
                       </option>
                     ))}
                   </select>
                 </div>
-              </div>
 
-              {(editingProduct.unit === 'CX' || editingProduct.unit === 'UN') && (
-                <div className={styles.packageHintBox}>
-                  <label style={{ color: 'var(--primary-color, #0891b2)', fontWeight: 600 }}>
-                    {editingProduct.unit === 'CX' ? 'Unidades Contidas na Caixa *' : 'Rendimento / Conteúdo Total (g ou ml por seringa/tubete)'}
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    placeholder={editingProduct.unit === 'CX' ? 'Ex: 100 luvas' : 'Ex: 4 (para seringa de 4g de resina)'}
-                    value={editingProduct.itemsPerPackage || (editingProduct.unit === 'CX' ? 100 : 1)}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, itemsPerPackage: Number(e.target.value) })}
-                    className={styles.packageInput}
-                  />
-                  {editingProduct.costPrice && editingProduct.itemsPerPackage && editingProduct.itemsPerPackage > 0 && (
-                    <span className={styles.costPerFractionText}>
-                      <Info size={12} /> Custo fracionado na baixa clínica: <strong>R$ {(Number(editingProduct.costPrice) / Number(editingProduct.itemsPerPackage)).toFixed(2)} por aplicação</strong>
+                {/* ─── AUDITORIA DE MOVIMENTAÇÕES ─── */}
+                <div className={styles.movementsAuditSection}>
+                  <div className={styles.movementsHeader}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <History size={14} color="var(--primary-color, #0891b2)" />
+                      <h4 className={styles.auditTitle}>Histórico de Movimentações</h4>
+                    </div>
+                    <span className={styles.auditBadge}>
+                      {editingProduct.stockMovements?.length || 0} Registros
                     </span>
+                  </div>
+
+                  {loadingMovements ? (
+                    <div className={styles.movementsLoading}>
+                      <Loader2 size={16} className={styles.spinner} />
+                      <span>Carregando auditoria...</span>
+                    </div>
+                  ) : !editingProduct.stockMovements || editingProduct.stockMovements.length === 0 ? (
+                    <div className={styles.movementsEmpty}>
+                      <span>Nenhuma movimentação registrada para este insumo.</span>
+                    </div>
+                  ) : (
+                    <div className={styles.movementsListScroll}>
+                      {editingProduct.stockMovements.map((mov) => {
+                        const isEntry = mov.type === 'ENTRY' || mov.type === 'IN' || mov.quantity > 0
+                        const isExitAuto = mov.type === 'EXIT_AUTO'
+                        const isExitManual = mov.type === 'EXIT_MANUAL' || (!isEntry && !isExitAuto)
+
+                        return (
+                          <div key={mov.id} className={styles.auditMovementCard}>
+                            <div className={styles.auditMovementHeader}>
+                              <span className={isEntry ? styles.badgeEntry : isExitAuto ? styles.badgeExitAuto : styles.badgeExitManual}>
+                                {isEntry ? '+ Entrada' : isExitAuto ? '⚡ Baixa Automática' : '- Saída Manual'}
+                              </span>
+                              <span className={styles.auditDate}>
+                                {new Date(mov.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+
+                            <div className={styles.auditMovementBody}>
+                              <div className={styles.auditQty}>
+                                <strong>{isEntry ? `+${mov.quantity}` : `${mov.quantity}`}</strong>
+                                <span>{editingProduct.unit || 'UN'}</span>
+                              </div>
+                              <p className={styles.auditReason}>
+                                {mov.reason || 'Sem justificativa especificada'}
+                              </p>
+                            </div>
+
+                            {mov.user?.name && (
+                              <div className={styles.auditUserFooter}>
+                                <User size={11} />
+                                <span>{mov.user.name}</span>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
-              )}
-
-              <div className={styles.formTwoCols}>
-                <div className={styles.formGroup}>
-                  <label>Estoque Mínimo de Alerta</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={editingProduct.minQuantity}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, minQuantity: Number(e.target.value) })}
-                  />
-                </div>
-                <div className={styles.formGroup}>
-                  <label>Data de Validade</label>
-                  <input
-                    type="date"
-                    value={editingProduct.expiryDate ? new Date(editingProduct.expiryDate).toISOString().split('T')[0] : ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, expiryDate: e.target.value })}
-                  />
-                </div>
               </div>
 
-              <div className={styles.formGroup}>
-                <label>Fornecedor Vinculado</label>
-                <select
-                  value={editingProduct.supplierId || ''}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, supplierId: e.target.value })}
-                  className={styles.selectInput}
-                >
-                  <option value="">Nenhum / Não especificado</option>
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {editingProduct.stockMovements && editingProduct.stockMovements.length > 0 && (
-                <div className={styles.movementsSection}>
-                  <div className={styles.movementsHeader}>
-                    <History size={14} color="var(--primary-color, #0891b2)" />
-                    <h4 style={{ fontSize: '12px', margin: 0 }}>Histórico de Movimentações</h4>
-                  </div>
-                  <div className={styles.movementsList}>
-                    {editingProduct.stockMovements.slice(0, 3).map((mov) => (
-                      <div key={mov.id} className={styles.movementItem}>
-                        <span style={{ fontSize: '11.5px', fontWeight: 600 }}>
-                          {mov.type === 'ENTRY' || mov.type === 'IN' ? '+ Entrada' : '- Baixa Clínica'}: {Math.abs(mov.quantity)} {editingProduct.unit}
-                        </span>
-                        <span style={{ fontSize: '11px', color: '#64748b' }}>
-                          {new Date(mov.createdAt).toLocaleDateString('pt-BR')}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className={styles.formActions} style={{ justifyContent: 'space-between', marginTop: '16px' }}>
+              {/* RODAPÉ FIXO DO MODAL */}
+              <div className={styles.formActionsFixed}>
                 <div>
                   {editingProduct.quantity === 0 && (
                     <button
@@ -1119,7 +1291,7 @@ export default function EstoquePage() {
                       className={styles.btnDelete}
                     >
                       <Trash2 size={14} />
-                      <span>Excluir</span>
+                      <span>Excluir Insumo</span>
                     </button>
                   )}
                 </div>

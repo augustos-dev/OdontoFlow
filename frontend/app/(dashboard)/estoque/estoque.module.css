@@ -149,7 +149,7 @@
 .textGreen { color: #16a34a; }
 .textCyan { color: var(--primary-color, #0891b2); }
 
-/* ─── ANALYTICS EXECUTIVO (RECHARTS & REPOSIÇÃO) ─── */
+/* ─── ANALYTICS EXECUTIVO ─── */
 .adminAnalyticsGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -324,7 +324,7 @@
   color: #b91c1c;
 }
 
-/* ─── CARD PRINCIPAL DE ESTOQUE ─── */
+/* ─── TABELA DE PRODUTOS & ABAS ─── */
 .agendaCard {
   background: #ffffff;
   border-radius: 12px;
@@ -426,7 +426,6 @@
   color: #94a3b8;
 }
 
-/* ─── TABELA DE DADOS ─── */
 .tableContainer {
   width: 100%;
   overflow-x: auto;
@@ -467,7 +466,7 @@
 
 .packageNote {
   font-size: 11px;
-  color: #0284c7;
+  color: var(--primary-color, #0891b2);
   margin-top: 2px;
   font-weight: 500;
 }
@@ -500,7 +499,6 @@
   margin-left: 2px;
 }
 
-/* Badges de Validade */
 .expiryBadge {
   font-size: 11.5px;
   font-weight: 600;
@@ -514,7 +512,6 @@
 .expiryExpired { color: #dc2626; background: #fee2e2; }
 .expiryNeutral { color: #94a3b8; }
 
-/* Badges de Status */
 .badgeOk {
   font-size: 11px;
   font-weight: 700;
@@ -575,7 +572,6 @@
   border-color: #cbd5e1;
 }
 
-/* Links Fornecedores */
 .supplierLink {
   display: inline-flex;
   align-items: center;
@@ -623,7 +619,7 @@
   color: var(--primary-color, #06b6d4);
 }
 
-/* ─── MODAIS ─── */
+/* ─── MODAIS & OVERLAYS ─── */
 .modalOverlay {
   position: fixed;
   inset: 0;
@@ -636,7 +632,19 @@
   padding: 16px;
 }
 
-.detailsModalCard, .supplierModalCard, .quickModalCard {
+.detailsModalCard {
+  background: #ffffff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.supplierModalCard, .quickModalCard {
   background: #ffffff;
   border-radius: 12px;
   width: 100%;
@@ -654,6 +662,7 @@
   padding: 16px 20px;
   border-bottom: 1px solid #eef2f6;
   position: relative;
+  flex-shrink: 0;
 }
 
 .titleIconBg {
@@ -695,10 +704,19 @@
 }
 
 .supplierForm {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+}
+
+.scrollableModalContent {
   padding: 20px;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  max-height: calc(90vh - 140px);
 }
 
 .restockSummaryBox {
@@ -709,6 +727,7 @@
   border-radius: 8px;
   border: 1px solid #eef2f6;
   text-align: center;
+  margin: 20px 20px 0;
 }
 
 .summaryLabel {
@@ -751,6 +770,7 @@
   border-radius: 8px;
   font-size: 13px;
   outline: none;
+  transition: border-color 0.15s;
 }
 
 .formGroup input:focus, .selectInput:focus {
@@ -766,39 +786,300 @@
   outline: none;
 }
 
-.packageHintBox {
-  background-color: #f0f9ff;
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid #bae6fd;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.packageInput {
-  border-color: var(--primary-color, #0284c7) !important;
-}
-
-.costPerFractionText {
-  font-size: 11.5px;
-  color: #0369a1;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 .formTwoCols {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
+/* ─── RENDIMENTO CLÍNICO PROFISSIONAL ─── */
+.yieldBoxContainer {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.yieldBoxHeader {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.yieldRowBox {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.yieldOptionsWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.yieldButtonSelector {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.yieldBtn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.yieldBtn:hover {
+  background: #f1f5f9;
+}
+
+.yieldBtnActive {
+  background: #ecfeff;
+  border-color: var(--primary-color, #06b6d4);
+  color: var(--primary-color, #0891b2);
+}
+
+.yieldSubSection {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  background: #ffffff;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+}
+
+.fractionInputWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.miniLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.inputYieldNumber {
+  width: 110px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+}
+
+.inputYieldNumber:focus {
+  border-color: var(--primary-color, #06b6d4);
+}
+
+.selectFractionUnit {
+  width: 70px;
+  padding: 8px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.inputWithSuffixWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inputWithSuffixWrapper input {
+  padding-right: 46px;
+}
+
+.inputSuffix {
+  position: absolute;
+  right: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.yieldFeedbackInline {
+  font-size: 12px;
+  color: var(--primary-color, #0891b2);
+  line-height: 1.4;
+  flex: 1;
+}
+
+/* ─── AUDITORIA DE MOVIMENTAÇÕES ─── */
+.movementsAuditSection {
+  border-top: 1px solid #eef2f6;
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.movementsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.auditTitle {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.auditBadge {
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.movementsLoading, .movementsEmpty {
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.movementsListScroll {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.auditMovementCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 9px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.auditMovementHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.badgeEntry {
+  background: #dcfce7;
+  color: #16a34a;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.badgeExitAuto {
+  background: #ecfeff;
+  color: #0891b2;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.badgeExitManual {
+  background: #fee2e2;
+  color: #dc2626;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.auditDate {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+.auditMovementBody {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.auditQty {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.auditQty strong {
+  font-weight: 700;
+}
+
+.auditQty span {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.auditReason {
+  font-size: 11.5px;
+  color: #475569;
+  margin: 0;
+  line-height: 1.3;
+  flex: 1;
+}
+
+.auditUserFooter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: #64748b;
+}
+
+/* RODAPÉ FIXO DO MODAL */
+.formActionsFixed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-top: 1px solid #eef2f6;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
 .formActions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 6px;
+  padding: 14px 20px;
+  border-top: 1px solid #eef2f6;
 }
 
 .btnSecondary {
@@ -832,33 +1113,8 @@
   cursor: pointer;
 }
 
-.movementsSection {
-  margin-top: 4px;
-}
-
-.movementsHeader {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.movementsList {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 120px;
-  overflow-y: auto;
-}
-
-.movementItem {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 10px;
-  background: #f8fafc;
-  border-radius: 6px;
-  font-size: 12px;
+.btnDelete:hover {
+  background: #fee2e2;
 }
 
 @keyframes spin {
