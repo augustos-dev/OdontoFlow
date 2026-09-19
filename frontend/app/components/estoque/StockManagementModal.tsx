@@ -15,9 +15,14 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Sparkles,
+  Scale,
+  Target,
+  Package,
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './modal.module.css'
+
+export type ConsumptionMode = 'UNIT' | 'VOLUME_MASS' | 'ESTIMATED_DOSES'
 
 export interface StockProductInput {
   id: string
@@ -26,8 +31,10 @@ export interface StockProductInput {
   quantity: number
   minQuantity: number
   unit: string
+  fractionUnit: 'g' | 'ml' | 'mg'
+  consumptionMode: ConsumptionMode
+  itemsPerPackage: number
   costPrice?: string
-  itemsPerPackage?: number
   expirationDate: string
   supplierId: string
   observation: string
@@ -58,15 +65,16 @@ interface StockManagementModalProps {
   onSaveProducts?: (products: StockProductInput[]) => void
   onSuccess?: () => void
   planType?: 'BASIC' | 'PREMIUM'
+  primaryColor?: string
+  accentColor?: string
 }
 
 const UNIT_OPTIONS = [
-  { value: 'UN', label: 'un (Unidade / Seringa)' },
-  { value: 'ML', label: 'ml (Mililitro)' },
-  { value: 'MG', label: 'mg (Miligrama)' },
+  { value: 'UN', label: 'un (Unidade / Tubo / Seringa)' },
+  { value: 'CX', label: 'cx (Caixa Fechada)' },
   { value: 'G', label: 'g (Grama)' },
+  { value: 'ML', label: 'ml (Mililitro)' },
   { value: 'L', label: 'L (Litro)' },
-  { value: 'CX', label: 'cx (Caixa / Embalagem)' },
 ]
 
 const REASONS_INCREASE = [
@@ -90,20 +98,21 @@ export function StockManagementModal({
   onSaveProducts,
   onSuccess,
   planType = 'BASIC',
+  primaryColor = '#06b6d4',
+  accentColor = '#0891b2',
 }: StockManagementModalProps) {
   const [activeTab, setActiveTab] = useState<'adjust' | 'create' | 'import'>('adjust')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
 
-  // ─── ABA 1 ───
+  // ─── ABA 1: AJUSTE ───
   const [dbProducts, setDbProducts] = useState<ProductDb[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [adjustments, setAdjustments] = useState<Record<string, number>>({})
-
   const [showReasonsStep, setShowReasonsStep] = useState(false)
   const [reasonsMap, setReasonsMap] = useState<Record<string, string>>({})
 
-  // ─── ABA 2 ───
+  // ─── ABA 2: CADASTRO ───
   const [suppliers, setSuppliers] = useState<SupplierDb[]>([])
   const [products, setProducts] = useState<StockProductInput[]>([
     {
@@ -113,15 +122,16 @@ export function StockManagementModal({
       quantity: 1,
       minQuantity: 1,
       unit: 'UN',
-      costPrice: '',
-      itemsPerPackage: 100,
+      fractionUnit: 'g',
+      consumptionMode: 'UNIT',
+      itemsPerPackage: 1,
       expirationDate: '',
       supplierId: '',
       observation: '',
     },
   ])
 
-  // ─── ABA 3 ───
+  // ─── ABA 3: IMPORTAÇÃO ───
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
@@ -188,7 +198,7 @@ export function StockManagementModal({
       if (onSuccess) onSuccess()
     } catch (err: any) {
       console.error('Erro ao deletar produto:', err)
-      alert(err.response?.data?.message || 'Erro ao excluir produto. Verifique suas permissões.')
+      alert(err.response?.data?.message || 'Erro ao excluir produto.')
     } finally {
       setIsSubmitting(false)
     }
@@ -237,7 +247,6 @@ export function StockManagementModal({
       )
 
       if (onSuccess) onSuccess()
-      else window.location.reload()
       onClose()
     } catch (err: any) {
       console.error('Erro ao atualizar estoque:', err)
@@ -247,10 +256,61 @@ export function StockManagementModal({
     }
   }
 
+  // 🛠️ Atualização funcional à prova de concorrência
   const handleProductChange = (index: number, field: keyof StockProductInput, value: any) => {
-    const updated = [...products]
-    updated[index] = { ...updated[index], [field]: value }
-    setProducts(updated)
+    setProducts((prev) => {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], [field]: value }
+      return updated
+    })
+  }
+
+  // 🎛️ Troca de Modo de Consumo instantânea
+  const handleModeChange = (index: number, mode: ConsumptionMode) => {
+    setProducts((prev) => {
+      const updated = [...prev]
+      const current = { ...updated[index], consumptionMode: mode }
+
+      if (mode === 'UNIT') {
+        current.itemsPerPackage = 1
+      } else if (mode === 'VOLUME_MASS') {
+        if (!current.itemsPerPackage || current.itemsPerPackage <= 1) {
+          current.itemsPerPackage = 12
+        }
+        if (!current.fractionUnit) {
+          current.fractionUnit = 'g'
+        }
+      } else if (mode === 'ESTIMATED_DOSES') {
+        if (!current.itemsPerPackage || current.itemsPerPackage <= 1) {
+          current.itemsPerPackage = 50
+        }
+      }
+
+      updated[index] = current
+      return updated
+    })
+  }
+
+  const handleUnitChange = (index: number, newUnit: string) => {
+    setProducts((prev) => {
+      const updated = [...prev]
+      const item = { ...updated[index], unit: newUnit }
+
+      if (newUnit === 'CX') {
+        item.consumptionMode = 'UNIT'
+        item.itemsPerPackage = 100
+      } else if (newUnit === 'G') {
+        item.consumptionMode = 'VOLUME_MASS'
+        item.fractionUnit = 'g'
+        item.itemsPerPackage = 10
+      } else if (newUnit === 'ML') {
+        item.consumptionMode = 'VOLUME_MASS'
+        item.fractionUnit = 'ml'
+        item.itemsPerPackage = 10
+      }
+      updated[index] = item
+      return updated
+    })
   }
 
   const handleAddRow = () => {
@@ -263,8 +323,9 @@ export function StockManagementModal({
         quantity: 1,
         minQuantity: 1,
         unit: 'UN',
-        costPrice: '',
-        itemsPerPackage: 100,
+        fractionUnit: 'g',
+        consumptionMode: 'UNIT',
+        itemsPerPackage: 1,
         expirationDate: '',
         supplierId: '',
         observation: '',
@@ -300,10 +361,10 @@ export function StockManagementModal({
             unit: p.unit || 'UN',
             costPrice: isNaN(parsedCost as number) ? undefined : parsedCost,
             itemsPerPackage: Number(p.itemsPerPackage || 1),
-            supplierId: p.supplierId ? p.supplierId : undefined,
-            lotNumber: p.lotNumber.trim() ? p.lotNumber.trim() : undefined,
+            supplierId: p.supplierId || undefined,
+            lotNumber: p.lotNumber.trim() || undefined,
             expiryDate: p.expirationDate ? new Date(p.expirationDate).toISOString() : undefined,
-            notes: p.observation.trim() ? p.observation.trim() : undefined,
+            notes: p.observation.trim() || undefined,
           }
 
           await api.post('/products', payload)
@@ -321,8 +382,9 @@ export function StockManagementModal({
           quantity: 1,
           minQuantity: 1,
           unit: 'UN',
-          costPrice: '',
-          itemsPerPackage: 100,
+          fractionUnit: 'g',
+          consumptionMode: 'UNIT',
+          itemsPerPackage: 1,
           expirationDate: '',
           supplierId: '',
           observation: '',
@@ -350,8 +412,10 @@ export function StockManagementModal({
     e.preventDefault()
     const csvHeader = 'nome;lote;quantidade;quantidade_minima;unidade;preco_custo;qtd_por_caixa;validade;observacoes\n'
     const csvRows = [
-      'Caixa de Luvas Azul;LT-8842;10;2;CX;22.00;100;2026-12-31;100 luvas por caixa',
-      'Resina Fotopolimerizável A2;LT-9910;5;1;UN;80.00;4;2027-05-15;Seringa com 4g',
+      'Caixa de Luvas Latex;LT-8842;10;2;CX;28.00;100;2026-12-31;100 luvas por caixa',
+      'Anestesico Topico Benzotop 12g;LT-1245;5;1;UN;45.00;12;2026-10-31;Pote com 12g',
+      'Resina Composta Z350 XT 4g;LT-9910;4;1;UN;120.00;4;2027-05-15;Seringa com 4g',
+      'Adesivo Single Bond 2;LT-3301;2;1;UN;95.00;130;2027-02-28;Rende aprox 130 gotas',
     ].join('\n')
 
     const csvContent = '\uFEFF' + csvHeader + csvRows
@@ -418,7 +482,13 @@ export function StockManagementModal({
   }
 
   return (
-    <div className={styles.overlay}>
+    <div
+      className={styles.overlay}
+      style={{
+        '--primary': primaryColor,
+        '--primary-hover': accentColor,
+      } as React.CSSProperties}
+    >
       <div className={styles.modal}>
         <button onClick={onClose} className={styles.closeBtn} type="button" disabled={isSubmitting}>
           <X size={20} />
@@ -474,7 +544,7 @@ export function StockManagementModal({
                 ) : dbProducts.length === 0 ? (
                   <div className={styles.emptyTabState}>
                     <div className={styles.iconCircle}>
-                      <Box size={32} color="var(--primary, #0284c7)" />
+                      <Box size={32} color={primaryColor} />
                     </div>
                     <h3 className={styles.emptyTitle}>Nenhum produto encontrado</h3>
                     <p className={styles.emptyDesc}>
@@ -495,10 +565,10 @@ export function StockManagementModal({
                             <div className={styles.productMeta}>
                               <span className={styles.productName}>{item.name}</span>
                               <span className={styles.productSub}>
-                                Lote: {item.lotNumber || item.batchNumber || '—'} | Min: {item.minQuantity} {item.unit || 'un.'}
+                                Lote: {item.lotNumber || item.batchNumber || '—'} | Mín: {item.minQuantity} {item.unit || 'un.'}
                                 {item.itemsPerPackage && item.itemsPerPackage > 1 && (
-                                  <strong style={{ color: '#0284c7', marginLeft: '6px' }}>
-                                    ({item.itemsPerPackage} {item.unit === 'CX' ? 'un/cx' : 'g/ml por frasco'})
+                                  <strong className={styles.packageSubHighlight}>
+                                    ({item.itemsPerPackage} {item.unit === 'CX' ? 'un/cx' : 'conteúdo'})
                                   </strong>
                                 )}
                               </span>
@@ -530,7 +600,7 @@ export function StockManagementModal({
                                 </button>
                               </div>
 
-                              <div className={styles.badgeSlot} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <div className={styles.badgeSlot}>
                                 {hasChanged && <span className={styles.changedBadge}>Alterado</span>}
                                 {isZeroed && !hasChanged && (
                                   <button
@@ -538,16 +608,7 @@ export function StockManagementModal({
                                     onClick={() => handleDeleteProduct(item.id, item.name)}
                                     title="Excluir produto permanentemente"
                                     disabled={isSubmitting}
-                                    style={{
-                                      background: 'transparent',
-                                      border: 'none',
-                                      color: '#ef4444',
-                                      cursor: 'pointer',
-                                      padding: '4px',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center'
-                                    }}
+                                    className={styles.btnTrashInline}
                                   >
                                     <Trash2 size={16} />
                                   </button>
@@ -651,7 +712,10 @@ export function StockManagementModal({
           <form onSubmit={handleSubmitCreate}>
             <div className={styles.cardsContainerScroll}>
               {products.map((item, index) => {
-                const needsConversionField = item.unit === 'CX' || item.unit === 'UN'
+                const isBox = item.unit === 'CX'
+                const costVal = parseFloat(item.costPrice ? item.costPrice.replace(',', '.') : '0') || 0
+                const capacity = Number(item.itemsPerPackage) || 1
+                const costPerFraction = costVal > 0 && capacity > 0 ? costVal / capacity : 0
 
                 return (
                   <div key={item.id} className={styles.productCardBlock}>
@@ -676,7 +740,7 @@ export function StockManagementModal({
                         <label className={styles.label}>Nome do Produto *</label>
                         <input
                           type="text"
-                          placeholder="Ex: Caixa de Luvas Azul / Resina A2 4g"
+                          placeholder="Ex: Anestésico Pastoso / Resina Composta Z350"
                           value={item.name}
                           onChange={(e) => handleProductChange(index, 'name', e.target.value)}
                           className={styles.input}
@@ -688,7 +752,7 @@ export function StockManagementModal({
                         <label className={styles.label}>Lote / Código</label>
                         <input
                           type="text"
-                          placeholder="Ex: LT-8842"
+                          placeholder="Ex: 124565"
                           value={item.lotNumber}
                           onChange={(e) => handleProductChange(index, 'lotNumber', e.target.value)}
                           className={styles.input}
@@ -696,7 +760,7 @@ export function StockManagementModal({
                       </div>
 
                       <div className={styles.colSpan3}>
-                        <label className={styles.label}>Qtd. Inicial *</label>
+                        <label className={styles.label}>Qtd. em Estoque *</label>
                         <input
                           type="number"
                           min="0"
@@ -707,10 +771,10 @@ export function StockManagementModal({
                       </div>
 
                       <div className={styles.colSpan3}>
-                        <label className={styles.label}>Unidade</label>
+                        <label className={styles.label}>Unidade Base</label>
                         <select
                           value={item.unit}
-                          onChange={(e) => handleProductChange(index, 'unit', e.target.value)}
+                          onChange={(e) => handleUnitChange(index, e.target.value)}
                           className={styles.select}
                         >
                           {UNIT_OPTIONS.map((u) => (
@@ -722,58 +786,145 @@ export function StockManagementModal({
                       </div>
 
                       <div className={styles.colSpan3}>
-                        <label className={styles.label}>Custo Compra (R$)</label>
+                        <label className={styles.label}>Custo de Compra (R$)</label>
                         <input
                           type="text"
-                          placeholder="Ex: 22.00"
+                          placeholder="Ex: 45.00"
                           value={item.costPrice}
                           onChange={(e) => handleProductChange(index, 'costPrice', e.target.value)}
                           className={styles.input}
                         />
                       </div>
 
-                      {needsConversionField ? (
-                        <div className={styles.colSpan3}>
-                          <label className={styles.label} style={{ color: '#0284c7', fontWeight: 600 }}>
-                            {item.unit === 'CX' ? 'Unidades / Caixa *' : 'Conteúdo Total (g / ml)'}
+                      <div className={styles.colSpan3}>
+                        <label className={styles.label}>Estoque Mínimo</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={item.minQuantity}
+                          onChange={(e) => handleProductChange(index, 'minQuantity', Number(e.target.value))}
+                          className={styles.input}
+                        />
+                      </div>
+
+                      {/* ─── CONTROLE DE RENDIMENTO CLÍNICO INTELIGENTE ─── */}
+                      <div className={styles.colSpan12}>
+                        <div className={styles.yieldContainer}>
+                          <label className={styles.yieldHeaderLabel}>
+                            Como este insumo rende e é consumido nos procedimentos?
                           </label>
-                          <input
-                            type="number"
-                            min="1"
-                            placeholder={item.unit === 'CX' ? 'Ex: 100' : 'Ex: 4 (para 4g)'}
-                            value={item.itemsPerPackage || (item.unit === 'CX' ? 100 : 1)}
-                            onChange={(e) => handleProductChange(index, 'itemsPerPackage', Number(e.target.value))}
-                            className={styles.input}
-                            style={{ borderColor: '#0284c7', backgroundColor: '#f0f9ff' }}
-                          />
-                        </div>
-                      ) : (
-                        <div className={styles.colSpan3}>
-                          <label className={styles.label}>Estoque Mínimo</label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.minQuantity}
-                            onChange={(e) => handleProductChange(index, 'minQuantity', Number(e.target.value))}
-                            className={styles.input}
-                          />
-                        </div>
-                      )}
 
-                      {needsConversionField && (
-                        <div className={styles.colSpan4}>
-                          <label className={styles.label}>Estoque Mínimo</label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.minQuantity}
-                            onChange={(e) => handleProductChange(index, 'minQuantity', Number(e.target.value))}
-                            className={styles.input}
-                          />
-                        </div>
-                      )}
+                          {isBox ? (
+                            <div className={styles.yieldBoxRow}>
+                              <div className={styles.yieldBoxInputGroup}>
+                                <label className={styles.label}>Unidades por Caixa (Itens internos):</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  placeholder="Ex: 100"
+                                  value={item.itemsPerPackage}
+                                  onChange={(e) => handleProductChange(index, 'itemsPerPackage', Math.max(1, Number(e.target.value)))}
+                                  className={styles.input}
+                                />
+                              </div>
+                              <div className={styles.yieldFeedback}>
+                                📦 Cada unidade sairá a <strong>R$ {costPerFraction.toFixed(2)}</strong> nos procedimentos.
+                              </div>
+                            </div>
+                          ) : (
+                            <div className={styles.yieldModesWrapper}>
+                              <div className={styles.yieldButtonsRow}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleModeChange(index, 'UNIT')}
+                                  className={`${styles.yieldModeBtn} ${item.consumptionMode === 'UNIT' ? styles.yieldModeBtnActive : ''}`}
+                                >
+                                  <Package size={14} />
+                                  <span>Unidade Inteira</span>
+                                </button>
 
-                      <div className={needsConversionField ? styles.colSpan4 : styles.colSpan6}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleModeChange(index, 'VOLUME_MASS')}
+                                  className={`${styles.yieldModeBtn} ${item.consumptionMode === 'VOLUME_MASS' ? styles.yieldModeBtnActive : ''}`}
+                                >
+                                  <Scale size={14} />
+                                  <span>Peso / Volume (g ou ml)</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleModeChange(index, 'ESTIMATED_DOSES')}
+                                  className={`${styles.yieldModeBtn} ${item.consumptionMode === 'ESTIMATED_DOSES' ? styles.yieldModeBtnActive : ''}`}
+                                >
+                                  <Target size={14} />
+                                  <span>Aplicações / Gotas</span>
+                                </button>
+                              </div>
+
+                              {item.consumptionMode === 'VOLUME_MASS' && (
+                                <div className={styles.yieldDetailsRow}>
+                                  <div className={styles.yieldInputGroup}>
+                                    <label className={styles.label}>Conteúdo Total por Embalagem:</label>
+                                    <div className={styles.fractionUnitSelectorWrapper}>
+                                      <input
+                                        type="number"
+                                        step="0.1"
+                                        min="0.1"
+                                        placeholder="Ex: 12"
+                                        value={item.itemsPerPackage}
+                                        onChange={(e) => handleProductChange(index, 'itemsPerPackage', Math.max(0.1, Number(e.target.value)))}
+                                        className={styles.input}
+                                        style={{ width: '110px' }}
+                                      />
+                                      <select
+                                        value={item.fractionUnit || 'g'}
+                                        onChange={(e) => handleProductChange(index, 'fractionUnit', e.target.value)}
+                                        className={styles.fractionSelect}
+                                      >
+                                        <option value="g">g</option>
+                                        <option value="ml">ml</option>
+                                        <option value="mg">mg</option>
+                                      </select>
+                                    </div>
+                                  </div>
+
+                                  <div className={styles.yieldFeedback}>
+                                    ⚖️ Custo calculado: <strong>R$ {costPerFraction.toFixed(2)} por {item.fractionUnit || 'g'}</strong>.
+                                    <span className={styles.yieldFeedbackSub}>
+                                      Na ficha técnica clínica, as saídas serão debitadas em frações de {item.fractionUnit || 'g'}.
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {item.consumptionMode === 'ESTIMATED_DOSES' && (
+                                <div className={styles.yieldDetailsRow}>
+                                  <div style={{ width: '180px' }}>
+                                    <label className={styles.label}>Doses / Gotas Estimadas:</label>
+                                    <div className={styles.inputUnitWrapper}>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        placeholder="Ex: 50"
+                                        value={item.itemsPerPackage}
+                                        onChange={(e) => handleProductChange(index, 'itemsPerPackage', Math.max(1, Number(e.target.value)))}
+                                        className={styles.input}
+                                      />
+                                      <span className={styles.inputSuffix}>doses</span>
+                                    </div>
+                                  </div>
+                                  <div className={styles.yieldFeedback}>
+                                    🎯 Custo por aplicação na clínica: <strong>R$ {costPerFraction.toFixed(2)}</strong>.
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className={styles.colSpan6}>
                         <label className={styles.label}>Fornecedor</label>
                         <select
                           value={item.supplierId}
@@ -789,7 +940,7 @@ export function StockManagementModal({
                         </select>
                       </div>
 
-                      <div className={needsConversionField ? styles.colSpan4 : styles.colSpan6}>
+                      <div className={styles.colSpan6}>
                         <label className={styles.label}>Data de Validade</label>
                         <input
                           type="date"
@@ -877,9 +1028,9 @@ export function StockManagementModal({
               <p><strong>lote</strong> — código/número do lote</p>
               <p><strong>quantidade</strong> — quantidade inicial em estoque</p>
               <p><strong>quantidade_minima</strong> — estoque mínimo para alertas</p>
-              <p><strong>unidade</strong> — UN, ML, MG, G, L, CX (opcional)</p>
-              <p><strong>preco_custo</strong> — valor de compra ex: 22.00 (opcional)</p>
-              <p><strong>qtd_por_caixa</strong> — número de itens ou gramas por embalagem (opcional)</p>
+              <p><strong>unidade</strong> — UN, ML, G, CX</p>
+              <p><strong>preco_custo</strong> — valor de compra (ex: 45.00)</p>
+              <p><strong>qtd_por_caixa</strong> — capacidade total em gramas, ml ou unidades da caixa (ex: 12 para 12g, ou 100)</p>
               <p><strong>validade</strong> — AAAA-MM-DD</p>
             </div>
 
