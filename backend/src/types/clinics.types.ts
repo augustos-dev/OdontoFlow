@@ -1,4 +1,6 @@
-// backend/src/types/clinic.types.ts
+import { TenantPlan, BillingCycle, SubscriptionStatus } from '@prisma/client'
+
+export { TenantPlan, BillingCycle, SubscriptionStatus }
 
 // =============================================================================
 // SUB-TYPES & WHITE-LABEL (CUSTOMIZATION)
@@ -17,6 +19,8 @@ export interface ClinicCustomization {
   darkModeDefault: boolean
   customLogoUrl?: string | null
   customFavicon?: string | null
+  customDocumentHeader?: string | null
+  customReceiptFooter?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -30,6 +34,27 @@ export interface UpdateClinicCustomizationDTO {
   darkModeDefault?: boolean
   customLogoUrl?: string | null
   customFavicon?: string | null
+  customDocumentHeader?: string | null
+  customReceiptFooter?: string | null
+}
+
+// =============================================================================
+// TENANT ENTITY & DTOs
+// =============================================================================
+
+export interface TenantDTO {
+  id: string
+  name: string
+  slug: string
+  plan: TenantPlan
+  billingCycle: BillingCycle
+  status: SubscriptionStatus
+  trialEndsAt?: Date | null
+  isBetaPartner: boolean
+  databaseUrl?: string | null
+  isActive: boolean
+  createdAt: Date | string
+  updatedAt: Date | string
 }
 
 // =============================================================================
