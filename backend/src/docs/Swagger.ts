@@ -289,8 +289,12 @@ const options: swaggerJsdoc.Options = {
     security: [{ bearerAuth: [] }],
   },
   apis: [
-    path.join(process.cwd(), 'src/routes/*.ts'),
-    path.join(process.cwd(), 'src/routes/*.routes.ts'),
+    // Lê as rotas documentadas dentro de src/docs/routes/ (tanto dev em .ts como dist em .js)
+    path.resolve(__dirname, './routes/**/*.{ts,js}'),
+    path.resolve(__dirname, './routes/*.{ts,js}'),
+    // Fallback caso existam anotações em src/routes/
+    path.resolve(__dirname, '../routes/**/*.{ts,js}'),
+    path.resolve(__dirname, '../routes/*.{ts,js}'),
   ],
 }
 
