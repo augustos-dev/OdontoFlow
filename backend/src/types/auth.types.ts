@@ -1,9 +1,44 @@
-// backend/src/types/auth.types.ts
+import { UserRole, TenantPlan, BillingCycle, SubscriptionStatus } from '@prisma/client'
 
-import { UserRole, TenantPlan } from '@prisma/client'
+export { UserRole, TenantPlan, BillingCycle, SubscriptionStatus }
 
-export { UserRole, TenantPlan }
+// ─── REGISTRO ATÔMICO DO SAAS (ONBOARDING & CONVERSÃO) ───
+export interface RegisterTenantDTO {
+  tenantName: string
+  slug: string
+  plan?: TenantPlan
+  billingCycle?: BillingCycle
+  phone?: string
+  cnpjOrCpf?: string
+  adminName: string
+  email: string
+  password: string
+}
 
+export interface RegisterTenantResponseDTO {
+  token: string
+  user: {
+    id: string
+    name: string
+    email: string
+    role: UserRole
+  }
+  tenant: {
+    id: string
+    name: string
+    slug: string
+    plan: TenantPlan
+    status: SubscriptionStatus
+    trialEndsAt?: Date | null
+    isBetaPartner: boolean
+  }
+  clinic: {
+    id: string
+    name: string
+  }
+}
+
+// ─── CADASTRO DE USUÁRIO INTERNO NA CLÍNICA ───
 export interface RegisterDTO {
   tenantId: string
   clinicId: string
@@ -21,8 +56,8 @@ export interface LoginDTO {
 }
 
 export interface JwtPayload {
-  sub: string        // userId
-  userId?: string    // alias retrocompatível com middlewares
+  sub: string         // userId
+  userId?: string     // alias retrocompatível com middlewares
   tenantId: string
   clinicId: string
   role: UserRole
@@ -43,6 +78,8 @@ export interface AuthResponse {
     clinicId: string
     avatarUrl?: string | null
     plan?: TenantPlan
+    status?: SubscriptionStatus
+    trialEndsAt?: Date | null
   }
 }
 
@@ -54,4 +91,5 @@ export interface AuthUserSession {
   name: string
   role: UserRole
   plan?: TenantPlan
+  isBetaPartner?: boolean
 }

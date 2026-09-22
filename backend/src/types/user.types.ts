@@ -1,5 +1,3 @@
-// backend/src/types/user.types.ts
-
 import { UserRole } from '@prisma/client'
 
 export { UserRole }
@@ -11,6 +9,7 @@ export interface CreateUserDTO {
   role: UserRole
   phone?: string
   cro?: string
+  defaultCommissionPercentage?: number
 }
 
 export interface UpdateUserDTO {
@@ -18,6 +17,7 @@ export interface UpdateUserDTO {
   phone?: string
   cro?: string
   avatarUrl?: string
+  defaultCommissionPercentage?: number
 }
 
 export interface UpdateUserRoleDTO {
@@ -55,8 +55,17 @@ export interface UserResponseDTO {
   failedLoginAttempts: number
   lockedUntil: Date | null
   lastLoginAt: Date | null
+  defaultCommissionPercentage?: number | null
   createdAt: Date
   updatedAt: Date
+  dentistProfile?: {
+    id: string
+    specialties: string[]
+    bio?: string | null
+    defaultRoom: string
+    croState?: string | null
+    slotDurationMin: number
+  } | null
 }
 
 export interface UserLockoutStatusDTO {
