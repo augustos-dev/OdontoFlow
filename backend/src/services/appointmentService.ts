@@ -102,7 +102,7 @@ export async function createAppointment(
 
   if (startTime < new Date()) throw new AppError('Não é possível agendar em uma data/hora passada.', 400)
 
-  await checkConflicts(clinicId, room, dentistId, startTime, endTime)
+  await checkConflicts(clinicId, room as string, dentistId, startTime, endTime)
 
   const appointment = await prisma.appointment.create({
     data: { tenantId, clinicId, patientId, dentistId, procedureId, dateTime: startTime, durationMin, type, room, notes },
