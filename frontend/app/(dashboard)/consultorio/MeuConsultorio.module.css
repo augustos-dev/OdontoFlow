@@ -1,0 +1,501 @@
+/* Preenchimento 100% da viewport, igual à tela de Agenda */
+.pageContainer {
+  width: 100%;
+  min-height: 100%;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .pageContainer {
+    padding: 1rem;
+    gap: 1rem;
+  }
+}
+
+/* Header alinhado com a identidade do sistema */
+.headerWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.breadcrumbBadge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #0284c7;
+  text-transform: uppercase;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.pageTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.pageDescription {
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin: 0;
+}
+
+/* Barra de Filtro de Sala 100% fluida */
+.roomSelectorCard {
+  width: 100%;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.875rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  box-sizing: border-box;
+}
+
+.roomSelectorLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.roomsButtons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  max-width: 100%;
+  padding-bottom: 2px;
+}
+
+.roomBtn {
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.roomBtn:hover {
+  border-color: #0284c7;
+  color: #0284c7;
+}
+
+.roomBtnActive {
+  background-color: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.25);
+}
+
+/* Grid Principal em 2 Colunas (Estilo Agenda Integrada) */
+.mainGrid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 1.25rem;
+  width: 100%;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .mainGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Painel Principal de Atendimento */
+.contentArea {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+/* Card de Paciente */
+.patientCard {
+  width: 100%;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1.125rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.patientCard:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.patientCardServing {
+  border-color: #0284c7;
+  background-color: #f0f9ff;
+  box-shadow: 0 0 0 1px #0284c7;
+}
+
+.patientInfo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.avatarCircle {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background-color: #e0f2fe;
+  color: #0284c7;
+  font-weight: 700;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.patientMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.patientNameRow {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+
+.patientName {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.patientSub {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: #64748b;
+  flex-wrap: wrap;
+}
+
+.badgeTime {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 600;
+  color: #0284c7;
+}
+
+/* Status Pills */
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.statusEspera {
+  background-color: #fef3c7;
+  color: #b45309;
+}
+
+.statusAgendado {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.statusEmAtendimento {
+  background-color: #e0f2fe;
+  color: #0369a1;
+}
+
+.statusFinalizado {
+  background-color: #ecfdf5;
+  color: #059669;
+}
+
+/* Botões de Ação */
+.startBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  height: 2.375rem;
+  padding: 0 1rem;
+  border-radius: 0.5rem;
+  background-color: #0284c7;
+  color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.startBtn:hover {
+  background-color: #0369a1;
+}
+
+.continueBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  height: 2.375rem;
+  padding: 0 1rem;
+  border-radius: 0.5rem;
+  background-color: #059669;
+  color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.continueBtn:hover {
+  background-color: #047857;
+}
+
+.doneTag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #059669;
+}
+
+/* Painel Lateral Direito (Card Resumo / Mocho) */
+.sideCard {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.sideTitle {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidePill {
+  font-size: 0.6875rem;
+  color: #0284c7;
+  background-color: #f0f9ff;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  font-weight: 600;
+}
+
+.statRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  background-color: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.statLabel {
+  color: #64748b;
+}
+
+.statValue {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* Empty State */
+.emptyState {
+  width: 100%;
+  background-color: #ffffff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.75rem;
+  padding: 3.5rem 1.5rem;
+  text-align: center;
+  color: #64748b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  box-sizing: border-box;
+}
+
+/* Modal de Atendimento */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modalBox {
+  background-color: #ffffff;
+  border-radius: 1rem;
+  width: 100%;
+  max-width: 620px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.modalHeader {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modalTitle {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.modalBody {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.modalFooter {
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  color: #0f172a;
+  outline: none;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.textarea:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+
+.cancelBtn {
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  background-color: #f1f5f9;
+  color: #475569;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.finishBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.5rem;
+  background-color: #059669;
+  color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.finishBtn:hover {
+  background-color: #047857;
+}
+
+/* Responsivo para Celular */
+@media (max-width: 640px) {
+  .patientCard {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .patientCard > div:last-child {
+    width: 100%;
+  }
+
+  .startBtn,
+  .continueBtn {
+    width: 100%;
+    height: 2.75rem;
+  }
+
+  .roomsButtons {
+    width: 100%;
+  }
+
+  .roomBtn {
+    flex: 1;
+    text-align: center;
+  }
+}
