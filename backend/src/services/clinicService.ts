@@ -27,7 +27,6 @@ export async function createClinic(tenantId: string, data: CreateClinicDTO, acto
     if (existing) throw new AppError('CNPJ já cadastrado em outra clínica.', 409)
   }
 
-  // Cria a clínica e inicializa sua personalização visual com as cores padrão da plataforma
   const clinic = await prisma.clinic.create({
     data: {
       tenantId,
@@ -63,7 +62,7 @@ export async function createClinic(tenantId: string, data: CreateClinicDTO, acto
     action: 'CREATE',
     entity: 'CLINIC',
     entityId: clinic.id,
-    details: `Cadastrou nova unidade/clínica: "${clinic.name}" (CNPJ: ${clinic.cnpj || 'Não informado'})`,
+    details: `Cadastrou nova unidade: "${clinic.name}" (CNPJ: ${clinic.cnpj || 'Não informado'})`,
   })
 
   return clinic
@@ -227,8 +226,6 @@ export async function reactivateClinic(tenantId: string, clinicId: string, actor
   return reactivatedClinic
 }
 
-// ─── White-Label & Customização de Identidade Visual ──────────────────────────
-
 export async function getClinicCustomization(tenantId: string, clinicId: string) {
   const clinic = await prisma.clinic.findFirst({
     where: { id: clinicId, tenantId },
@@ -237,7 +234,7 @@ export async function getClinicCustomization(tenantId: string, clinicId: string)
 
   if (!clinic) throw new AppError('Clínica não encontrada.', 404)
 
-  const customization = await prisma.clinicCustomization.upsert({
+  return prisma.clinicCustomization.upsert({
     where: { clinicId },
     update: {},
     create: {
@@ -249,8 +246,6 @@ export async function getClinicCustomization(tenantId: string, clinicId: string)
       darkModeDefault: false,
     },
   })
-
-  return customization
 }
 
 export async function updateClinicCustomization(

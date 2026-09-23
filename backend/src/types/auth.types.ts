@@ -77,9 +77,8 @@ export interface AuthResponse {
     tenantId: string
     clinicId: string
     avatarUrl?: string | null
-    plan?: TenantPlan
-    status?: SubscriptionStatus
-    trialEndsAt?: Date | null
+    defaultRoom?: string | null // 👈 Adicione esta linha
+    plan: TenantPlan
   }
 }
 

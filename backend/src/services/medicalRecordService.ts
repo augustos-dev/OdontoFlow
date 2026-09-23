@@ -24,7 +24,7 @@ interface ActorContext {
 
 export async function findMedicalRecord(
   tenantId: string,
-  clinicId: string,
+  _clinicId: string,
   recordOrPatientId: string
 ) {
   const medicalRecord = await prisma.medicalRecord.findFirst({
@@ -56,6 +56,7 @@ export async function getMedicalRecordByPatient(
         include: {
           dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
           procedure: { select: { id: true, name: true, basePrice: true } },
+          aiTranscription: true,
         },
       },
       toothConditions: {
@@ -87,6 +88,7 @@ export async function getEvolutionsByPatient(
     include: {
       dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
       procedure: { select: { id: true, name: true, basePrice: true } },
+      aiTranscription: true,
     },
   })
 }
@@ -130,12 +132,10 @@ export async function CreateEvolution(
   data: CreateEvolutionDTO,
   actor?: ActorContext
 ) {
-  // 🛡️ Garante que data nunca seja undefined
-  data = data || {} as CreateEvolutionDTO
+  data = data || ({} as CreateEvolutionDTO)
 
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-  // 1. Busca profissional/usuário responsável de forma flexível
   let dentist = await prisma.user.findFirst({
     where: {
       id: dentistId,
@@ -144,7 +144,6 @@ export async function CreateEvolution(
     },
   })
 
-  // Fallback caso o ID venha de admin global ou sessão administrativa
   if (!dentist) {
     dentist = await prisma.user.findFirst({
       where: {
@@ -158,7 +157,6 @@ export async function CreateEvolution(
   const responsibleUserName = dentist?.name || actor?.userName || 'Profissional'
   const responsibleUserRole = (dentist?.role || actor?.userRole || 'DENTIST') as UserRole
 
-  // Validação de procedimento no catálogo (se enviado)
   if (data.procedureId) {
     const procedureExists = await prisma.procedure.findFirst({
       where: { id: data.procedureId, tenantId },
@@ -168,7 +166,16 @@ export async function CreateEvolution(
     }
   }
 
-  // 2. Trata snapshot do odontograma
+  // Validação opcional de transcrição IA vinculada
+  if (data.aiTranscriptionId) {
+    const transcriptionExists = await (prisma as any).clinicalAiTranscription?.findFirst({
+      where: { id: data.aiTranscriptionId, tenantId },
+    })
+    if (!transcriptionExists) {
+      throw new AppError('Transcrição de IA informada não foi encontrada.', 404)
+    }
+  }
+
   let parsedSnapshot: Record<string, any> | null = null
   if (data.odontogramSnapshot) {
     if (typeof data.odontogramSnapshot === 'string') {
@@ -182,7 +189,6 @@ export async function CreateEvolution(
     }
   }
 
-  // 3. Normalização de lista de anexos (protegido contra undefined)
   let attachmentsList: string[] = []
   if (data.attachments) {
     if (Array.isArray(data.attachments)) {
@@ -199,16 +205,17 @@ export async function CreateEvolution(
     }
   }
 
-  // 4. Criação da Evolução e Atualização de Dentes na Transação
   const evolution = await prisma.$transaction(async (tx) => {
     const createdEvolution = await tx.evolution.create({
       data: {
         tenantId,
-        // clinicId,
         medicalRecordId: medicalRecord.id,
         dentistId: responsibleUserId,
         procedureId: data.procedureId || null,
-        description: data.description || 'Upload de arquivo rápido via Aba Arquivos',
+        description: data.description || 'Evolução registrada',
+        conduct: (data as any).conduct || null,
+        prescriptions: (data as any).prescriptions || null,
+        aiTranscriptionId: data.aiTranscriptionId || null,
         attachments: attachmentsList,
         odontogramSnapshot: parsedSnapshot,
       } as any,
@@ -218,7 +225,6 @@ export async function CreateEvolution(
       },
     })
 
-    // Sincroniza dentes no Odontograma caso haja snapshot
     if (parsedSnapshot && typeof parsedSnapshot === 'object') {
       const toothEntries = Object.entries(parsedSnapshot)
 
@@ -264,7 +270,6 @@ export async function CreateEvolution(
     return createdEvolution
   })
 
-  // 5. Gravação em MedicalFile protegida (popula tabela de arquivos do paciente)
   if (attachmentsList.length > 0) {
     try {
       for (const url of attachmentsList) {
@@ -280,20 +285,19 @@ export async function CreateEvolution(
             evolutionId: evolution.id,
             name: fileName,
             fileUrl: url,
-            url: url,
+            url,
             type: isPdf ? 'PDF' : 'IMAGE',
             fileType: isPdf ? 'APPLICATION_PDF' : 'IMAGE_JPEG',
             fileSize: 0,
             uploadedBy: responsibleUserId,
           },
-        }).catch((err: any) => console.warn('[MedicalFiles Warning] Campo ignorado:', err?.message))
+        }).catch((err: any) => console.warn('[MedicalFiles Warning] Ignorado:', err?.message))
       }
     } catch (fileErr) {
       console.error('[MedicalFiles Error]:', fileErr)
     }
   }
 
-  // 6. Exit Inteligente (Baixa de estoque automática)
   if (data.procedureId) {
     try {
       await triggerAutoStockExit({
@@ -308,7 +312,6 @@ export async function CreateEvolution(
     }
   }
 
-  // 7. Registro de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -336,12 +339,8 @@ export async function lockEvolution(
     where: { id: evolutionId, tenantId },
   })
 
-  if (!evolution) {
-    throw new AppError('Evolução não encontrada.', 404)
-  }
-  if (evolution.isLocked) {
-    throw new AppError('Evolução já está travada.', 400)
-  }
+  if (!evolution) throw new AppError('Evolução não encontrada.', 404)
+  if (evolution.isLocked) throw new AppError('Evolução já está travada.', 400)
 
   const updated = await prisma.evolution.update({
     where: { id: evolutionId },
@@ -357,7 +356,7 @@ export async function lockEvolution(
     action: 'UPDATE',
     entity: 'EVOLUTION',
     entityId: evolutionId,
-    details: `Bloqueou/Trancou permanentemente a evolução clínica ID: ${evolutionId}`,
+    details: `Bloqueou permanentemente a evolução clínica ID: ${evolutionId}`,
   })
 
   return updated
@@ -374,12 +373,8 @@ export async function updateEvolution(
     where: { id: evolutionId, tenantId },
   })
 
-  if (!evolution) {
-    throw new AppError('Evolução não encontrada.', 404)
-  }
-  if (evolution.isLocked) {
-    throw new AppError('Evolução travada não pode ser editada.', 400)
-  }
+  if (!evolution) throw new AppError('Evolução não encontrada.', 404)
+  if (evolution.isLocked) throw new AppError('Evolução travada não pode ser editada.', 400)
 
   const updated = await prisma.evolution.update({
     where: { id: evolutionId },

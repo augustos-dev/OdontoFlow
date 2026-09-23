@@ -148,7 +148,12 @@ export async function updateUser(
 
   const updatedUser = await prisma.user.update({
     where: { id: userId },
-    data,
+    data: {
+      name: data.name,
+      phone: data.phone,
+      cro: data.cro,
+      avatarUrl: data.avatarUrl,
+    },
     select: USER_SAFE_SELECT,
   })
 
@@ -447,7 +452,6 @@ export async function updateRolePermissions(
   return updatedPermissions
 }
 
-// Auxiliar para criar mapa padrão considerando o escopo de filial e tenant
 async function ensureDefaultRolePermissions(tenantId: string, clinicId: string, role: UserRole) {
   const existingCount = await prisma.rolePermission.count({
     where: {

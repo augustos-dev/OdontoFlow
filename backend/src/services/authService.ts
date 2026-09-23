@@ -3,15 +3,12 @@ import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
 import { auditLogService } from './auditLog.service'
-import type { UserRole, TenantPlan } from '@prisma/client'
 import type { RegisterDTO, LoginDTO, AuthResponse, JwtPayload } from '../types/auth.types'
 
-const JWT_SECRET = process.env.JWT_SECRET!
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret'
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '8h'
 
-// Hash dummy estático para equalizar tempo de resposta (anti-timing attack quando email não existe)
 const DUMMY_HASH = '$2a$12$e8wE4yqZmsU9N6Yn8fFmqubL9w11iGzX6E1sL/vE6Q3oJ37iF0JqS'
-
 const MAX_FAILED_ATTEMPTS = 5
 const LOCKOUT_MINUTES = 15
 
@@ -105,11 +102,15 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
       isActive: true,
       failedLoginAttempts: true,
       lockedUntil: true,
-      tenant: { select: { isActive: true, plan: true } },
+      tenant: {
+        select: {
+          isActive: true,
+          plan: true,
+        },
+      },
     },
   })
 
-  // Prevenção de Timing Attack: se o usuário não existe, executa hash dummy para gastar CPU equivalente
   if (!user) {
     await bcrypt.compare(password, DUMMY_HASH)
     throw new AppError('Credenciais inválidas.', 401)
@@ -117,7 +118,6 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
 
   const now = new Date()
 
-  // 1. Verificação de Bloqueio Ativo (Lockout progressivo anti-força bruta)
   if (user.lockedUntil && user.lockedUntil > now) {
     const remainingMinutes = Math.ceil((user.lockedUntil.getTime() - now.getTime()) / (1000 * 60))
     throw new AppError(
@@ -126,8 +126,7 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
     )
   }
 
-  // 2. Validação de Assinatura e Status de Conta
-  if (!user.tenant.isActive) {
+  if (!user.tenant?.isActive) {
     throw new AppError('Assinatura do tenant inativa. Entre em contato com o administrador.', 403)
   }
 
@@ -135,7 +134,6 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
     throw new AppError('Usuário inativo. Entre em contato com o administrador.', 403)
   }
 
-  // 3. Verificação de Senha
   const passwordMatch = await bcrypt.compare(password, user.passwordHash)
 
   if (!passwordMatch) {
@@ -161,7 +159,7 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
         action: 'UPDATE',
         entity: 'USER',
         entityId: user.id,
-        details: `Conta temporariamente bloqueada por ${LOCKOUT_MINUTES} minutos após 5 falhas consecutivas de senha.`,
+        details: `Conta bloqueada por ${LOCKOUT_MINUTES} minutos após 5 falhas de senha.`,
       })
 
       throw new AppError(
@@ -173,7 +171,6 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
     throw new AppError('Credenciais inválidas.', 401)
   }
 
-  // 4. Sucesso: Reseta tentativas de falha e atualiza último login
   await prisma.user.update({
     where: { id: user.id },
     data: {

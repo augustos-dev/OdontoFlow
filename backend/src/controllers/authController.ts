@@ -1,15 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import * as authService from '../services/authService'
-import type { RegisterDTO, LoginDTO, AuthUserSession } from '../types/auth.types'
-import { AppError } from '../shared/AppError'
-
-function getSessionUser(req: Request): AuthUserSession {
-  const user = req.user as unknown as AuthUserSession | undefined
-  if (!user || !user.tenantId || !user.clinicId) {
-    throw new AppError('Usuário não autenticado ou sessão inválida.', 401)
-  }
-  return user
-}
+import type { RegisterDTO, LoginDTO } from '../types/auth.types'
+import { getSessionUser } from '../middlewares/authMiddlewares'
 
 export async function registerController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

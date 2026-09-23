@@ -105,7 +105,18 @@ export async function createAppointment(
   await checkConflicts(clinicId, room as string, dentistId, startTime, endTime)
 
   const appointment = await prisma.appointment.create({
-    data: { tenantId, clinicId, patientId, dentistId, procedureId, dateTime: startTime, durationMin, type, room, notes },
+    data: {
+      tenantId,
+      clinicId,
+      patientId,
+      dentistId,
+      procedureId: procedureId || null,
+      dateTime: startTime,
+      durationMin,
+      type,
+      room,
+      notes: notes || null,
+    },
     include: {
       patient: { select: { id: true, name: true, phone: true } },
       dentist: { select: { id: true, name: true } },
@@ -296,7 +307,6 @@ export async function updateAppointmentStatus(
     },
   })
 
-  // 🟢 EXIT INTELIGENTE (SECRETARIA): Dispara a baixa atômica com trava de idempotência por appointmentId
   if (data.status === 'FINALIZADO' && activeProcedureId) {
     try {
       await triggerAutoStockExit({
@@ -304,10 +314,10 @@ export async function updateAppointmentStatus(
         clinicId,
         procedureId: activeProcedureId,
         userId: actor.userId,
-        appointmentId, // Passa o appointmentId para validar se o dentista já não baixou antes!
+        appointmentId,
       })
     } catch (error) {
-      console.error('[Exit Inteligente Error]: Falha ao disparar baixa no estoque na finalização do agendamento', error)
+      console.error('[Exit Inteligente Error]: Falha na baixa de estoque', error)
     }
   }
 
@@ -320,7 +330,7 @@ export async function updateAppointmentStatus(
     action: 'UPDATE',
     entity: 'APPOINTMENT',
     entityId: appointmentId,
-    details: `Alterou status da consulta do paciente ${appointment.patient.name} de ${appointment.status} para ${data.status}${data.cancellationReason ? ` (Motivo: ${data.cancellationReason})` : ''}`,
+    details: `Alterou status da consulta de ${appointment.status} para ${data.status}${data.cancellationReason ? ` (Motivo: ${data.cancellationReason})` : ''}`,
   })
 
   return updatedAppointment
