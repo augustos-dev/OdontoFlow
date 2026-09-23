@@ -18,6 +18,9 @@ import clinicalAiRouter from './clinicalAi.routes'
 import taskRouter from './task.routes'
 import commissionRouter from './commission.routes'
 import contractRouter from './contract.routes'
+import clinicalAiRoutes from './clinicalAi.routes'
+import nfseRoutes from './nfse.routes'
+import whatsappRoutes from './whatsapp.routes'
 
 const router = Router()
 
@@ -40,6 +43,10 @@ router.use('/dentist-profile', dentistProfileRouter) // Módulo "Meu Consultóri
 router.use('/clinical-ai', clinicalAiRouter)         // Transcrição de voz & IA clínica no prontuário
 router.use('/tasks', taskRouter)                     // Gestão de tarefas e pendências clínicas da equipe
 router.use('/commissions', commissionRouter)         // Repasses de cirurgiões com abatimento de insumos
-router.use('/contracts', contractRouter)             // Contratos, termos de consentimento e link público (WhatsApp)
+router.use('/contracts', contractRouter)  
+router.use('/clinical-ai', clinicalAiRoutes)
+router.use('/nfse', nfseRoutes)
+router.use('/whatsapp', whatsappRoutes)
+         
 
 export default router

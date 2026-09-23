@@ -4,6 +4,7 @@ import {
   linkTranscriptionToEvolutionController,
 } from '../../controllers/clinicalAiController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
+import { audioUpload } from '../../middlewares/audioUpload.middleware'
 
 const router = Router()
 
@@ -13,14 +14,25 @@ router.use(authenticate)
  * @openapi
  * /clinical-ai/transcribe:
  *   post:
- *     summary: Registra a transcrição de áudio capturada no mocho e processada por IA
+ *     summary: Envia áudio gravado no mocho para transcrição (Whisper) e estruturação clínica via IA
  *     tags: [Clinical AI]
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
- *             $ref: '#/components/schemas/CreateAiTranscriptionDTO'
+ *             type: object
+ *             required:
+ *               - audio
+ *             properties:
+ *               audio:
+ *                 type: string
+ *                 format: binary
+ *                 description: Arquivo de áudio gravado (máximo 120s / 20MB)
+ *               durationSeconds:
+ *                 type: integer
+ *                 example: 45
+ *                 description: Duração total em segundos da gravação
  *     responses:
  *       201:
  *         description: Transcrição salva com dados clínicos estruturados
@@ -32,13 +44,18 @@ router.use(authenticate)
  *                 status: { type: string, example: success }
  *                 data: { $ref: '#/components/schemas/ClinicalAiTranscription' }
  *       400:
- *         description: Texto de transcrição obrigatório
+ *         description: Arquivo ausente ou duração acima do limite permitido
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  */
-router.post('/transcribe', authorize('ADMIN', 'DENTIST'), createTranscriptionController)
+router.post(
+  '/transcribe',
+  authorize('ADMIN', 'DENTIST'),
+  audioUpload.single('audio'),
+  createTranscriptionController
+)
 
 /**
  * @openapi

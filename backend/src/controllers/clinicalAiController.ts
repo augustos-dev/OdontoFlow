@@ -1,15 +1,8 @@
 import type { Request, Response, NextFunction } from 'express'
 import * as clinicalAiService from '../services/clinicalAiService'
-import type { AuthUserSession } from '../types/auth.types'
+import { transcribeAndStructureVoice } from '../services/aiTranscriptionService'
 import { AppError } from '../shared/AppError'
-
-function getSessionUser(req: Request): AuthUserSession {
-  const user = req.user as unknown as AuthUserSession | undefined
-  if (!user || !user.tenantId || !user.clinicId) {
-    throw new AppError('Usuário não autenticado ou sessão inválida.', 401)
-  }
-  return user
-}
+import { getSessionUser } from '../middlewares/authMiddlewares'
 
 export async function createTranscriptionController(
   req: Request,
@@ -18,10 +11,30 @@ export async function createTranscriptionController(
 ): Promise<void> {
   try {
     const user = getSessionUser(req)
-    const dentistId = user.userId || (user.sub as string)
+    const file = req.file
 
-    const result = await clinicalAiService.saveAiTranscription(user.tenantId, dentistId, req.body)
-    res.status(201).json({ status: 'success', data: result })
+    if (!file) {
+      throw new AppError('Nenhum ficheiro de áudio foi enviado.', 400)
+    }
+
+    const durationSeconds = Number(req.body.durationSeconds || 60)
+
+    // 1. Processa áudio no Whisper + estrutura com GPT-4o-mini
+    const aiResult = await transcribeAndStructureVoice(file.path, durationSeconds)
+
+    // 2. Grava na base de dados no registo de transcrições do tenant
+    const saved = await clinicalAiService.saveAiTranscription(user.tenantId, user.userId as string, {
+      durationSeconds,
+      rawTranscription: aiResult.rawTranscription,
+      structuredData: aiResult.structuredData,
+      tokensUsed: aiResult.tokensUsed,
+      modelName: aiResult.modelName,
+    })
+
+    res.status(201).json({
+      status: 'success',
+      data: saved,
+    })
   } catch (error) {
     next(error)
   }
