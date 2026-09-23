@@ -56,7 +56,6 @@ const getBadgeClass = (type: EvolutionType) => {
   }
 }
 
-// Remove tags HTML caso o texto venha com formatação bruta do editor
 function cleanHtmlText(text: string) {
   if (!text) return ''
   return text.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ')
@@ -64,7 +63,7 @@ function cleanHtmlText(text: string) {
 
 export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
   patientId,
-  limit, // 👈 Recebendo o limit
+  limit,
   evolutions: initialEvolutions,
 }) => {
   const [evolutions, setEvolutions] = useState<Evolution[]>(initialEvolutions || [])
@@ -100,7 +99,6 @@ export const EvolutionsTimeline: React.FC<EvolutionsTimelineProps> = ({
     loadEvolutions()
   }, [patientId, initialEvolutions])
 
-  // 🎯 Aplica o limite se fornecido (ex: 5 na Visão Geral)
   const displayedEvolutions = useMemo(() => {
     if (!evolutions) return []
     return limit && limit > 0 ? evolutions.slice(0, limit) : evolutions

@@ -1,47 +1,80 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 1.25rem;
+  width: 100%;
+  padding: 1.5rem;
+  box-sizing: border-box;
 }
 
+@media (max-width: 640px) {
+  .container {
+    padding: 1rem;
+    gap: 1rem;
+  }
+}
+
+/* ─── Grid Superior de Indicadores ─── */
 .metricsGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .metricsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .metricsGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .card {
   background: #ffffff;
-  border-radius: 12px;
-  padding: 16px 20px;
-  border: 1px solid #f1f5f9;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all 0.15s ease;
+}
+
+.card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
 }
 
 .metricIconBg {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: #ecfeff;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.5rem;
+  background: #f0f9ff;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 4px;
+  margin-bottom: 0.375rem;
 }
 
 .metricLabel {
-  font-size: 11px;
-  font-weight: 600;
-  color: #94a3b8;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #64748b;
   letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .metricValue {
-  font-size: 24px;
+  font-size: 1.5rem;
   font-weight: 700;
   color: #0f172a;
+  letter-spacing: -0.02em;
 }
 
 .alertText {
@@ -49,101 +82,225 @@
 }
 
 .metricSub {
-  font-size: 12px;
-  color: #64748b;
+  font-size: 0.75rem;
+  color: #94a3b8;
 }
 
+/* ─── Grid Principal ─── */
 .mainGrid {
   display: grid;
-  grid-template-columns: 2.2fr 1fr;
-  gap: 16px;
+  grid-template-columns: 2.1fr 1.1fr;
+  gap: 1.25rem;
+  width: 100%;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .mainGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .agendaCard {
   background: #ffffff;
-  border-radius: 12px;
-  border: 1px solid #f1f5f9;
-  padding: 20px;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  padding: 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 1rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .agendaHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .agendaHeader h3 {
-  font-size: 15px;
+  font-size: 1rem;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
 }
 
 .agendaHeader p {
-  font-size: 12px;
-  color: #94a3b8;
-  margin: 2px 0 0;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin: 0.2rem 0 0;
 }
 
 .statusLegend {
   display: flex;
-  gap: 12px;
-  font-size: 12px;
+  align-items: center;
+  gap: 0.875rem;
+  font-size: 0.75rem;
   color: #64748b;
 }
 
-.dotConfirmado { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #2563eb; }
-.dotAtend { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #16a34a; }
-.dotFinalizado { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
 
+.dotConfirmado { width: 8px; height: 8px; border-radius: 50%; background: #0284c7; }
+.dotAtend { width: 8px; height: 8px; border-radius: 50%; background: #059669; }
+.dotFinalizado { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
+.dotEspera { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; }
+
+/* ─── Visor de Salas (Top 5) ─── */
 .roomsGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .roomsGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .roomCol {
   background: #f8fafc;
-  border-radius: 8px;
-  padding: 12px;
-  border: 1px solid #f1f5f9;
+  border-radius: 0.625rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-.roomCol h4 {
-  font-size: 11px;
-  font-weight: 700;
-  color: #64748b;
-  margin: 0 0 12px;
+.roomColHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.5rem;
 }
+
+.roomColHeader h4 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #334155;
+  margin: 0;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.roomCountPill {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--clinic-primary, #0284c7);
+  background-color: #e0f2fe;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.appointmentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.appointmentItem {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.appointmentItem:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+}
+
+.appointmentItemServing {
+  border-color: #059669;
+  background-color: #f0fdf4;
+}
+
+.apptMainInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.patientName {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.apptSubMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.6875rem;
+  color: #64748b;
+}
+
+.timeBadge {
+  font-weight: 700;
+  color: var(--clinic-primary, #0284c7);
+}
+
+.statusMiniBadge {
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.statusMiniServing { background-color: #d1fae5; color: #047857; }
+.statusMiniDone { background-color: #f1f5f9; color: #64748b; }
+.statusMiniWait { background-color: #fef3c7; color: #b45309; }
+.statusMiniScheduled { background-color: #e0f2fe; color: #0369a1; }
 
 .roomEmpty {
-  padding: 40px 10px;
+  padding: 2.5rem 1rem;
   text-align: center;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #94a3b8;
 }
 
+/* ─── Coluna Lateral: Resumo, Espera e Checkout ─── */
 .sidebarCards {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 1.25rem;
 }
 
 .cardSide {
   background: #ffffff;
-  border-radius: 12px;
-  border: 1px solid #f1f5f9;
-  padding: 16px 20px;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  padding: 1.125rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
-.cardSide h4 {
-  font-size: 13px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0;
+.cardSideHighlight {
+  border-color: #a7f3d0;
+  background-color: #fcfdfd;
 }
 
 .sideHeader {
@@ -152,31 +309,115 @@
   align-items: center;
 }
 
-.counterBadge {
-  background: #ecfeff;
-  color: #0891b2;
-  font-size: 11px;
+.sideHeader h4 {
+  font-size: 0.8125rem;
   font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 12px;
-}
-
-.emptyText {
-  font-size: 12px;
-  color: #94a3b8;
-  margin-top: 16px;
-}
-
-.loading {
-  padding: 80px;
+  color: #0f172a;
+  margin: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
+  gap: 0.375rem;
+}
+
+.counterBadge {
+  background: #e0f2fe;
+  color: var(--clinic-primary, #0284c7);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.counterBadgeGreen {
+  background: #d1fae5;
+  color: #047857;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+}
+
+/* Lista de Checkout */
+.checkoutList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.checkoutItem {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.checkoutInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.checkoutPatient {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.checkoutProcedure {
+  font-size: 0.6875rem;
   color: #64748b;
 }
 
+.checkoutPrice {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #059669;
+}
+
+.btnCheckout {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.375rem;
+  background-color: #059669;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.btnCheckout:hover {
+  background-color: #047857;
+}
+
+.emptyText {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin: 0.5rem 0 0;
+  text-align: center;
+}
+
+.loading {
+  padding: 5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
 .spinner {
+  color: var(--clinic-primary, #0284c7);
   animation: spin 1s linear infinite;
 }
 

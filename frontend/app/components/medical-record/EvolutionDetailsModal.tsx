@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   Calendar, 
   User, 
@@ -15,7 +15,8 @@ import {
   Edit2,
   Lock,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
 } from 'lucide-react'
 import api from '../../../lib/api'
 import { Odontogram } from '../tooth/Odontogram'
@@ -38,6 +39,7 @@ export interface Evolution {
   procedureId?: string
   procedure?: ProcedureInfo
   isLocked?: boolean
+  aiTranscriptionId?: string | null
   odontogramSnapshot?: any
   attachments?: string[]
   createdAt: string | Date
@@ -58,6 +60,30 @@ export function EvolutionDetailsModal({ evolution, onClose, onSuccess }: Evoluti
   const [editReason, setEditReason] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
 
+  // Cores dinâmicas White-Label
+  const [brandColors, setBrandColors] = useState({
+    primary: '#0284c7',
+    accent: '#06b6d4',
+  })
+
+  useEffect(() => {
+    async function loadBrand() {
+      try {
+        const res = await api.get('/clinics/current/customization')
+        const data = res.data?.data || res.data
+        if (data?.primaryColor) {
+          setBrandColors({
+            primary: data.primaryColor,
+            accent: data.accentColor || '#06b6d4',
+          })
+        }
+      } catch {
+        // Mantém as cores predefinidas da identidade do sistema
+      }
+    }
+    loadBrand()
+  }, [])
+
   if (!evolution) return null
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -70,19 +96,24 @@ export function EvolutionDetailsModal({ evolution, onClose, onSuccess }: Evoluti
   const hasAttachments = evolution.attachments && evolution.attachments.length > 0
   const checkIsPdf = (url: string) => url.toLowerCase().includes('.pdf')
 
-  // 🟢 NOVA LÓGICA RIGOROSA DE TRAVA (CFO / LGPD)
+  // Identificação do Mocho AI
+  const isAIGenerated = Boolean(
+    evolution.aiTranscriptionId || 
+    evolution.description.toLowerCase().includes('resumo:') ||
+    evolution.description.toLowerCase().includes('conduta:')
+  )
+
+  // Trava Legal Rigorosa (CFO / LGPD - 24 horas)
   const checkIsLocked = (): boolean => {
-    // 1. Se a flag de bloqueio explícito no banco for verdadeira
     if (evolution.isLocked) return true
 
-    // 2. Trava por janela de tempo (Tolerância legal de 24 horas da criação)
     if (evolution.createdAt) {
       const createdDate = new Date(evolution.createdAt).getTime()
       const now = new Date().getTime()
       const hoursDifference = (now - createdDate) / (1000 * 60 * 60)
 
       if (hoursDifference > 24) {
-        return true // Já passaram mais de 24h -> Trancado automaticamente
+        return true
       }
     }
 
@@ -131,7 +162,14 @@ export function EvolutionDetailsModal({ evolution, onClose, onSuccess }: Evoluti
 
   return (
     <>
-      <div className="sheet-backdrop" onClick={handleBackdropClick}>
+      <div 
+        className="sheet-backdrop" 
+        onClick={handleBackdropClick}
+        style={{
+          '--clinic-primary': brandColors.primary,
+          '--clinic-accent': brandColors.accent,
+        } as React.CSSProperties}
+      >
         <div className="sheet-container">
           
           <div className="sheet-header">
@@ -139,7 +177,14 @@ export function EvolutionDetailsModal({ evolution, onClose, onSuccess }: Evoluti
               <div className="sheet-meta">
                 <span className="evolution-badge">{evolution.type || 'Anotação Clínica'}</span>
                 
-                {/* 🟢 Status na barra do topo atualizado dinamicamente */}
+                {/* Badge de Mocho AI */}
+                {isAIGenerated && (
+                  <span className="ai-transcription-badge" title="Estruturado via Inteligência Artificial OdontoFlow">
+                    <Sparkles size={12} /> Transcrito via Mocho AI
+                  </span>
+                )}
+
+                {/* Status CFO / LGPD */}
                 {isLockedByPolicy ? (
                   <span className="lock-badge locked" title="Registro inalterável conforme LGPD e Resolução CFO">
                     <Lock size={12} /> Assinado & Trancado (LGPD/CFO)
@@ -185,7 +230,7 @@ export function EvolutionDetailsModal({ evolution, onClose, onSuccess }: Evoluti
 
           <div className="sheet-body">
             
-            {/* Medico / Responsável */}
+            {/* Profissional Responsável */}
             <div className="evolution-doctor-info">
               <User size={15} className="doctor-icon" />
               <span>
@@ -197,7 +242,7 @@ export function EvolutionDetailsModal({ evolution, onClose, onSuccess }: Evoluti
             {evolution.procedure && (
               <div className="evolution-procedure-card">
                 <div className="proc-card-icon">
-                  <Boxes size={20} color="#38bdf8" />
+                  <Boxes size={20} color="var(--clinic-primary, #0284c7)" />
                 </div>
                 <div className="proc-card-content">
                   <span className="proc-card-label">PROCEDIMENTO REALIZADO (EXIT INTELIGENTE)</span>
@@ -205,13 +250,13 @@ export function EvolutionDetailsModal({ evolution, onClose, onSuccess }: Evoluti
                     {evolution.procedure.name} {evolution.procedure.code ? `(${evolution.procedure.code})` : ''}
                   </p>
                   <span className="proc-card-sub">
-                    ✦ Insumos da Ficha Técnica foram abatidos do estoque na criação do registro.
+                    ✦ Insumos da Ficha Técnica foram debitados do estoque na confirmação do registro.
                   </span>
                 </div>
               </div>
             )}
 
-            {/* Descrição do Atendimento ou Edição */}
+            {/* Descrição do Atendimento ou Formulário de Edição */}
             <div className="evolution-section">
               <label className="evolution-section-label">
                 <FileText size={15} />
@@ -240,7 +285,7 @@ export function EvolutionDetailsModal({ evolution, onClose, onSuccess }: Evoluti
                     <input
                       type="text"
                       className="lgpd-reason-input"
-                      placeholder="Ex: Correção de digitação de dosagem / Inclusão de observação médica"
+                      placeholder="Ex: Correção de dosagem anestésica / Inclusão de observação de retorno"
                       value={editReason}
                       onChange={(e) => setEditReason(e.target.value)}
                     />
@@ -268,7 +313,7 @@ export function EvolutionDetailsModal({ evolution, onClose, onSuccess }: Evoluti
               )}
             </div>
 
-            {/* Anexos e Fotos */}
+            {/* Anexos e Fotos Clínicas */}
             <div className="evolution-section">
               <label className="evolution-section-label">
                 <ImageIcon size={15} />
@@ -283,29 +328,25 @@ export function EvolutionDetailsModal({ evolution, onClose, onSuccess }: Evoluti
                     if (isPdf) {
                       return (
                         <div key={idx} className="attachment-pdf-card">
-                          <div className="pdf-card-icon">
-                            <FileText size={28} className="text-red-400" />
-                            <span className="pdf-badge-tag">PDF</span>
-                          </div>
+                          <FileText size={30} className="text-red-500" />
+                          <span className="pdf-badge-tag">Documento PDF</span>
                           <div className="pdf-card-actions">
                             <a
                               href={url}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="pdf-btn-action"
-                              title="Abrir Laudo"
                             >
-                              <ExternalLink size={14} /> Abrir
+                              <ExternalLink size={12} /> Abrir
                             </a>
                             <a
                               href={url}
                               download
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="pdf-btn-action download"
-                              title="Baixar PDF"
+                              className="pdf-btn-action"
                             >
-                              <Download size={14} />
+                              <Download size={12} /> Baixar
                             </a>
                           </div>
                         </div>
@@ -337,12 +378,12 @@ export function EvolutionDetailsModal({ evolution, onClose, onSuccess }: Evoluti
                 </div>
               ) : (
                 <div className="evolution-placeholder-box">
-                  <p className="placeholder-text">✦ Nenhum anexo de foto/documento gravado nesta evolução.</p>
+                  <p className="placeholder-text">✦ Nenhum anexo de foto ou documento arquivado nesta evolução.</p>
                 </div>
               )}
             </div>
 
-            {/* Odontograma Read-Only */}
+            {/* Odontograma Anatômico Read-Only */}
             <div className="evolution-section">
               <label className="evolution-section-label">
                 Registro Anatômico do Atendimento (Odontograma)
@@ -374,11 +415,12 @@ export function EvolutionDetailsModal({ evolution, onClose, onSuccess }: Evoluti
         </div>
       </div>
 
+      {/* Lightbox Modal para Ampliação de Imagens */}
       {selectedImage && (
         <div className="lightbox-overlay" onClick={() => setSelectedImage(null)}>
           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
             <button className="lightbox-close-btn" onClick={() => setSelectedImage(null)}>
-              <X size={22} />
+              <X size={18} />
             </button>
             <img src={selectedImage} alt="Foto Clínica Ampliada" className="lightbox-image" />
           </div>

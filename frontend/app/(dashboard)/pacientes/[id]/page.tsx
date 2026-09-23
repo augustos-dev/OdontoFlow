@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState, useTransition } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { 
   ArrowLeft, 
   AlertTriangle, 
@@ -23,7 +23,7 @@ import {
   Save,
   Printer,
   ChevronRight,
-  ShieldCheck
+  CheckCircle,
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './perfil.module.css'
@@ -79,6 +79,12 @@ const PLAN_STATUS_LABEL: Record<string, string> = {
 export default function PerfilPacientePage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Parâmetros vindos do Cockpit "Meu Consultório"
+  const appointmentId = searchParams.get('appointmentId')
+  const room = searchParams.get('room')
+  const shouldOpenEvolution = searchParams.get('openEvolution') === 'true'
 
   const [patient, setPatient] = useState<Patient | null>(null)
   const [loading, setLoading] = useState(true)
@@ -88,6 +94,7 @@ export default function PerfilPacientePage() {
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
   const [isAddEvolutionOpen, setIsAddEvolutionOpen] = useState(false)
   const [reloadEvolutionsTrigger, setReloadEvolutionsTrigger] = useState(0)
+  const [finishingAttendance, setFinishingAttendance] = useState(false)
 
   // Estado do Odontograma Acumulado
   const [currentOdontogram, setCurrentOdontogram] = useState<OdontogramData | null>(null)
@@ -98,7 +105,7 @@ export default function PerfilPacientePage() {
 
   const PANORAMIC_KEY = `odontoflow_panoramic_${id}`
 
-  // Impressao de prontuario 
+  // Impressão de prontuário 
   const [isClient, setIsClient] = useState(false)
 
   // Estados de Edição do Prontuário Base / Anamnese
@@ -116,6 +123,13 @@ export default function PerfilPacientePage() {
   })
 
   const DRAFT_KEY = `odontoflow_draft_mr_${id}`
+
+  // Abre automaticamente o modal de evolução clínica se veio do botão "Iniciar Atendimento"
+  useEffect(() => {
+    if (shouldOpenEvolution) {
+      setIsAddEvolutionOpen(true)
+    }
+  }, [shouldOpenEvolution])
 
   useEffect(() => {
     if (id) {
@@ -228,6 +242,22 @@ export default function PerfilPacientePage() {
   useEffect(() => {
     if (id) load()
   }, [id])
+
+  // Ação de Concluir Consulta e Encaminhar para Recepção/Checkout
+  const handleFinishAppointmentFromMocho = async () => {
+    if (!appointmentId) return
+    try {
+      setFinishingAttendance(true)
+      await api.patch(`/appointments/${appointmentId}/status`, { status: 'FINALIZADO' })
+      alert('Atendimento concluído com sucesso! Encaminhado para checkout na recepção.')
+      router.push('/consultorio')
+    } catch (err) {
+      console.error('Erro ao finalizar consulta:', err)
+      alert('Falha ao concluir atendimento.')
+    } finally {
+      setFinishingAttendance(false)
+    }
+  }
 
   function handleTogglePinPanoramic(fileId: string) {
     if (panoramicFileId === fileId) {
@@ -365,6 +395,51 @@ export default function PerfilPacientePage() {
   return (
     <div className={styles.page}>
       
+      {/* ─── Banner Ativo se Vindo do Cockpit (Mocho) ─── */}
+      {appointmentId && (
+        <div style={{
+          backgroundColor: '#f0f9ff',
+          border: '1px solid #bae6fd',
+          borderRadius: '10px',
+          padding: '12px 16px',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Stethoscope size={18} color="#0284c7" />
+            <span style={{ fontSize: '0.85rem', color: '#0369a1', fontWeight: 600 }}>
+              Paciente em Atendimento no Mocho {room ? `(${room.replace('_', ' ')})` : ''}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleFinishAppointmentFromMocho}
+            disabled={finishingAttendance}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: '#059669',
+              color: '#ffffff',
+              border: 'none',
+              padding: '6px 14px',
+              borderRadius: '6px',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            <CheckCircle size={15} />
+            <span>{finishingAttendance ? 'Concluindo...' : 'Concluir & Liberar para Checkout'}</span>
+          </button>
+        </div>
+      )}
+
       {/* ─── Header do Perfil ─── */}
       <div className={styles.profileHeader}>
         <div className={styles.profileTopBar}>
@@ -782,12 +857,12 @@ export default function PerfilPacientePage() {
                 
                 <Odontogram 
                   patientId={id as string} 
-                  value={currentOdontogram || undefined}
+                  value={currentOdontogram || undefined} 
                   onChange={(newState) => setCurrentOdontogram(newState)}
                 />
               </div>
 
-              {/* 🎯 Últimas 5 Evoluções Clínicas (com link para ver todas) */}
+              {/* Últimas 5 Evoluções Clínicas */}
               <div className={styles.card}>
                 <div className={styles.cardHeader}>
                   <div>
@@ -942,6 +1017,7 @@ export default function PerfilPacientePage() {
       <AddEvolutionModal
         patientId={id as string}
         medicalRecordId={patient?.medicalRecord?.id}
+        appointmentId={appointmentId || undefined}
         isOpen={isAddEvolutionOpen}
         onClose={() => setIsAddEvolutionOpen(false)}
         onSuccess={() => {
