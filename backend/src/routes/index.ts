@@ -13,9 +13,18 @@ import dashboardRoutes from './dashboard.routes'
 import auditLogRoutes from './auditLog.routes' // 🛡️ Importação da rota de auditoria
 import supplierRoutes from './supplier.routes'
 import stockMovementRoutes from './stockMovement.routes'
+import dentistProfileRouter from './dentistProfile.routes'
+import clinicalAiRouter from './clinicalAi.routes'
+import taskRouter from './task.routes'
+import commissionRouter from './commission.routes'
+import contractRouter from './contract.routes'
+import clinicalAiRoutes from './clinicalAi.routes'
+import nfseRoutes from './nfse.routes'
+import whatsappRoutes from './whatsapp.routes'
 
 const router = Router()
 
+// Módulos Existentes
 router.use('/auth', authRoutes)
 router.use('/patients', patientRoutes)
 router.use('/appointments', appointmentRouter)
@@ -28,7 +37,16 @@ router.use('/users', userRoutes)
 router.use('/clinics', clinicRoutes)
 router.use('/dashboard', dashboardRoutes)
 router.use('/audit-logs', auditLogRoutes) 
-router.use('/suppliers', supplierRoutes) // 👈 CORRIGIDO! (Apenas /suppliers)
+router.use('/suppliers', supplierRoutes) 
 router.use('/stock-movements', stockMovementRoutes)
+router.use('/dentist-profile', dentistProfileRouter) // Módulo "Meu Consultório" (mocho, agenda individual, CRO)
+router.use('/clinical-ai', clinicalAiRouter)         // Transcrição de voz & IA clínica no prontuário
+router.use('/tasks', taskRouter)                     // Gestão de tarefas e pendências clínicas da equipe
+router.use('/commissions', commissionRouter)         // Repasses de cirurgiões com abatimento de insumos
+router.use('/contracts', contractRouter)  
+router.use('/clinical-ai', clinicalAiRoutes)
+router.use('/nfse', nfseRoutes)
+router.use('/whatsapp', whatsappRoutes)
+         
 
 export default router

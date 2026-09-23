@@ -3,6 +3,7 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import path from 'path'
+import fs from 'fs'
 import router from './routes/index'
 import { errorHandler } from './middlewares/errorHandler.middleware'
 import { apiLimiter } from './middlewares/rateLimiter.middleware'
@@ -22,7 +23,7 @@ process.on('unhandledRejection', (reason) => {
 const app = express()
 const PORT = process.env.PORT ?? 3333
 
-// Permite capturar o IP real do cliente atrás de proxies reversos
+// Permite capturar o IP real do cliente atrás de proxies reversos (Cloudflare, Nginx, Render)
 app.set('trust proxy', 1)
 
 // Oculta X-Powered-By e aplica headers HTTP de segurança (crossOriginResourcePolicy permite servir uploads)
@@ -32,7 +33,7 @@ app.use(
   })
 )
 
-// Configuração de CORS
+// Configuração de CORS aberta para subdomínios da plataforma
 app.use(
   cors({
     origin: '*',
@@ -41,10 +42,18 @@ app.use(
   })
 )
 
-app.use(express.json())
+// Suporte a payloads maiores para transcrição de áudio via IA e importação de planilhas Excel/CSV
+app.use(express.json({ limit: '25mb' }))
+app.use(express.urlencoded({ extended: true, limit: '25mb' }))
+
+// Garante a existência do diretório de uploads local antes de servir arquivos estáticos
+const uploadsDir = path.resolve(__dirname, '..', 'uploads')
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true })
+}
 
 // Acesso estático público aos uploads
-app.use('/uploads', express.static(path.resolve(__dirname, '..', 'uploads')))
+app.use('/uploads', express.static(uploadsDir))
 
 // Documentação Swagger (livre de rate limiter)
 app.use(
@@ -60,7 +69,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-// Aplica limitador geral de tráfego em todos os endpoints de negócio
+// Aplica limitador geral de tráfego em todos os endpoints de negócio sob o prefixo /api
 app.use('/api', apiLimiter, router)
 
 // Middleware central de tratamento de erros

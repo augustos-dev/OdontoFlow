@@ -35,6 +35,21 @@ const options: swaggerJsdoc.Options = {
       },
       schemas: {
         // ─── Auth ──────────────────────────────────────────────────────────
+        RegisterTenantDTO: {
+          type: 'object',
+          required: ['tenantName', 'slug', 'adminName', 'email', 'password'],
+          properties: {
+            tenantName: { type: 'string', example: 'Clínica Prime Odonto' },
+            slug: { type: 'string', example: 'prime-odonto' },
+            plan: { type: 'string', enum: ['BASIC', 'PREMIUM', 'ENTERPRISE'], default: 'PREMIUM' },
+            billingCycle: { type: 'string', enum: ['MONTHLY', 'ANNUAL'], default: 'ANNUAL' },
+            phone: { type: 'string', example: '85999990000' },
+            cnpjOrCpf: { type: 'string', example: '00.000.000/0001-00' },
+            adminName: { type: 'string', example: 'Dr. Vicente Augusto' },
+            email: { type: 'string', format: 'email', example: 'admin@primeodonto.com' },
+            password: { type: 'string', minLength: 6, example: 'senha123' },
+          },
+        },
         RegisterDTO: {
           type: 'object',
           required: ['tenantId', 'clinicId', 'name', 'email', 'password', 'role'],
@@ -70,286 +85,185 @@ const options: swaggerJsdoc.Options = {
                 role: { type: 'string' },
                 tenantId: { type: 'string', format: 'uuid' },
                 clinicId: { type: 'string', format: 'uuid' },
+                avatarUrl: { type: 'string', nullable: true },
+                plan: { type: 'string', enum: ['BASIC', 'PREMIUM', 'ENTERPRISE'] },
               },
             },
           },
         },
 
-        // ─── Patient ───────────────────────────────────────────────────────
-        CreatePatientDTO: {
-          type: 'object',
-          required: ['name', 'phone'],
-          properties: {
-            name: { type: 'string', example: 'Carlos Souza' },
-            phone: { type: 'string', example: '85988887777' },
-            email: { type: 'string', format: 'email' },
-            cpf: { type: 'string', example: '123.456.789-00' },
-            birthDate: { type: 'string', format: 'date', example: '1990-05-15' },
-            gender: { type: 'string', enum: ['MASCULINO', 'FEMININO', 'OUTRO', 'NAO_INFORMADO'] },
-            address: { type: 'string' },
-          },
-        },
-        Patient: {
+        // ─── Meu Consultório (Dentist Profile) ─────────────────────────────
+        DentistProfile: {
           type: 'object',
           properties: {
             id: { type: 'string', format: 'uuid' },
-            name: { type: 'string' },
-            phone: { type: 'string' },
-            email: { type: 'string' },
-            cpf: { type: 'string' },
-            birthDate: { type: 'string', format: 'date' },
-            gender: { type: 'string' },
-            createdAt: { type: 'string', format: 'date-time' },
+            specialties: { type: 'array', items: { type: 'string' }, example: ['Ortodontia', 'Implantodontia'] },
+            bio: { type: 'string', nullable: true },
+            defaultRoom: { type: 'string', enum: ['SALA_1', 'SALA_2', 'SALA_3', 'SALA_4'] },
+            signatureImageUrl: { type: 'string', nullable: true },
+            croState: { type: 'string', example: 'CE' },
+            rqe: { type: 'string', nullable: true },
+            slotDurationMin: { type: 'integer', example: 30 },
+            workSchedule: { type: 'object' },
+            aiVoiceShortcut: { type: 'boolean', example: true },
+            quickNotes: { type: 'object' },
+          },
+        },
+        UpdateDentistProfileDTO: {
+          type: 'object',
+          properties: {
+            specialties: { type: 'array', items: { type: 'string' } },
+            bio: { type: 'string' },
+            defaultRoom: { type: 'string', enum: ['SALA_1', 'SALA_2', 'SALA_3', 'SALA_4'] },
+            signatureImageUrl: { type: 'string' },
+            croState: { type: 'string' },
+            rqe: { type: 'string' },
+            slotDurationMin: { type: 'integer' },
+            workSchedule: { type: 'object' },
+            aiVoiceShortcut: { type: 'boolean' },
+            quickNotes: { type: 'object' },
           },
         },
 
-        // ─── Appointment ───────────────────────────────────────────────────
-        CreateAppointmentDTO: {
+        // ─── IA & Transcrição Clínica ──────────────────────────────────────
+        ClinicalAiTranscription: {
           type: 'object',
-          required: ['patientId', 'dentistId', 'dateTime', 'type', 'room'],
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            dentistId: { type: 'string', format: 'uuid' },
+            audioUrl: { type: 'string', nullable: true },
+            durationSeconds: { type: 'integer', example: 45 },
+            rawTranscription: { type: 'string', example: 'Paciente relata dor moderada no elemento 36...' },
+            structuredData: { type: 'object' },
+            tokensUsed: { type: 'integer', example: 120 },
+            modelName: { type: 'string', example: 'whisper-1 / gpt-4o-mini' },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        CreateAiTranscriptionDTO: {
+          type: 'object',
+          required: ['rawTranscription'],
+          properties: {
+            audioUrl: { type: 'string' },
+            durationSeconds: { type: 'integer' },
+            rawTranscription: { type: 'string' },
+            structuredData: { type: 'object' },
+            tokensUsed: { type: 'integer' },
+            modelName: { type: 'string' },
+          },
+        },
+
+        // ─── Tarefas Clínicas (Tasks) ──────────────────────────────────────
+        ClinicTask: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            creatorId: { type: 'string', format: 'uuid' },
+            assignedToId: { type: 'string', format: 'uuid', nullable: true },
+            patientId: { type: 'string', format: 'uuid', nullable: true },
+            title: { type: 'string', example: 'Confirmar envio de molde de prótese' },
+            description: { type: 'string', nullable: true },
+            priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] },
+            status: { type: 'string', enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELED'] },
+            dueDate: { type: 'string', format: 'date-time', nullable: true },
+            completedAt: { type: 'string', format: 'date-time', nullable: true },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        CreateClinicTaskDTO: {
+          type: 'object',
+          required: ['title'],
+          properties: {
+            title: { type: 'string', example: 'Comprar reposição de anestésicos' },
+            description: { type: 'string' },
+            priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'], default: 'MEDIUM' },
+            assignedToId: { type: 'string', format: 'uuid' },
+            patientId: { type: 'string', format: 'uuid' },
+            dueDate: { type: 'string', format: 'date-time' },
+          },
+        },
+        UpdateClinicTaskDTO: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            description: { type: 'string' },
+            priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] },
+            status: { type: 'string', enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELED'] },
+            assignedToId: { type: 'string', format: 'uuid' },
+            patientId: { type: 'string', format: 'uuid' },
+            dueDate: { type: 'string', format: 'date-time' },
+          },
+        },
+
+        // ─── Comissões (Commissions) ───────────────────────────────────────
+        DentistCommission: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            dentistId: { type: 'string', format: 'uuid' },
+            grossAmount: { type: 'number', example: 500.0 },
+            materialsCost: { type: 'number', example: 80.0 },
+            netBaseAmount: { type: 'number', example: 420.0 },
+            percentage: { type: 'number', example: 40.0 },
+            commissionAmount: { type: 'number', example: 168.0 },
+            status: { type: 'string', enum: ['PENDING', 'PAID', 'CANCELED'] },
+            paidAt: { type: 'string', format: 'date-time', nullable: true },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        CreateCommissionDTO: {
+          type: 'object',
+          required: ['dentistId', 'grossAmount'],
+          properties: {
+            dentistId: { type: 'string', format: 'uuid' },
+            treatmentPlanId: { type: 'string', format: 'uuid' },
+            procedureId: { type: 'string', format: 'uuid' },
+            grossAmount: { type: 'number', example: 450.0 },
+            materialsCost: { type: 'number', example: 50.0 },
+            percentage: { type: 'number', example: 40.0 },
+          },
+        },
+
+        // ─── Contratos & Pré-Cadastro ──────────────────────────────────────
+        ClinicalContract: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            patientId: { type: 'string', format: 'uuid' },
+            title: { type: 'string', example: 'Termo de Consentimento - Implantes' },
+            contentHtml: { type: 'string' },
+            status: { type: 'string', enum: ['DRAFT', 'SENT', 'SIGNED', 'EXPIRED', 'REJECTED'] },
+            signatureUrl: { type: 'string', nullable: true },
+            signedAt: { type: 'string', format: 'date-time', nullable: true },
+            signerIp: { type: 'string', nullable: true },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        CreateContractDTO: {
+          type: 'object',
+          required: ['patientId', 'title', 'contentHtml'],
           properties: {
             patientId: { type: 'string', format: 'uuid' },
-            dentistId: { type: 'string', format: 'uuid' },
-            dateTime: { type: 'string', format: 'date-time', example: '2026-07-10T09:00:00.000Z' },
-            durationMin: { type: 'integer', example: 60 },
-            type: { type: 'string', enum: ['PARTICULAR', 'CONVENIO'] },
-            room: { type: 'string', enum: ['SALA_1', 'SALA_2', 'SALA_3', 'SALA_4'] },
-            notes: { type: 'string' },
+            title: { type: 'string' },
+            contentHtml: { type: 'string' },
           },
         },
-        UpdateAppointmentStatusDTO: {
+        CreatePreRegLinkDTO: {
           type: 'object',
-          required: ['status'],
+          required: ['patientName', 'phone'],
           properties: {
-            status: {
-              type: 'string',
-              enum: ['AGENDADO', 'CONFIRMADO', 'EM_ATENDIMENTO', 'FINALIZADO', 'CANCELADO', 'FALTOU', 'ESPERA'],
-            },
-            cancellationReason: { type: 'string' },
-          },
-        },
-       Appointment: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', format: 'uuid' },
+            patientName: { type: 'string', example: 'Beatriz Almeida' },
+            phone: { type: 'string', example: '85988889999' },
             patientId: { type: 'string', format: 'uuid' },
-            dentistId: { type: 'string', format: 'uuid' },
-            procedureId: { type: 'string', format: 'uuid', nullable: true },
-            dateTime: { type: 'string', format: 'date-time' },
-            durationMin: { type: 'integer' },
-            status: { type: 'string' },
-            type: { type: 'string' },
-            room: { type: 'string' },
-            notes: { type: 'string', nullable: true },
-            procedure: {
-              type: 'object',
-              nullable: true,
-              properties: {
-                id: { type: 'string', format: 'uuid' },
-                name: { type: 'string', example: 'Limpeza e Profilaxia' },
-                basePrice: { type: 'number', example: 150.0 },
-              },
-            },
+            expiresInDays: { type: 'integer', default: 7 },
           },
         },
 
-        // ─── Transaction ───────────────────────────────────────────────────
-        CreateTransactionDTO: {
-          type: 'object',
-          required: ['type', 'amount', 'paymentMethod'],
-          properties: {
-            type: { type: 'string', enum: ['RECEITA', 'DESPESA'] },
-            amount: { type: 'number', format: 'decimal', example: 350.0 },
-            paymentMethod: { type: 'string', enum: ['PIX', 'CREDITO', 'DEBITO', 'DINHEIRO', 'CONVENIO'] },
-            description: { type: 'string' },
-            category: { type: 'string' },
-            appointmentId: { type: 'string', format: 'uuid' },
-            treatmentPlanId: { type: 'string', format: 'uuid', description: 'Vínculo opcional com orçamento aprovado' },
-            paidAt: { type: 'string', format: 'date-time' },
-          },
-        },
-        Transaction: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', format: 'uuid' },
-            type: { type: 'string' },
-            amount: { type: 'number' },
-            paymentMethod: { type: 'string' },
-            description: { type: 'string' },
-            category: { type: 'string' },
-            treatmentPlanId: { type: 'string', format: 'uuid', nullable: true },
-            paidAt: { type: 'string', format: 'date-time' },
-          },
-        },
-        FinancialReport: {
-          type: 'object',
-          properties: {
-            period: {
-              type: 'object',
-              properties: {
-                startDate: { type: 'string' },
-                endDate: { type: 'string' },
-              },
-            },
-            summary: {
-              type: 'object',
-              properties: {
-                totalReceitas: { type: 'number' },
-                totalDespesas: { type: 'number' },
-                lucro: { type: 'number' },
-                totalTransacoes: { type: 'integer' },
-              },
-            },
-          },
-        },
-
-        // ─── Product ───────────────────────────────────────────────────────
-        CreateProductDTO: {
-          type: 'object',
-          required: ['name', 'quantity', 'minQuantity'],
-          properties: {
-            name: { type: 'string', example: 'Anestésico Tubete 2%' },
-            quantity: { type: 'integer', example: 50 },
-            minQuantity: { type: 'integer', example: 10 },
-            supplierId: { type: 'string', format: 'uuid' },
-            lotNumber: { type: 'string', example: 'LT-2026-A', description: 'Número do lote para rastreabilidade' },
-            manufacturingDate: { type: 'string', format: 'date', example: '2026-01-15' },
-            expiryDate: { type: 'string', format: 'date', example: '2027-12-31' },
-            notes: { type: 'string', example: 'Armazenar entre 2°C e 8°C.' },
-          },
-        },
-        AdjustStockDTO: {
-          type: 'object',
-          required: ['quantity', 'reason'],
-          properties: {
-            quantity: { type: 'integer', example: -5, description: 'Positivo = entrada, negativo = saída' },
-            reason: { type: 'string', example: 'Uso clínico' },
-          },
-        },
-        Product: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', format: 'uuid' },
-            name: { type: 'string' },
-            quantity: { type: 'integer' },
-            minQuantity: { type: 'integer' },
-            lotNumber: { type: 'string', nullable: true },
-            manufacturingDate: { type: 'string', format: 'date-time', nullable: true },
-            expiryDate: { type: 'string', format: 'date', nullable: true },
-            notes: { type: 'string', nullable: true },
-            stockStatus: { type: 'string', enum: ['CRITICO', 'BAIXO', 'OK'] },
-          },
-        },
-
-        // ─── AuditLog ──────────────────────────────────────────────────────
-        AuditLog: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', format: 'uuid' },
-            tenantId: { type: 'string', format: 'uuid' },
-            clinicId: { type: 'string', format: 'uuid' },
-            userId: { type: 'string', format: 'uuid', nullable: true },
-            userName: { type: 'string', example: 'Dr. Vicente Augusto', nullable: true },
-            userRole: { type: 'string', enum: ['ADMIN', 'DENTIST', 'SECRETARY'], nullable: true },
-            action: { type: 'string', enum: ['CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'EXPORT'] },
-            entity: { type: 'string', example: 'PRODUCT' },
-            entityId: { type: 'string', example: 'prod-123456', nullable: true },
-            details: { type: 'string', example: 'Cadastrou o produto: Anestésico Tubete | Lote: LT-2026-A' },
-            ipAddress: { type: 'string', example: '187.19.120.4', nullable: true },
-            userAgent: { type: 'string', example: 'Mozilla/5.0...', nullable: true },
-            createdAt: { type: 'string', format: 'date-time' },
-          },
-        },
-        // ─── Stock Movements ────────────────────────────────────────────────
-        CreateStockMovementDTO: {
-          type: 'object',
-          required: ['productId', 'type', 'quantity'],
-          properties: {
-            productId: { type: 'string', format: 'uuid' },
-            type: { type: 'string', enum: ['ENTRY', 'EXIT_MANUAL'] },
-            quantity: { type: 'integer', example: 10 },
-            reason: { type: 'string', example: 'Ajuste de inventário' },
-          },
-        },
-        StockMovement: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', format: 'uuid' },
-            productId: { type: 'string', format: 'uuid' },
-            userId: { type: 'string', format: 'uuid', nullable: true },
-            type: { type: 'string', enum: ['ENTRY', 'EXIT_MANUAL', 'EXIT_AUTO'] },
-            quantity: { type: 'integer' },
-            reason: { type: 'string', nullable: true },
-            createdAt: { type: 'string', format: 'date-time' },
-          },
-        },
-        AuditLogListResponse: {
-          type: 'object',
-          properties: {
-            total: { type: 'integer', example: 45 },
-            page: { type: 'integer', example: 1 },
-            totalPages: { type: 'integer', example: 3 },
-            logs: {
-              type: 'array',
-              items: {
-                $ref: '#/components/schemas/AuditLog',
-              },
-            },
-          },
-        },
-
-        // ─── Dashboard ─────────────────────────────────────────────────────
-        DashboardSummary: {
-          type: 'object',
-          properties: {
-            patients: {
-              type: 'object',
-              properties: {
-                total: { type: 'integer' },
-                newThisMonth: { type: 'integer' },
-              },
-            },
-            appointments: {
-              type: 'object',
-              properties: {
-                today: { type: 'integer' },
-                thisWeek: { type: 'integer' },
-                thisMonth: { type: 'integer' },
-              },
-            },
-            financial: {
-              type: 'object',
-              properties: {
-                todayRevenue: { type: 'number' },
-                monthRevenue: { type: 'number' },
-                monthExpenses: { type: 'number' },
-                monthProfit: { type: 'number' },
-              },
-            },
-            inventory: {
-              type: 'object',
-              properties: {
-                lowStockCount: { type: 'integer' },
-                expiringCount: { type: 'integer' },
-              },
-            },
-          },
-        },
-
-        // ─── Erros & Padrões ───────────────────────────────────────────────
+        // ─── Erros & Metadados Padrão ──────────────────────────────────────
         Error: {
           type: 'object',
           properties: {
             message: { type: 'string', example: 'Recurso não encontrado.' },
-          },
-        },
-        PaginationMeta: {
-          type: 'object',
-          properties: {
-            total: { type: 'integer' },
-            page: { type: 'integer' },
-            limit: { type: 'integer' },
-            totalPages: { type: 'integer' },
           },
         },
       },
@@ -367,14 +281,21 @@ const options: swaggerJsdoc.Options = {
           content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
         },
         Conflict: {
-          description: 'Conflito — recurso duplicado ou regra de negócio violada.',
+          description: 'Conflito — recurso duplicado ou regra violada.',
           content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
         },
       },
     },
     security: [{ bearerAuth: [] }],
   },
-  apis: [path.join(process.cwd(), 'src/docs/routes/*.routes.ts'), path.join(process.cwd(), 'src/routes/*.routes.ts')],
+  apis: [
+    // Lê as rotas documentadas dentro de src/docs/routes/ (tanto dev em .ts como dist em .js)
+    path.resolve(__dirname, './routes/**/*.{ts,js}'),
+    path.resolve(__dirname, './routes/*.{ts,js}'),
+    // Fallback caso existam anotações em src/routes/
+    path.resolve(__dirname, '../routes/**/*.{ts,js}'),
+    path.resolve(__dirname, '../routes/*.{ts,js}'),
+  ],
 }
 
 export const swaggerSpec = swaggerJsdoc(options)
