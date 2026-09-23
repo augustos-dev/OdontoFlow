@@ -1,5 +1,5 @@
 /* ==========================================================================
-   DRAWER / SHEET DE DETALHES DA EVOLUÇÃO
+   DRAWER / SHEET DE DETALHES DA EVOLUÇÃO (WHITE-LABEL & CLEAN CLINIC THEME)
    ========================================================================== */
 
 .sheet-backdrop {
@@ -8,7 +8,7 @@
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(15, 23, 42, 0.65);
+  background-color: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(4px);
   z-index: 9999;
   display: flex;
@@ -17,12 +17,12 @@
 
 .sheet-container {
   width: 80vw !important;
-  max-width: 1100px;
+  max-width: 980px;
   min-width: 320px;
   height: 100%;
-  background-color: #1e1e2e;
-  color: #cdd6f4;
-  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+  background-color: #ffffff;
+  color: #0f172a;
+  box-shadow: -10px 0 35px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
   animation: slideInRight 0.25s ease-out forwards;
@@ -41,29 +41,43 @@
 
 .sheet-header {
   padding: 1.25rem 2rem;
-  border-bottom: 1px solid #313244;
+  border-bottom: 1px solid #e2e8f0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  background-color: #181825;
+  background-color: #f8fafc;
 }
 
 .sheet-meta {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.4rem;
+  gap: 0.625rem;
+  margin-bottom: 0.5rem;
   flex-wrap: wrap;
 }
 
 .evolution-badge {
-  background-color: rgba(137, 180, 250, 0.15);
-  color: #89b4fa;
-  border: 1px solid rgba(137, 180, 250, 0.3);
+  background-color: #f0f9ff;
+  color: var(--clinic-primary, #0284c7);
+  border: 1px solid #bae6fd;
   padding: 0.2rem 0.65rem;
   border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.725rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ai-transcription-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #fdf4ff 0%, #fae8ff 100%);
+  color: #a855f7;
+  border: 1px solid #e9d5ff;
+  padding: 0.2rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.725rem;
+  font-weight: 700;
 }
 
 .lock-badge {
@@ -77,73 +91,74 @@
 }
 
 .lock-badge.locked {
-  background-color: rgba(243, 139, 168, 0.15);
-  color: #f38ba8;
-  border: 1px solid rgba(243, 139, 168, 0.3);
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
 }
 
 .lock-badge.unlocked {
-  background-color: rgba(166, 227, 161, 0.15);
-  color: #a6e3a1;
-  border: 1px solid rgba(166, 227, 161, 0.3);
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
 }
 
 .evolution-date {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.775rem;
-  color: #a6adc8;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
 }
 
 .sheet-title {
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 700;
   margin: 0;
-  color: #f5e0dc;
+  color: #0f172a;
 }
 
 .sheet-edit-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background-color: #313244;
-  color: #89b4fa;
-  border: 1px solid rgba(137, 180, 250, 0.3);
+  background-color: #ffffff;
+  color: var(--clinic-primary, #0284c7);
+  border: 1px solid #cbd5e1;
   padding: 0.45rem 0.85rem;
   border-radius: 6px;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
 
 .sheet-edit-btn:hover {
-  background-color: #89b4fa;
-  color: #11111b;
+  background-color: #f0f9ff;
+  border-color: var(--clinic-primary, #0284c7);
 }
 
 .sheet-close-btn {
   background: transparent;
   border: none;
-  color: #a6adc8;
+  color: #64748b;
   cursor: pointer;
   padding: 0.5rem;
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
 
 .sheet-close-btn:hover {
-  background-color: #313244;
-  color: #fff;
+  background-color: #f1f5f9;
+  color: #0f172a;
 }
 
 .sheet-body {
   flex: 1;
-  padding: 2rem;
+  padding: 1.75rem 2rem;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -154,25 +169,25 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.85rem;
-  color: #bac2de;
-  background-color: #181825;
+  font-size: 0.8125rem;
+  color: #475569;
+  background-color: #f8fafc;
   padding: 0.75rem 1rem;
   border-radius: 8px;
-  border: 1px solid #313244;
+  border: 1px solid #e2e8f0;
 }
 
 .doctor-icon {
-  color: #89b4fa;
+  color: var(--clinic-primary, #0284c7);
 }
 
-/* 🟢 CARD DO PROCEDIMENTO REALIZADO (EXIT INTELIGENTE) */
+/* CARD DO PROCEDIMENTO REALIZADO (EXIT INTELIGENTE) */
 .evolution-procedure-card {
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, rgba(2, 132, 199, 0.05) 100%);
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.05) 0%, rgba(6, 182, 212, 0.03) 100%);
+  border: 1px solid rgba(2, 132, 199, 0.25);
   border-radius: 10px;
   padding: 1rem 1.25rem;
 }
@@ -181,7 +196,7 @@
   width: 42px;
   height: 42px;
   border-radius: 8px;
-  background-color: rgba(56, 189, 248, 0.15);
+  background-color: #e0f2fe;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -195,22 +210,22 @@
 }
 
 .proc-card-label {
-  font-size: 0.68rem;
+  font-size: 0.6875rem;
   font-weight: 700;
-  color: #38bdf8;
+  color: var(--clinic-primary, #0284c7);
   letter-spacing: 0.05em;
 }
 
 .proc-card-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 700;
-  color: #ffffff;
+  color: #0f172a;
 }
 
 .proc-card-sub {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: #64748b;
 }
 
 /* Seções Gerais */
@@ -224,29 +239,32 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #b4befe;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .evolution-description-box {
-  padding: 1.15rem;
-  border: 1px solid #313244;
+  padding: 1.25rem;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  background-color: #181825;
-  font-size: 0.9rem;
-  line-height: 1.6;
-  color: #cdd6f4;
+  background-color: #ffffff;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: #1e293b;
   word-break: break-word;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
-/* 🟢 FORMULÁRIO DE EDIÇÃO AUDITORADA */
+/* FORMULÁRIO DE EDIÇÃO AUDITORADA */
 .edit-evolution-wrapper {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background-color: #181825;
-  border: 1px solid #313244;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
   padding: 16px;
   border-radius: 8px;
 }
@@ -254,13 +272,19 @@
 .edit-description-textarea {
   width: 100%;
   padding: 12px;
-  background-color: #1e1e2e;
-  border: 1px solid #45475a;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
   border-radius: 6px;
-  color: #cdd6f4;
-  font-size: 0.9rem;
+  color: #0f172a;
+  font-size: 0.875rem;
   outline: none;
   resize: vertical;
+  box-sizing: border-box;
+}
+
+.edit-description-textarea:focus {
+  border-color: var(--clinic-primary, #0284c7);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
 }
 
 .lgpd-reason-box {
@@ -271,8 +295,8 @@
 
 .lgpd-reason-label {
   font-size: 0.775rem;
-  font-weight: 600;
-  color: #f59e0b;
+  font-weight: 700;
+  color: #b45309;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -281,12 +305,17 @@
 .lgpd-reason-input {
   width: 100%;
   padding: 8px 12px;
-  background-color: #1e1e2e;
+  background-color: #ffffff;
   border: 1px solid #f59e0b;
   border-radius: 6px;
-  color: #ffffff;
-  font-size: 0.825rem;
+  color: #0f172a;
+  font-size: 0.8125rem;
   outline: none;
+  box-sizing: border-box;
+}
+
+.lgpd-reason-input:focus {
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
 }
 
 .edit-actions-row {
@@ -298,29 +327,39 @@
 
 .btn-cancel-edit {
   background-color: transparent;
-  color: #a6adc8;
-  border: 1px solid #45475a;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
   padding: 6px 14px;
   border-radius: 6px;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
   cursor: pointer;
 }
 
+.btn-cancel-edit:hover {
+  background-color: #f1f5f9;
+}
+
 .btn-save-edit {
-  background-color: #89b4fa;
-  color: #11111b;
+  background-color: var(--clinic-primary, #0284c7);
+  color: #ffffff;
   border: none;
   padding: 6px 16px;
   border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 700;
+  font-size: 0.8125rem;
+  font-weight: 600;
   cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn-save-edit:hover {
+  opacity: 0.92;
 }
 
 /* Anexos e Odontograma */
 .attachments-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 0.85rem;
 }
 
@@ -330,9 +369,9 @@
   aspect-ratio: 1 / 1;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid #313244;
+  border: 1px solid #e2e8f0;
   cursor: pointer;
-  background-color: #181825;
+  background-color: #f8fafc;
 }
 
 .attachment-img {
@@ -345,7 +384,7 @@
 .attachment-overlay {
   position: absolute;
   inset: 0;
-  background-color: rgba(15, 23, 42, 0.6);
+  background-color: rgba(15, 23, 42, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -358,11 +397,57 @@
   opacity: 1;
 }
 
+.attachment-pdf-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: #f8fafc;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  aspect-ratio: 1 / 1;
+}
+
+.pdf-badge-tag {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.pdf-card-actions {
+  display: flex;
+  gap: 0.375rem;
+  width: 100%;
+}
+
+.pdf-btn-action {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pdf-btn-action:hover {
+  border-color: var(--clinic-primary, #0284c7);
+  color: var(--clinic-primary, #0284c7);
+}
+
 .odontogram-readonly-box {
-  background-color: #0f172a;
+  background-color: #f8fafc;
   padding: 1.25rem;
   border-radius: 10px;
-  border: 1px solid #313244;
+  border: 1px solid #e2e8f0;
   width: 100%;
   box-sizing: border-box;
   display: flex;
@@ -370,23 +455,23 @@
 }
 
 .evolution-placeholder-box {
-  border: 1px dashed #45475a;
-  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px dashed #cbd5e1;
+  background-color: #f8fafc;
   border-radius: 8px;
   padding: 1.25rem;
   text-align: center;
 }
 
 .placeholder-text {
-  font-size: 0.825rem;
-  color: #7f849c;
+  font-size: 0.8125rem;
+  color: #64748b;
   margin: 0;
 }
 
 .sheet-footer {
   padding: 1rem 2rem;
-  border-top: 1px solid #313244;
-  background-color: #181825;
+  border-top: 1px solid #e2e8f0;
+  background-color: #f8fafc;
 }
 
 .evolution-integrity-badge {
@@ -394,14 +479,15 @@
   align-items: center;
   gap: 0.5rem;
   font-size: 0.775rem;
-  color: #a6e3a1;
+  color: #059669;
+  font-weight: 500;
 }
 
 .lightbox-overlay {
   position: fixed;
   inset: 0;
   z-index: 10000;
-  background-color: rgba(0, 0, 0, 0.85);
+  background-color: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(5px);
   display: flex;
   align-items: center;
@@ -419,15 +505,15 @@
   max-width: 100%;
   max-height: 85vh;
   border-radius: 8px;
-  border: 1px solid #313244;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 
 .lightbox-close-btn {
   position: absolute;
-  top: -12px;
-  right: -12px;
-  background-color: #f38ba8;
-  color: #11111b;
+  top: -14px;
+  right: -14px;
+  background-color: #ffffff;
+  color: #0f172a;
   border: none;
   border-radius: 50%;
   width: 32px;
@@ -436,4 +522,5 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
 }

@@ -1,35 +1,38 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Clock,
   UserCheck,
-  CheckCircle,
   Play,
   FileText,
-  X,
   Stethoscope,
-  Users,
-  Activity,
+  Phone,
+  RefreshCw,
 } from 'lucide-react'
+import api from '@/lib/api'
 import styles from './MeuConsultorio.module.css'
+
+interface PatientDetails {
+  id: string
+  name: string
+  phone: string | null
+  cpf?: string | null
+}
 
 interface Appointment {
   id: string
   patientId: string
-  patient: {
-    id: string
-    name: string
-    phone: string | null
-  }
-  procedure: {
+  patient?: PatientDetails
+  procedure?: {
     id: string
     name: string
     basePrice: number
   } | null
   dateTime: string
   status: 'AGENDADO' | 'CONFIRMADO' | 'ESPERA' | 'EM_ATENDIMENTO' | 'FINALIZADO' | 'CANCELADO'
-  room: string
+  room?: string | null
 }
 
 const ROOMS = [
@@ -40,140 +43,120 @@ const ROOMS = [
 ]
 
 export default function MeuConsultorioCockpit() {
+  const router = useRouter()
   const [selectedRoom, setSelectedRoom] = useState<string>('SALA_1')
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
 
-  const [activeAppointment, setActiveAppointment] = useState<Appointment | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [evolutionDescription, setEvolutionDescription] = useState('')
-  const [savingEvolution, setSavingEvolution] = useState(false)
+  const getLocalDateString = () => {
+    const d = new Date()
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
 
-  async function loadDayAppointments(room: string) {
+  // 1. Carrega preferências do dentista
+  useEffect(() => {
+    async function loadDentistProfile() {
+      try {
+        const { data } = await api.get('/dentist-profile')
+        const profile = data?.data || data
+        if (profile?.defaultRoom) {
+          setSelectedRoom(profile.defaultRoom)
+        }
+      } catch (err) {
+        console.error('Erro ao carregar /dentist-profile:', err)
+      }
+    }
+    loadDentistProfile()
+  }, [])
+
+  // 2. Carrega agendamentos da sala
+  async function loadAppointments(room: string) {
     try {
       setLoading(true)
-      const token = localStorage.getItem('token') || ''
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://odontoflow-bbc1.onrender.com'
-      const today = new Date().toISOString().split('T')[0]
+      const today = getLocalDateString()
 
-      const res = await fetch(`${baseUrl}/appointments?room=${room}&date=${today}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      let rawList: Appointment[] = []
+      try {
+        const res = await api.get(`/appointments?date=${today}`)
+        const json = res.data
+        rawList = Array.isArray(json) ? json : json.data || []
+      } catch {
+        const fallbackRes = await api.get('/appointments')
+        const fallbackJson = fallbackRes.data
+        rawList = Array.isArray(fallbackJson) ? fallbackJson : fallbackJson.data || []
+      }
+
+      const targetDigits = room.replace(/[^0-9]/g, '')
+      const filtered = rawList.filter((appt) => {
+        if (!appt.room) return true
+        const apptDigits = String(appt.room).replace(/[^0-9]/g, '')
+        return apptDigits === targetDigits || appt.room === room
       })
 
-      if (res.ok) {
-        const json = await res.json()
-        setAppointments(json.data || [])
-      }
+      setAppointments(filtered)
     } catch (error) {
-      console.error('Falha ao carregar atendimentos da sala:', error)
+      console.error('Falha ao carregar fila:', error)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    loadDayAppointments(selectedRoom)
+    loadAppointments(selectedRoom)
   }, [selectedRoom])
 
-  const handleOpenAttendance = async (appt: Appointment) => {
-    setActiveAppointment(appt)
-    setEvolutionDescription('')
-    setModalOpen(true)
+  const handleSelectRoom = async (room: string) => {
+    setSelectedRoom(room)
+    try {
+      await api.put('/dentist-profile', { defaultRoom: room })
+    } catch (e) {
+      console.error('Falha ao sincronizar sala:', e)
+    }
+  }
 
+  // 3. AÇÃO PRINCIPAL: Leva para a tela de Paciente Profile com o ID e parâmetros de atendimento
+  const handleAction = async (appt: Appointment) => {
     if (appt.status !== 'EM_ATENDIMENTO' && appt.status !== 'FINALIZADO') {
       try {
-        const token = localStorage.getItem('token') || ''
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://odontoflow-bbc1.onrender.com'
-
-        await fetch(`${baseUrl}/appointments/${appt.id}/status`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status: 'EM_ATENDIMENTO' }),
-        })
-
-        setAppointments((prev) =>
-          prev.map((item) => (item.id === appt.id ? { ...item, status: 'EM_ATENDIMENTO' } : item))
-        )
+        await api.patch(`/appointments/${appt.id}/status`, { status: 'EM_ATENDIMENTO' })
       } catch (err) {
-        console.error('Erro ao atualizar status do agendamento:', err)
+        console.error('Erro ao mudar status do agendamento:', err)
       }
     }
+
+    router.push(`/pacientes/${appt.patientId}?appointmentId=${appt.id}&room=${selectedRoom}&openEvolution=true`)
   }
 
-  const handleFinishAttendance = async () => {
-    if (!activeAppointment) return
-
-    try {
-      setSavingEvolution(true)
-      const token = localStorage.getItem('token') || ''
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://odontoflow-bbc1.onrender.com'
-
-      if (evolutionDescription.trim()) {
-        await fetch(`${baseUrl}/medical-records/${activeAppointment.patientId}/evolutions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            description: evolutionDescription,
-            procedureId: activeAppointment.procedure?.id || undefined,
-            appointmentId: activeAppointment.id,
-          }),
-        })
-      }
-
-      await fetch(`${baseUrl}/appointments/${activeAppointment.id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          status: 'FINALIZADO',
-          procedureId: activeAppointment.procedure?.id || undefined,
-        }),
-      })
-
-      setAppointments((prev) =>
-        prev.map((item) =>
-          item.id === activeAppointment.id ? { ...item, status: 'FINALIZADO' } : item
-        )
-      )
-      setModalOpen(false)
-      setActiveAppointment(null)
-    } catch (err) {
-      console.error('Erro ao concluir atendimento:', err)
-      alert('Houve um erro ao registrar o atendimento.')
-    } finally {
-      setSavingEvolution(false)
-    }
-  }
-
-  // Estatísticas rápidas da sala
   const totalAgendados = appointments.length
   const totalAguardando = appointments.filter((a) => a.status === 'ESPERA').length
   const totalFinalizados = appointments.filter((a) => a.status === 'FINALIZADO').length
 
   return (
     <div className={styles.pageContainer}>
-      {/* Header */}
       <div className={styles.headerWrapper}>
         <span className={styles.breadcrumbBadge}>ODONTOFLOW • MEU CONSULTÓRIO</span>
         <div className={styles.pageHeader}>
           <div>
             <h1 className={styles.pageTitle}>Atendimento Clínico & Mocho</h1>
             <p className={styles.pageDescription}>
-              Selecione o consultório em que está operando hoje para visualizar e chamar seus pacientes.
+              Selecione o consultório em que está operando para visualizar a fila e realizar atendimentos.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => loadAppointments(selectedRoom)}
+            className={styles.refreshBtn}
+          >
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            Atualizar Fila
+          </button>
         </div>
       </div>
 
-      {/* Barra de Filtro de Sala */}
+      {/* Seletor de Cadeira */}
       <div className={styles.roomSelectorCard}>
         <div className={styles.roomSelectorLabel}>
           <Stethoscope size={18} color="#0284c7" />
@@ -185,7 +168,7 @@ export default function MeuConsultorioCockpit() {
             <button
               key={room.id}
               type="button"
-              onClick={() => setSelectedRoom(room.id)}
+              onClick={() => handleSelectRoom(room.id)}
               className={`${styles.roomBtn} ${selectedRoom === room.id ? styles.roomBtnActive : ''}`}
             >
               {room.label}
@@ -194,24 +177,24 @@ export default function MeuConsultorioCockpit() {
         </div>
       </div>
 
-      {/* Grid Fluida: Fila à Esquerda + Resumo da Sala à Direita */}
+      {/* Grid Principal */}
       <div className={styles.mainGrid}>
-        {/* Coluna Principal: Fila de Atendimento */}
         <div className={styles.contentArea}>
           {loading ? (
             <div className={styles.emptyState}>
-              <p>Carregando fila de pacientes...</p>
+              <p>Carregando fila de atendimentos...</p>
             </div>
           ) : appointments.length === 0 ? (
             <div className={styles.emptyState}>
               <UserCheck size={36} color="#94a3b8" />
               <p className="font-semibold text-slate-800 text-sm m-0">Nenhum paciente agendado para esta sala hoje.</p>
               <p className="text-xs text-slate-500 m-0">
-                Novas consultas agendadas pela recepção aparecerão aqui em tempo real.
+                Novas consultas marcadas pela recepção aparecerão aqui em tempo real.
               </p>
             </div>
           ) : (
             appointments.map((appt) => {
+              const patientDisplayName = appt.patient?.name || 'Paciente sem nome'
               const timeFormatted = new Date(appt.dateTime).toLocaleTimeString('pt-BR', {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -226,12 +209,12 @@ export default function MeuConsultorioCockpit() {
                 >
                   <div className={styles.patientInfo}>
                     <div className={styles.avatarCircle}>
-                      {appt.patient.name.substring(0, 2).toUpperCase()}
+                      {patientDisplayName.substring(0, 2).toUpperCase()}
                     </div>
 
                     <div className={styles.patientMeta}>
                       <div className={styles.patientNameRow}>
-                        <span className={styles.patientName}>{appt.patient.name}</span>
+                        <span className={styles.patientName}>{patientDisplayName}</span>
                         <span
                           className={`${styles.statusPill} ${
                             appt.status === 'ESPERA'
@@ -259,6 +242,14 @@ export default function MeuConsultorioCockpit() {
                         </span>
                         <span>•</span>
                         <span>{appt.procedure?.name || 'Avaliação Geral'}</span>
+                        {appt.patient?.phone && (
+                          <>
+                            <span>•</span>
+                            <span className="flex items-center gap-1 text-slate-500">
+                              <Phone size={11} /> {appt.patient.phone}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -269,7 +260,7 @@ export default function MeuConsultorioCockpit() {
                     ) : isServing ? (
                       <button
                         type="button"
-                        onClick={() => handleOpenAttendance(appt)}
+                        onClick={() => handleAction(appt)}
                         className={styles.continueBtn}
                       >
                         <FileText size={15} />
@@ -278,7 +269,7 @@ export default function MeuConsultorioCockpit() {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => handleOpenAttendance(appt)}
+                        onClick={() => handleAction(appt)}
                         className={styles.startBtn}
                       >
                         <Play size={14} />
@@ -292,7 +283,7 @@ export default function MeuConsultorioCockpit() {
           )}
         </div>
 
-        {/* Coluna Lateral: Resumo da Sala (Cockpit) */}
+        {/* Resumo Lateral da Cadeira */}
         <aside className={styles.sideCard}>
           <div className={styles.sideTitle}>
             <span>Resumo da Cadeira</span>
@@ -315,68 +306,10 @@ export default function MeuConsultorioCockpit() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 text-xs text-slate-500 leading-relaxed">
-            💡 Ao clicar em <strong>Iniciar Atendimento</strong>, a recepção é notificada que o paciente já está no mocho.
+            💡 Ao clicar em <strong>Iniciar Atendimento</strong>, a consulta transita para a cadeira e você é levado diretamente ao prontuário oficial com anamnese e odontograma.
           </div>
         </aside>
       </div>
-
-      {/* Modal / Prontuário Rápido */}
-      {modalOpen && activeAppointment && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalBox}>
-            <div className={styles.modalHeader}>
-              <div>
-                <h2 className={styles.modalTitle}>{activeAppointment.patient.name}</h2>
-                <p className="text-xs text-slate-500 m-0 mt-0.5">
-                  {selectedRoom} • Procedimento: {activeAppointment.procedure?.name || 'Avaliação Geral'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className={styles.modalBody}>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Evolução Clínica do Atendimento
-                </label>
-                <textarea
-                  rows={6}
-                  value={evolutionDescription}
-                  onChange={(e) => setEvolutionDescription(e.target.value)}
-                  className={styles.textarea}
-                  placeholder="Descreva a conduta clínica, dentes trabalhados, anestésicos ou medicamentos..."
-                />
-              </div>
-            </div>
-
-            <div className={styles.modalFooter}>
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className={styles.cancelBtn}
-              >
-                Manter em Atendimento
-              </button>
-
-              <button
-                type="button"
-                onClick={handleFinishAttendance}
-                disabled={savingEvolution}
-                className={styles.finishBtn}
-              >
-                <CheckCircle size={16} />
-                <span>{savingEvolution ? 'Registrando...' : 'Concluir & Mandar para Recepção'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
-}
+} 

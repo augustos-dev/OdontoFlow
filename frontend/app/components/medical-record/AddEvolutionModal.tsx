@@ -21,7 +21,7 @@ import {
   Clock,
   Save,
   Boxes,
-  Stethoscope
+  Square
 } from 'lucide-react'
 import api from '../../../lib/api'
 import { Odontogram, OdontogramData } from '../tooth/Odontogram'
@@ -55,6 +55,7 @@ interface ProcedureOption {
 interface AddEvolutionModalProps {
   patientId: string
   medicalRecordId?: string | null
+  appointmentId?: string
   isOpen: boolean
   onClose: () => void
   onSuccess?: () => void
@@ -66,6 +67,7 @@ interface AddEvolutionModalProps {
 export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   patientId,
   medicalRecordId,
+  appointmentId,
   isOpen,
   onClose,
   onSuccess,
@@ -80,24 +82,32 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   const [images, setImages] = useState<File[]>([])
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
   
-  // 🟢 NOVO: Seleção de Procedimentos para Exit Inteligente
+  // Seleção de Procedimentos para Exit Inteligente
   const [procedures, setProcedures] = useState<ProcedureOption[]>([])
   const [selectedProcedureId, setSelectedProcedureId] = useState<string>('')
   const [loadingProcedures, setLoadingProcedures] = useState<boolean>(false)
 
   const [previousEvolutions, setPreviousEvolutions] = useState<EvolutionItem[]>([])
   const [showLastEvo, setShowLastEvo] = useState(true)
-  const [isTranscribing, setIsTranscribing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [hasDraft, setHasDraft] = useState(false)
+
+  // Gravação de Áudio com Mocho AI (Whisper + GPT)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [processingAudio, setProcessingAudio] = useState(false)
+  const [aiTranscriptionId, setAiTranscriptionId] = useState<string | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const editableRef = useRef<HTMLDivElement>(null)
 
   const DRAFT_KEY = `odontoflow_draft_evolution_${patientId}`
   const isPremiumOrEnterprise = userPlan === 'PREMIUM' || userPlan === 'ENTERPRISE'
 
-  // ── 1. Carrega Catálogo de Procedimentos (Apenas se o plano for elegível) ──
+  // 1. Carrega Catálogo de Procedimentos
   useEffect(() => {
     if (!isOpen) return
 
@@ -115,7 +125,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
       })
   }, [isOpen])
 
-  // ── 2. Inicializa / Busca o Odontograma Mais Recente ──
+  // 2. Inicializa / Busca Odontograma
   useEffect(() => {
     if (!isOpen || !patientId) return
 
@@ -145,11 +155,11 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
         }
       })
       .catch((err) => {
-        console.error('Erro ao carregar snapshot prévio do odontograma:', err)
+        console.error('Erro ao carregar snapshot do odontograma:', err)
       })
   }, [isOpen, patientId, initialOdontogramState])
 
-  // ── 3. Carrega Rascunho de Texto ──
+  // 3. Rascunhos
   useEffect(() => {
     if (isOpen && patientId) {
       const savedDraft = localStorage.getItem(DRAFT_KEY)
@@ -167,13 +177,12 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
           }
           setHasDraft(true)
         } catch (e) {
-          console.error('Erro ao restaurar rascunho de evolução:', e)
+          console.error('Erro ao restaurar rascunho:', e)
         }
       }
     }
   }, [isOpen, patientId, DRAFT_KEY])
 
-  // ── 4. Salva Rascunho de Texto ──
   useEffect(() => {
     if (isOpen && patientId && (title.trim() || description.trim() || selectedProcedureId)) {
       const draftData = { title, type, description, selectedProcedureId }
@@ -182,7 +191,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
     }
   }, [title, type, description, selectedProcedureId, isOpen, patientId, DRAFT_KEY])
 
-  // ── 5. Busca histórico recente de evoluções ──
+  // 4. Última evolução
   useEffect(() => {
     if (isOpen && patientId) {
       api.get(`/medical-records/${patientId}/evolutions?limit=1`)
@@ -197,15 +206,94 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
     }
   }, [isOpen, patientId])
 
-  if (!isOpen) return null
-
-  const handleAiAction = (actionCallback: () => void) => {
+  // 5. Gravação de Áudio e Envio ao Mocho AI (POST /clinical-ai/transcribe)
+  const startRecording = async () => {
     if (!isPremiumOrEnterprise) {
       setShowUpgradeModal(true)
       return
     }
-    actionCallback()
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      }
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        await sendAudioToAI(audioBlob, recordingTime)
+      }
+
+      mediaRecorder.start()
+      setIsRecording(true)
+      setRecordingTime(0)
+
+      timerIntervalRef.current = setInterval(() => {
+        setRecordingTime((prev) => {
+          if (prev >= 119) {
+            stopRecording()
+            return 120
+          }
+          return prev + 1
+        })
+      }, 1000)
+    } catch {
+      alert('Não foi possível acessar o microfone.')
+    }
   }
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop()
+      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop())
+      setIsRecording(false)
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current)
+    }
+  }
+
+  const sendAudioToAI = async (blob: Blob, duration: number) => {
+    try {
+      setProcessingAudio(true)
+      const formData = new FormData()
+      formData.append('audio', blob, 'mocho_audio.webm')
+      formData.append('durationSeconds', String(duration || 1))
+
+      const res = await api.post('/clinical-ai/transcribe', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+
+      const data = res.data?.data || res.data
+      if (data?.id) setAiTranscriptionId(data.id)
+
+      const struct = data?.structuredData || {}
+      let formatted = data?.rawTranscription || ''
+
+      if (struct.summary || struct.conduct) {
+        formatted = `<strong>Resumo:</strong> ${struct.summary || ''}<br/><strong>Conduta:</strong> ${struct.conduct || ''}<br/><strong>Prescrições:</strong> ${
+          Array.isArray(struct.prescriptions) ? struct.prescriptions.join(', ') : struct.prescriptions || 'Nenhuma'
+        }<br/><strong>Materiais:</strong> ${
+          Array.isArray(struct.materialsUsed) ? struct.materialsUsed.join(', ') : struct.materialsUsed || 'Nenhum'
+        }`
+      }
+
+      const nextDesc = description ? `${description}<br/><br/>${formatted}` : formatted
+      setDescription(nextDesc)
+      if (editableRef.current) {
+        editableRef.current.innerHTML = nextDesc
+      }
+    } catch (err) {
+      console.error('Falha ao processar Mocho AI:', err)
+      alert('Não foi possível transcrever o áudio.')
+    } finally {
+      setProcessingAudio(false)
+    }
+  }
+
+  if (!isOpen) return null
 
   const handleDiscardDraft = () => {
     localStorage.removeItem(DRAFT_KEY)
@@ -233,18 +321,13 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
   const removeImage = (index: number) => {
     const updatedFiles = images.filter((_, i) => i !== index)
     setImages(updatedFiles)
-
     URL.revokeObjectURL(imagePreviews[index])
     setImagePreviews(imagePreviews.filter((_, i) => i !== index))
   }
 
+  // 6. Submissão da Evolução com appointmentId e Exit Inteligente
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-
-    if (!medicalRecordId) {
-      alert('Atenção: Este paciente ainda não possui um prontuário cadastrado!')
-      return
-    }
 
     if (!description.trim()) {
       alert('A descrição da evolução é obrigatória.')
@@ -262,31 +345,28 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
       .join('\n')
 
     try {
-      let payload: any
-
-      if (images.length > 0) {
-        const formData = new FormData()
-        formData.append('medicalRecordId', medicalRecordId)
-        formData.append('description', fullDescription)
-        if (selectedProcedureId && isPremiumOrEnterprise) {
-          formData.append('procedureId', selectedProcedureId) // 🟢 Envia o ID para baixa de estoque
-        }
-        formData.append(
-          'odontogramSnapshot',
-          JSON.stringify(Object.keys(odontogramSnapshot).length > 0 ? odontogramSnapshot : null)
-        )
-        images.forEach((img) => formData.append('attachments', img))
-        payload = formData
-      } else {
-        payload = {
-          medicalRecordId,
-          description: fullDescription,
-          procedureId: (selectedProcedureId && isPremiumOrEnterprise) ? selectedProcedureId : undefined, // 🟢
-          odontogramSnapshot: Object.keys(odontogramSnapshot).length > 0 ? odontogramSnapshot : null,
-        }
+      const formData = new FormData()
+      if (medicalRecordId) formData.append('medicalRecordId', medicalRecordId)
+      formData.append('description', fullDescription)
+      
+      if (appointmentId) {
+        formData.append('appointmentId', appointmentId)
       }
+      if (selectedProcedureId && isPremiumOrEnterprise) {
+        formData.append('procedureId', selectedProcedureId)
+      }
+      if (aiTranscriptionId) {
+        formData.append('aiTranscriptionId', aiTranscriptionId)
+      }
+      formData.append(
+        'odontogramSnapshot',
+        JSON.stringify(Object.keys(odontogramSnapshot).length > 0 ? odontogramSnapshot : null)
+      )
+      images.forEach((img) => formData.append('attachments', img))
 
-      const response = await api.post(`/medical-records/${patientId}/evolutions`, payload)
+      const response = await api.post(`/medical-records/${patientId}/evolutions`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
 
       if (response.status === 200 || response.status === 201) {
         localStorage.removeItem(DRAFT_KEY)
@@ -311,7 +391,6 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
     }
   }
 
-  // Identifica o procedimento selecionado para exibir informações de insumos
   const currentProcedure = procedures.find((p) => p.id === selectedProcedureId)
 
   return (
@@ -368,7 +447,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
               </div>
             )}
 
-            {/* Inputs de Topo com Alinhamento Garantido */}
+            {/* Inputs de Topo */}
             <div className="add-evolution-grid-three">
               <div className="form-group">
                 <div className="label-with-badge">
@@ -439,7 +518,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
               </div>
             </div>
 
-            {/* Aviso Informativo do Exit Inteligente */}
+            {/* Aviso Exit Inteligente */}
             {selectedProcedureId && isPremiumOrEnterprise && currentProcedure && (
               <div className="auto-exit-badge-info">
                 <Boxes className="w-4 h-4 text-sky-600" />
@@ -449,12 +528,11 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
               </div>
             )}
 
-            {/* Editor Rich Text com Barra Superior */}
+            {/* Editor Rich Text com Barra Superior e Mocho AI */}
             <div className="form-group">
               <label className="form-label">Descrição do Atendimento</label>
               <div className="rich-editor-wrapper">
 
-                {/* Toolbar de Formatação Superior */}
                 <div className="formatting-toolbar">
                   <button type="button" className="fmt-btn" title="Negrito" onClick={() => document.execCommand('bold', false)}>
                     <Bold className="w-4 h-4" />
@@ -485,7 +563,6 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
                   </button>
                 </div>
 
-                {/* Área de Texto Editável Visual com Ref */}
                 <div
                   ref={editableRef}
                   contentEditable
@@ -495,7 +572,6 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
                   data-placeholder="Descreva detalhadamente os procedimentos realizados, anestesia, materiais utilizados e recomendações..."
                 />
 
-                {/* Previews de Fotos Anexadas */}
                 {imagePreviews.length > 0 && (
                   <div className="image-previews-bar">
                     {imagePreviews.map((src, idx) => (
@@ -514,7 +590,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
                   </div>
                 )}
 
-                {/* Toolbar Inferior de Ações (Anexar + IA) */}
+                {/* Barra de Ações: Fotos + Mocho AI Real */}
                 <div className="editor-actions-bar">
                   <label className="btn-upload-label">
                     <Camera className="w-4 h-4 text-blue-600" />
@@ -529,19 +605,37 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
                   </label>
 
                   <div className="ia-tools-group">
-                    <button
-                      type="button"
-                      onClick={() => handleAiAction(() => setIsTranscribing(!isTranscribing))}
-                      className={`btn-ia-action ${isTranscribing ? 'is-recording' : ''} ${!isPremiumOrEnterprise ? 'locked' : ''}`}
-                    >
-                      <Mic className={`w-3.5 h-3.5 ${isTranscribing ? 'text-red-500' : 'text-slate-500'}`} />
-                      <span>{isTranscribing ? 'Ouvindo...' : 'Transcrever com IA'}</span>
-                      {!isPremiumOrEnterprise && <Crown className="w-3 h-3 text-amber-500 shrink-0" />}
-                    </button>
+                    {!isRecording ? (
+                      <button
+                        type="button"
+                        onClick={startRecording}
+                        disabled={processingAudio}
+                        className={`btn-ia-action ${!isPremiumOrEnterprise ? 'locked' : ''}`}
+                      >
+                        <Mic className="w-3.5 h-3.5 text-sky-600" />
+                        <span>{processingAudio ? 'Processando Mocho AI...' : 'Transcrever com IA'}</span>
+                        {!isPremiumOrEnterprise && <Crown className="w-3 h-3 text-amber-500 shrink-0" />}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={stopRecording}
+                        className="btn-ia-action is-recording"
+                      >
+                        <Square className="w-3.5 h-3.5 text-red-500" />
+                        <span>Parar ({recordingTime}s)</span>
+                      </button>
+                    )}
 
                     <button 
                       type="button" 
-                      onClick={() => handleAiAction(() => alert('Melhorando texto com IA...'))}
+                      onClick={() => {
+                        if (!isPremiumOrEnterprise) {
+                          setShowUpgradeModal(true)
+                          return
+                        }
+                        alert('Aprimorando termos odontológicos com IA...')
+                      }}
                       className={`btn-ia-action btn-ia-sparkles ${!isPremiumOrEnterprise ? 'locked' : ''}`}
                     >
                       <Sparkles className="w-3.5 h-3.5 text-purple-600" />
@@ -553,7 +647,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
               </div>
             </div>
 
-            {/* Banner Condicional por Plano */}
+            {/* Banner Condicional */}
             {isPremiumOrEnterprise ? (
               <div className="ia-trial-banner">
                 <Crown className="w-4 h-4 text-amber-500 shrink-0" />
@@ -589,7 +683,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
               </div>
             </div>
 
-            {/* Botões de Ação Principais */}
+            {/* Ações */}
             <div className="form-actions">
               {hasDraft && (
                 <button type="button" onClick={handleDiscardDraft} className="btn-secondary" style={{ color: '#ef4444', borderColor: '#fca5a5' }}>
@@ -599,12 +693,12 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
               <button type="button" onClick={onClose} className="btn-secondary">
                 Cancelar
               </button>
-              <button type="submit" disabled={loading} className="btn-primary">
+              <button type="submit" disabled={loading || isRecording || processingAudio} className="btn-primary">
                 {loading ? 'Salvando...' : 'Adicionar Registro'}
               </button>
             </div>
 
-            {/* 📋 SEÇÃO: ÚLTIMA EVOLUÇÃO */}
+            {/* Última Evolução */}
             <div className="recent-evolutions-section">
               <h4 className="recent-evolutions-title">Última Evolução</h4>
 
@@ -654,7 +748,7 @@ export const AddEvolutionModal: React.FC<AddEvolutionModalProps> = ({
         </div>
       </div>
 
-      {/* Pop-up Modal de Upgrade Premium */}
+      {/* Modal de Upgrade */}
       {showUpgradeModal && (
         <div className="upgrade-modal-overlay" onClick={() => setShowUpgradeModal(false)}>
           <div className="upgrade-modal-card" onClick={(e) => e.stopPropagation()}>
