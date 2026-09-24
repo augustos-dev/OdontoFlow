@@ -1,82 +1,143 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 16px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .modal {
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 16px;
   width: 100%;
-  max-width: 720px; /* Expandido para acomodar o formulário completo */
+  max-width: 760px; /* Alargado para caber as 4 abas com folga */
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  overflow: hidden;
+  animation: scaleUp 0.18s ease-out;
 }
 
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ─── Header ─── */
 .modalHeader {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 22px 24px 16px;
-  border-bottom: 1px solid var(--border);
+  padding: 22px 28px 18px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border, #e2e8f0);
   flex-shrink: 0;
 }
 
-.modalTitle { font-size: 18px; font-weight: 700; color: var(--text-primary); }
-.modalSub { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
+.modalTitle {
+  font-size: 19px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.modalSub {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 4px;
+}
 
 .closeBtn {
   background: none;
   border: none;
-  font-size: 18px;
-  color: var(--text-muted);
-  padding: 4px;
-  border-radius: 4px;
-  line-height: 1;
+  color: #94a3b8;
+  padding: 6px;
+  border-radius: 8px;
   cursor: pointer;
-}
-.closeBtn:hover { color: var(--text-primary); background: var(--bg-page); }
-
-/* ─── Tabs ─── */
-.tabs {
   display: flex;
-  border-bottom: 1px solid var(--border);
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.closeBtn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+/* ─── Grid de 4 Abas Proporcionais ─── */
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 4 colunas exatas de 25% */
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  padding: 0 12px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
 .tab {
-  flex: 1;
-  padding: 12px;
+  width: 100%;
+  padding: 12px 6px;
   background: none;
   border: none;
+  border-bottom: 2px solid transparent;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-secondary);
-  border-bottom: 2px solid transparent;
-  transition: all 0.15s;
+  color: #64748b;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.tab:hover { color: var(--primary); }
+.tab:hover {
+  color: #0f172a;
+}
 
 .tabActive {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
+  color: var(--primary, #0284c7);
+  border-bottom-color: var(--primary, #0284c7);
   font-weight: 600;
+  background: #ffffff;
 }
 
-/* ─── Form & Sections ─── */
+.tabPreRegActive {
+  color: #15803d !important;
+  border-bottom-color: #16a34a !important;
+  font-weight: 600 !important;
+  background: #ffffff !important;
+}
+
+@media (max-width: 640px) {
+  .tabs {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ─── Formulário ─── */
 .form {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px 24px;
+  padding: 24px 28px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -85,51 +146,108 @@
 .fields {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
-.groupTitle {
-  font-size: 12px;
+/* ─── Card Visual de Pré-Cadastro ─── */
+.preRegBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #f0fdf4;
+  border: 1px solid #dcfce7;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 6px;
+}
+
+.bannerIconWrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #dcfce7;
+  color: #16a34a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.bannerContent h4 {
+  margin: 0 0 4px 0;
+  font-size: 13px;
   font-weight: 700;
-  color: var(--primary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 4px 0 2px 0;
+  color: #15803d;
 }
 
-.divider {
-  border-top: 1px solid var(--border-light, #e2e8f0);
-  margin: 6px 0;
+.bannerContent p {
+  margin: 0;
+  font-size: 12px;
+  color: #166534;
+  line-height: 1.45;
 }
 
+/* ─── Campos ─── */
 .field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 
 .label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 3px;
 }
 
-.required { color: #dc2626; }
+.required {
+  color: #ef4444;
+}
 
 .input, .select, .textarea {
-  padding: 9px 12px;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   font-size: 13px;
-  color: var(--text-primary);
-  background: var(--bg-card);
+  color: #0f172a;
+  background: #ffffff;
   outline: none;
-  transition: border-color 0.15s;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
   font-family: inherit;
 }
 
-.input:focus, .select:focus, .textarea:focus { border-color: var(--primary); }
-.input::placeholder, .textarea::placeholder { color: var(--text-muted); }
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--primary, #0284c7);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+
+.input::placeholder, .textarea::placeholder {
+  color: #94a3b8;
+}
+
+.groupTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary, #0284c7);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 6px 0 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 4px 0;
+}
 
 /* ─── Grids ─── */
 .row2 {
@@ -152,7 +270,7 @@
 
 .cityStateGroup {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
 .cityStateGroup .input:first-child {
@@ -161,106 +279,144 @@
 
 .checkboxField {
   display: flex;
-  align-items: flex-end;
-  padding-bottom: 8px;
+  align-items: center;
+  padding-top: 14px;
 }
 
 .checkboxLabel {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: #475569;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
+  user-select: none;
 }
 
-/* ─── Error ─── */
+/* ─── Mensagem de Sucesso ─── */
+.successBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  color: #065f46;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ─── Erros ─── */
 .error {
-  font-size: 13px;
-  color: var(--status-cancelado-text);
-  background: var(--status-cancelado-bg);
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin: 0;
 }
 
-/* ─── Actions ─── */
+/* ─── Rodapé & Botões ─── */
 .actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 8px;
 }
 
 .cancelBtn {
-  background: none;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 9px 18px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 9px 16px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: #475569;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s ease;
 }
 
-.cancelBtn:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+.cancelBtn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
 
 .nextBtn {
-  background: var(--bg-page);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   padding: 9px 18px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #334155;
   cursor: pointer;
-  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
 }
 
-.nextBtn:hover { border-color: var(--primary); color: var(--primary); }
+.nextBtn:hover {
+  background: #ffffff;
+  border-color: var(--primary, #0284c7);
+  color: var(--primary, #0284c7);
+}
 
 .submitBtn {
-  background: var(--primary);
-  color: white;
+  background: var(--primary, #0284c7);
+  color: #ffffff;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   padding: 9px 20px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
-}
-
-.submitBtn:hover:not(:disabled) { background: var(--primary-hover); }
-.submitBtn:disabled { opacity: 0.6; cursor: not-allowed; }
-/* Garante alinhamento dos ícones nas tabs */
-.tab {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-/* Garante alinhamento nos botões do rodapé */
-.nextBtn, .submitBtn, .closeBtn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 6px;
+  transition: opacity 0.15s ease;
 }
 
-/* Títulos das seções de formulário com ícone */
-.groupTitle {
-  display: flex;
+.submitBtn:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.submitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btnWhatsappPreReg {
+  background: #16a34a;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  transition: opacity 0.15s ease;
 }
 
-/* Animação do Spinner de carregamento */
+.btnWhatsappPreReg:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.btnWhatsappPreReg:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .spinner {
-  animation: spin 1s linear infinite;
+  animation: spin 0.9s linear infinite;
 }
 
 @keyframes spin {

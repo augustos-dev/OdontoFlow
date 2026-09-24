@@ -2,6 +2,24 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { 
+  X, 
+  Calendar, 
+  Clock, 
+  UserCheck, 
+  Tag, 
+  FileText, 
+  AlertCircle, 
+  CreditCard, 
+  Copy, 
+  Trash2, 
+  Check, 
+  ChevronDown, 
+  ChevronUp, 
+  Bell, 
+  SendHorizontal,
+  Stethoscope
+} from 'lucide-react'
 import api from '@/lib/api'
 import styles from './DetalhesAgendamentoModal.module.css'
 import { FinalizarAtendimentoModal } from '@/app/components/financeiro/FinalizarAtendimentoModal'
@@ -46,6 +64,13 @@ interface Props {
     procedureId?: string
     appointmentId: string
   }) => void
+  branding?: {
+    primaryColor?: string
+    accentColor?: string
+    clinicName?: string
+    clinicAddress?: string
+  }
+  loggedUserName?: string
 }
 
 const STATUS_LIST = [
@@ -71,8 +96,14 @@ export default function DetalhesAgendamentoModal({
   onClose,
   onSuccess,
   onOpenEvolutionModal,
+  branding,
+  loggedUserName,
 }: Props) {
   const router = useRouter()
+
+  const primaryColor = branding?.primaryColor || '#0284c7'
+  const clinicName = branding?.clinicName || 'Clarium Clinic - Messejana'
+  const clinicAddress = branding?.clinicAddress || 'Avenida Frei Cirilo, 3748, Messejana'
 
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [cancellationReason, setCancellationReason] = useState('')
@@ -88,9 +119,16 @@ export default function DetalhesAgendamentoModal({
 
   const isFinished = ['FINALIZADO', 'CANCELADO', 'FALTOU'].includes(appointment.status)
 
-  // Datas e horários
   const dt = new Date(appointment.dateTime)
-  const dateFormatted = dt.toLocaleDateString('pt-BR', {
+  const day = String(dt.getDate()).padStart(2, '0')
+  const month = String(dt.getMonth() + 1).padStart(2, '0')
+  const dateFormattedCompact = `${day}/${month}`
+
+  const hours = String(dt.getHours()).padStart(2, '0')
+  const minutes = String(dt.getMinutes()).padStart(2, '0')
+  const timeFormattedCompact = `${hours}h${minutes}`
+
+  const dateFormattedHeader = dt.toLocaleDateString('pt-BR', {
     weekday: 'short',
     day: '2-digit',
     month: 'short',
@@ -98,7 +136,7 @@ export default function DetalhesAgendamentoModal({
   })
 
   const endDt = new Date(dt.getTime() + (appointment.durationMin || 30) * 60000)
-  const timeFormatted = `${dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - ${endDt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+  const timeFormattedHeader = `${hours}:${minutes} - ${endDt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
 
   const currentStatusObj = STATUS_LIST.find((s) => s.value === appointment.status) || STATUS_LIST[0]
 
@@ -111,22 +149,71 @@ export default function DetalhesAgendamentoModal({
       .toUpperCase()
   }
 
-  function handleOpenWhatsapp() {
-    const cleanPhone = appointment?.patient?.phone ? appointment.patient.phone.replace(/\D/g, '') : ''
-    const msg = encodeURIComponent(
-      `Olá ${appointment?.patient?.name}, confirmamos sua consulta para ${dateFormatted} às ${timeFormatted}?`
-    )
-    window.open(`https://wa.me/55${cleanPhone}?text=${msg}`, '_blank')
+  function getCleanPhone() {
+    if (!appointment?.patient?.phone) return ''
+    const clean = appointment.patient.phone.replace(/\D/g, '')
+    return clean.startsWith('55') ? clean : `55${clean}`
   }
 
-  // 1. Redireciona para o prontuário do paciente
+  function getGreeting() {
+    const currentHour = new Date().getHours()
+    if (currentHour >= 5 && currentHour < 12) return 'Olá, bom dia!'
+    if (currentHour >= 12 && currentHour < 18) return 'Olá, boa tarde!'
+    return 'Olá, boa noite!'
+  }
+
+  // 1. CONFIRMAÇÃO DE DADOS DA CONSULTA
+  function handleSendConfirmation() {
+    const fullPhone = getCleanPhone()
+    if (!fullPhone) return
+
+    const lines = [
+      `Perfeito! Sua consulta ficou agendada na *${clinicName}*:`,
+      '',
+      `*Data:* ${dateFormattedCompact}`,
+      `*Horário:* ${timeFormattedCompact}`,
+      `*Local:* ${clinicAddress}`,
+      '',
+      `*Nosso atendimento é por ordem de chegada, porém dentro do seu horário agendado.*`,
+      '',
+      `Se precisar reagendar, é só me avisar por aqui.`
+    ]
+
+    const textEncoded = lines.map((l) => encodeURIComponent(l)).join('%0A')
+    window.open(`https://api.whatsapp.com/send?phone=${fullPhone}&text=${textEncoded}`, '_blank')
+  }
+
+ // 2. LEMBRETE DE CONSULTA
+  function handleSendReminder() {
+    const fullPhone = getCleanPhone()
+    if (!fullPhone) return
+
+    // Pega o primeiro nome limpo
+    const rawName = loggedUserName?.trim()
+    const firstName = rawName ? rawName.split(' ')[0] : ''
+    const greeting = getGreeting()
+
+    // Se tem o nome: "Me chamo Vicente e falo em nome da..."
+    // Se não pegou por delay de rede: "falo da equipe da..."
+    const introduction = firstName 
+      ? `Me chamo ${firstName} e falo em nome da *${clinicName}*.`
+      : `falo da recepção da *${clinicName}*.`
+
+    const lines = [
+      `${greeting} ${introduction}`,
+      '',
+      `Sobre a sua consulta agendada conosco amanhã às *${timeFormattedCompact}*, podemos confirmar a sua presença?`
+    ]
+
+    const textEncoded = lines.map((l) => encodeURIComponent(l)).join('%0A')
+    window.open(`https://api.whatsapp.com/send?phone=${fullPhone}&text=${textEncoded}`, '_blank')
+  }
   function handleOpenPatientRecord() {
     if (!appointment?.patient?.id) return
     onClose()
     router.push(`/pacientes/${appointment.patient.id}?tab=prontuario`)
   }
 
-  // 2. Aciona o modal de nova evolução clínica já com o agendamento e procedimento amarrados
   function handleAddEvolution() {
     if (!appointment?.patient?.id) return
     onClose()
@@ -149,7 +236,6 @@ export default function DetalhesAgendamentoModal({
     setShowStatusDropdown(false)
     setError('')
 
-    // Abre o modal de cobrança/finalização caso escolha FINALIZADO
     if (targetStatus === 'FINALIZADO') {
       setIsFinalizarModalOpen(true)
       return
@@ -207,34 +293,93 @@ export default function DetalhesAgendamentoModal({
 
   return (
     <>
-      <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && handleClose()}>
+      <div 
+        className={styles.overlay} 
+        onClick={(e) => e.target === e.currentTarget && handleClose()}
+        style={{ '--brand-primary': primaryColor } as React.CSSProperties}
+      >
         <div className={styles.popoverCard}>
           
-          {/* ─── HEADER: AVATAR, PACIENTE & WHATSAPP ─── */}
+          {/* ─── HEADER ─── */}
           <div className={styles.header}>
-            <div className={styles.avatar}>{getInitials(appointment.patient.name)}</div>
+            <div 
+              className={styles.avatar}
+              style={{ background: `${primaryColor}20`, color: primaryColor }}
+            >
+              {getInitials(appointment.patient.name)}
+            </div>
             <div className={styles.headerInfo}>
               <h3
                 className={styles.patientNameClickable}
                 onClick={handleOpenPatientRecord}
-                title="Clique para ir ao cadastro do paciente"
+                title="Abrir cadastro do paciente"
               >
                 {appointment.patient.name}
               </h3>
               <div className={styles.phoneRow}>
-                <span>{appointment.patient.phone}</span>
-                <button type="button" className={styles.btnWhatsapp} onClick={handleOpenWhatsapp}>
-                  💬 Confirmar consulta
-                </button>
+                <span>{appointment.patient.phone || 'Sem telefone'}</span>
               </div>
               {appointment.patient.email && (
                 <div className={styles.emailSub}>{appointment.patient.email}</div>
               )}
             </div>
-            <button type="button" className={styles.closeBtn} onClick={handleClose}>✕</button>
+            <button type="button" className={styles.closeBtn} onClick={handleClose}>
+              <X size={16} />
+            </button>
           </div>
 
-          {/* ─── ATALHOS RÁPIDOS FUNCIONAIS ─── */}
+          {/* ─── DISPAROS DE WHATSAPP ─── */}
+          {appointment.patient?.phone && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button 
+                type="button" 
+                onClick={handleSendReminder}
+                title="Enviar lembrete amigável assinado pelo atendente"
+                style={{
+                  background: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  color: '#16a34a',
+                  padding: '7px 10px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Bell size={13} />
+                <span>Lembrar</span>
+              </button>
+
+              <button 
+                type="button" 
+                onClick={handleSendConfirmation}
+                title="Enviar confirmação completa de agendamento"
+                style={{
+                  background: '#f0f9ff',
+                  border: '1px solid #bae6fd',
+                  color: '#0284c7',
+                  padding: '7px 10px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <SendHorizontal size={13} />
+                <span>Confirmar</span>
+              </button>
+            </div>
+          )}
+
+          {/* ─── ATALHOS RÁPIDOS ─── */}
           <div className={styles.quickActions}>
             <button
               type="button"
@@ -252,59 +397,61 @@ export default function DetalhesAgendamentoModal({
             </button>
           </div>
 
-          {/* ─── BOTÃO DE AÇÃO PRINCIPAL & FINALIZAR ─── */}
+          {/* ─── FINALIZAR & COBRAR ─── */}
           <div className={styles.primaryActionRow}>
             {!isFinished && (
               <button
                 type="button"
-                className={styles.btnFinishAction || styles.btnEdit}
-                style={{ background: '#16a34a', color: '#ffffff', border: 'none' }}
+                className={styles.btnFinishAction}
                 onClick={() => setIsFinalizarModalOpen(true)}
               >
-                💳 Finalizar & Cobrar
+                <CreditCard size={15} />
+                <span>Finalizar & Cobrar</span>
               </button>
             )}
             <button
               type="button"
               className={styles.btnIconCopy}
-              title="Copiar detalhes"
+              title="Copiar dados da consulta"
               onClick={() =>
                 navigator.clipboard.writeText(
-                  `${appointment.patient.name} - ${dateFormatted} às ${timeFormatted}`
+                  `${appointment.patient.name} - ${dateFormattedHeader} às ${timeFormattedHeader}`
                 )
               }
             >
-              📋
+              <Copy size={15} />
             </button>
           </div>
 
-          {/* ─── DETALHES DO AGENDAMENTO ─── */}
+          {/* ─── DETALHES ─── */}
           <div className={styles.detailsList}>
             <div className={styles.detailItem}>
-              <span className={styles.icon}>👨‍⚕️</span>
+              <UserCheck size={15} className={styles.icon} />
               <span>
                 <strong>{appointment.dentist.name}</strong> • {appointment.room?.replace('_', ' ') ?? '—'}
               </span>
             </div>
 
             <div className={styles.detailItem}>
-              <span className={styles.icon}>📅</span>
-              <span>{dateFormatted}</span>
-              <span className={styles.iconTime}>🕒</span>
-              <span>{timeFormatted}</span>
+              <Calendar size={15} className={styles.icon} />
+              <span>{dateFormattedHeader}</span>
+              <Clock size={15} className={styles.iconTime} />
+              <span>{timeFormattedHeader}</span>
             </div>
 
             <div className={styles.detailItem}>
-              <span className={styles.icon}>🏷️</span>
+              <Tag size={15} className={styles.icon} />
               <span>
                 {appointment.type === 'PARTICULAR' ? 'Particular' : 'Convênio'} ({appointment.durationMin} min)
               </span>
             </div>
 
-            {/* Procedimento atrelado */}
             {appointment.procedure && (
-              <div className={styles.procedureBadgeBox}>
-                <span className={styles.icon}>🦷</span>
+              <div 
+                className={styles.procedureBadgeBox}
+                style={{ background: `${primaryColor}15`, color: primaryColor }}
+              >
+                <Stethoscope size={14} className={styles.icon} />
                 <span>
                   <strong>Procedimento:</strong> {appointment.procedure.name}
                 </span>
@@ -312,14 +459,16 @@ export default function DetalhesAgendamentoModal({
             )}
 
             {appointment.notes && (
-              <div className={styles.notesBox}>
-                <strong>Observações:</strong> {appointment.notes}
+              <div className={styles.notesBox} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                <FileText size={13} style={{ flexShrink: 0, marginTop: '2px', color: '#64748b' }} />
+                <span><strong>Observações:</strong> {appointment.notes}</span>
               </div>
             )}
 
             {appointment.cancellationReason && (
-              <div className={styles.cancelReasonBox}>
-                <strong>Motivo do Cancelamento:</strong> {appointment.cancellationReason}
+              <div className={styles.cancelReasonBox} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                <AlertCircle size={13} style={{ flexShrink: 0, marginTop: '2px', color: '#dc2626' }} />
+                <span><strong>Motivo do Cancelamento:</strong> {appointment.cancellationReason}</span>
               </div>
             )}
 
@@ -338,7 +487,7 @@ export default function DetalhesAgendamentoModal({
             )}
           </div>
 
-          {/* ─── SELECT DE STATUS COM DROPDOWN FLUTUANTE ─── */}
+          {/* ─── STATUS ─── */}
           {!isFinished && (
             <div className={styles.statusSection}>
               <button
@@ -351,7 +500,7 @@ export default function DetalhesAgendamentoModal({
                   <span className={styles.dot} style={{ background: currentStatusObj.color }} />
                   <span>{currentStatusObj.label}</span>
                 </div>
-                <span className={styles.arrow}>{showStatusDropdown ? '▲' : '▼'}</span>
+                {showStatusDropdown ? <ChevronUp size={14} className={styles.arrow} /> : <ChevronDown size={14} className={styles.arrow} />}
               </button>
 
               {showStatusDropdown && (
@@ -366,7 +515,7 @@ export default function DetalhesAgendamentoModal({
                         <span className={styles.dot} style={{ background: st.color }} />
                         <span>{st.label}</span>
                       </div>
-                      {st.value === appointment.status && <span className={styles.check}>✓</span>}
+                      {st.value === appointment.status && <Check size={14} className={styles.check} />}
                     </div>
                   ))}
                 </div>
@@ -374,7 +523,7 @@ export default function DetalhesAgendamentoModal({
             </div>
           )}
 
-          {/* Campo para motivo de cancelamento */}
+          {/* ─── CANCELAMENTO ─── */}
           {pendingStatus === 'CANCELADO' && (
             <div className={styles.cancelReasonField}>
               <textarea
@@ -399,11 +548,17 @@ export default function DetalhesAgendamentoModal({
 
           {error && <p className={styles.error}>{error}</p>}
 
-          {/* ─── FOOTER (EXCLUSÃO / FECHAR) ─── */}
+          {/* ─── FOOTER ─── */}
           <div className={styles.footer}>
             {!isFinished && !confirmDelete && (
-              <button type="button" className={styles.deleteBtn} onClick={() => setConfirmDelete(true)}>
-                🗑 Excluir
+              <button 
+                type="button" 
+                className={styles.deleteBtn} 
+                onClick={() => setConfirmDelete(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <Trash2 size={13} />
+                <span>Excluir</span>
               </button>
             )}
 
@@ -436,7 +591,6 @@ export default function DetalhesAgendamentoModal({
         </div>
       </div>
 
-      {/* ─── MODAL DE PAGAMENTO / CONVÊNIO AO FINALIZAR ─── */}
       <FinalizarAtendimentoModal
         isOpen={isFinalizarModalOpen}
         appointment={appointment as any}

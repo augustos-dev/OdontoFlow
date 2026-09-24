@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import styles from './NovoAgendementoModal.module.css'
 
@@ -29,6 +30,12 @@ interface Props {
   open: boolean
   onClose: () => void
   onSuccess: () => void
+  // Suporte White-Label
+  branding?: {
+    primaryColor?: string
+    accentColor?: string
+    clinicName?: string
+  }
 }
 
 interface Slot {
@@ -48,11 +55,10 @@ const TAG_OPTIONS = [
   { id: 'CIRURGIA', label: 'Cirurgia', color: '#be123c' },
   { id: 'ENCAIXE', label: 'Encaixe', color: '#eab308' },
   { id: 'LIGAR', label: 'Ligar', color: '#a855f7' },
-  { id: 'ORTODONTIA', label: 'Ortodontia', color: '#2563eb' },
+  { id: 'ORTODONTIA', label: 'Ortodontia', color: '#0284c7' },
   { id: 'PROTESE', label: 'Prótese', color: '#059669' },
 ]
 
-// HELPER: Gerador dinâmico de slots em intervalos de 15 min
 function generateTimeSlots(
   startHourStr: string,
   endHourStr: string,
@@ -60,7 +66,6 @@ function generateTimeSlots(
   durationMinutes: number = 30
 ): Slot[] {
   const slots: Slot[] = []
-
   const [startH, startM] = startHourStr.split(':').map(Number)
   const [endH, endM] = endHourStr.split(':').map(Number)
 
@@ -82,11 +87,20 @@ function generateTimeSlots(
 
     currentMinutes += stepMinutes
   }
-
   return slots
 }
 
-export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props) {
+export default function NovoAgendamentoModal({
+  open,
+  onClose,
+  onSuccess,
+  branding,
+}: Props) {
+  const router = useRouter()
+
+  // Cores dinâmicas com fallback White-Label
+  const primaryColor = branding?.primaryColor || '#0284c7'
+
   // Dados remotos
   const [patients, setPatients] = useState<Patient[]>([])
   const [dentists, setDentists] = useState<User[]>([])
@@ -95,7 +109,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Estados de Interface / UI
+  // Estados de UI
   const [tab, setTab] = useState<'CONSULTA' | 'COMPROMISSO' | 'TAREFA'>('CONSULTA')
   const [sendConfirmation, setSendConfirmation] = useState(true)
   const [returnPeriod, setReturnPeriod] = useState('0')
@@ -103,7 +117,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
   const [showTagDropdown, setShowTagDropdown] = useState(false)
   const [showSlotPicker, setShowSlotPicker] = useState(false)
 
-  // Estado do Formulário
+  // Formulário
   const [form, setForm] = useState({
     patientId: '',
     dentistId: '',
@@ -121,7 +135,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
     if (!open) return
     const timer = setTimeout(async () => {
       try {
-        const params = patientSearch ? `?name=${patientSearch}&limit=10` : '?limit=10'
+        const params = patientSearch ? `?name=${encodeURIComponent(patientSearch)}&limit=10` : '?limit=10'
         const { data } = await api.get(`/patients${params}`)
         setPatients(data?.data || data || [])
       } catch (err) {
@@ -131,7 +145,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
     return () => clearTimeout(timer)
   }, [patientSearch, open])
 
-  // 2. Busca dentistas e procedimentos ao abrir o modal
+  // 2. Busca dentistas e procedimentos ao abrir
   useEffect(() => {
     if (!open) return
 
@@ -164,18 +178,13 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
-  // 3. Mapeamento dinâmico ao selecionar procedimento
   function handleProcedureChange(procedureId: string) {
     set('procedureId', procedureId)
-
     if (!procedureId) return
 
     const proc = procedures.find((p) => p.id === procedureId)
     if (proc) {
-      if (proc.durationMin) {
-        set('durationMin', proc.durationMin)
-      }
-      // Procura tag correspondente ou atualiza etiqueta/nota
+      if (proc.durationMin) set('durationMin', proc.durationMin)
       const matchedTag = TAG_OPTIONS.find((t) =>
         proc.name.toUpperCase().includes(t.label.toUpperCase())
       )
@@ -183,16 +192,22 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
     }
   }
 
+  const selectedPatient = useMemo(
+    () => patients.find((p) => p.id === form.patientId),
+    [patients, form.patientId]
+  )
+
+  // 3. Submissão do agendamento + Disparo do WhatsApp pela API documentada
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
 
     if (tab === 'CONSULTA' && !form.patientId) {
-      setError('Selecione um paciente.')
+      setError('Selecione um paciente cadastrado.')
       return
     }
     if (!form.dentistId) {
-      setError('Selecione um dentista.')
+      setError('Selecione um dentista responsável.')
       return
     }
     if (!form.date || !form.time) {
@@ -203,11 +218,11 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
     setLoading(true)
     try {
       const dateTimeISO = new Date(`${form.date}T${form.time}:00`).toISOString()
-
       const customNotes = form.notes
         ? `[${selectedTag.label}] ${form.notes}`
         : selectedTag.label
 
+      // Criação do agendamento
       await api.post('/appointments', {
         patientId: form.patientId || undefined,
         dentistId: form.dentistId,
@@ -220,11 +235,29 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
         status: 'AGENDADO',
       })
 
+      // Integração direta com Swagger: POST /whatsapp/reminder
+      if (sendConfirmation && selectedPatient && selectedPatient.phone) {
+        const [year, month, day] = form.date.split('-')
+        const formattedDateStr = `${day}/${month}/${year}`
+
+        try {
+          await api.post('/whatsapp/reminder', {
+            phone: selectedPatient.phone.replace(/\D/g, ''),
+            patientName: selectedPatient.name,
+            dateStr: formattedDateStr,
+            timeStr: form.time,
+          })
+        } catch (wpErr) {
+          console.warn('Lembrete WhatsApp não disparado:', wpErr)
+          // Não interrompe o fluxo de sucesso do agendamento
+        }
+      }
+
       onSuccess()
       handleClose()
     } catch (err: any) {
-      console.error('Erro no backend:', err.response?.data)
-      setError(err.response?.data?.message ?? 'Erro interno do servidor.')
+      console.error('Erro ao agendar consulta:', err.response?.data)
+      setError(err.response?.data?.message ?? 'Erro ao processar agendamento.')
     } finally {
       setLoading(false)
     }
@@ -249,18 +282,24 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
     onClose()
   }
 
+  // Ação de redirecionamento para a tela de novo paciente
+  function handleGoToPatientRegister() {
+    handleClose()
+    router.push('/pacientes?novo=true')
+  }
+
   if (!open) return null
 
-  const selectedPatient = patients.find((p) => p.id === form.patientId)
-
-  // Gerador dinâmico baseado na duração configurada no formulário
   const morningSlots = generateTimeSlots('08:00', '12:00', 15, form.durationMin)
   const afternoonSlots = generateTimeSlots('13:00', '18:00', 15, form.durationMin)
 
   return (
-    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && handleClose()}>
+    <div
+      className={styles.overlay}
+      onClick={(e) => e.target === e.currentTarget && handleClose()}
+      style={{ '--brand-primary': primaryColor } as React.CSSProperties}
+    >
       <div className={styles.modal}>
-        
         {/* ─── ABAS & BOTÃO FECHAR ─── */}
         <div className={styles.headerRow}>
           <div className={styles.tabs}>
@@ -268,6 +307,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
               type="button"
               className={`${styles.tabBtn} ${tab === 'CONSULTA' ? styles.activeTab : ''}`}
               onClick={() => setTab('CONSULTA')}
+              style={tab === 'CONSULTA' ? { borderColor: primaryColor, color: primaryColor } : {}}
             >
               Consulta
             </button>
@@ -275,6 +315,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
               type="button"
               className={`${styles.tabBtn} ${tab === 'COMPROMISSO' ? styles.activeTab : ''}`}
               onClick={() => setTab('COMPROMISSO')}
+              style={tab === 'COMPROMISSO' ? { borderColor: primaryColor, color: primaryColor } : {}}
             >
               Compromisso
             </button>
@@ -282,15 +323,17 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
               type="button"
               className={`${styles.tabBtn} ${tab === 'TAREFA' ? styles.activeTab : ''}`}
               onClick={() => setTab('TAREFA')}
+              style={tab === 'TAREFA' ? { borderColor: primaryColor, color: primaryColor } : {}}
             >
               Tarefa
             </button>
           </div>
-          <button type="button" className={styles.closeBtn} onClick={handleClose}>✕</button>
+          <button type="button" className={styles.closeBtn} onClick={handleClose}>
+            ✕
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
-          
           {/* ─── DENTISTA & CADEIRA ─── */}
           <div className={styles.row2}>
             <div className={styles.field}>
@@ -303,7 +346,9 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
               >
                 <option value="">Selecione...</option>
                 {dentists.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -316,23 +361,25 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
                 onChange={(e) => set('room', e.target.value)}
               >
                 {ROOMS.map((r) => (
-                  <option key={r.id} value={r.id}>{r.label}</option>
+                  <option key={r.id} value={r.id}>
+                    {r.label}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* ─── PROCEDIMENTO (OPCIONAL COM AUTO-FILL) ─── */}
+          {/* ─── PROCEDIMENTO (FICHA TÉCNICA E TEMPO) ─── */}
           <div className={styles.field}>
             <label className={styles.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Procedimento (Ficha Técnica & Tempo Automático)</span>
-              <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: 600 }}>Opcional</span>
+              <span>Procedimento (Ficha Técnica & Duração)</span>
+              <span style={{ fontSize: '11px', color: primaryColor, fontWeight: 600 }}>Opcional</span>
             </label>
             <select
               className={styles.select}
               value={form.procedureId}
               onChange={(e) => handleProcedureChange(e.target.value)}
-              style={{ borderColor: form.procedureId ? '#0284c7' : undefined }}
+              style={{ borderColor: form.procedureId ? primaryColor : undefined }}
             >
               <option value="">Nenhum (definir duração e insumos manualmente)</option>
               {procedures.map((p) => (
@@ -343,7 +390,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
             </select>
           </div>
 
-          {/* ─── PACIENTE (APENAS NA ABA CONSULTA) ─── */}
+          {/* ─── PACIENTE COM AUTOCOMPLETE & REDIRECIONAMENTO DE CADASTRO ─── */}
           {tab === 'CONSULTA' && (
             <div className={styles.field}>
               <label className={styles.label}>Paciente</label>
@@ -351,15 +398,14 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
                 <div className={styles.searchWrapper}>
                   <input
                     className={styles.input}
-                    placeholder="Busque por nome, telefone, CPF ou cadastre um novo paciente..."
+                    placeholder="Busque por nome, CPF ou selecione..."
                     value={selectedPatient ? selectedPatient.name : patientSearch}
                     onChange={(e) => {
                       setPatientSearch(e.target.value)
                       set('patientId', '')
                     }}
                   />
-                  
-                  {/* Dropdown de Autocomplete de Pacientes */}
+
                   {patients.length > 0 && !form.patientId && patientSearch && (
                     <div className={styles.dropdown}>
                       {patients.map((p) => (
@@ -371,12 +417,12 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
                             setPatientSearch(p.name)
                           }}
                         >
-                          <div className={styles.dropdownAvatar}>
+                          <div className={styles.dropdownAvatar} style={{ background: `${primaryColor}25`, color: primaryColor }}>
                             {p.name.split(' ').slice(0, 2).map((n) => n[0]).join('')}
                           </div>
                           <div>
                             <div className={styles.dropdownName}>{p.name}</div>
-                            <div className={styles.dropdownSub}>{p.phone || 'Sem telefone'}</div>
+                            <div className={styles.dropdownSub}>{p.phone || 'Sem WhatsApp'}</div>
                           </div>
                         </div>
                       ))}
@@ -384,14 +430,19 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
                   )}
                 </div>
 
-                <button type="button" className={styles.btnRegister}>
+                <button
+                  type="button"
+                  className={styles.btnRegister}
+                  onClick={handleGoToPatientRegister}
+                  title="Abrir tela de cadastro de novo paciente"
+                >
                   <span>+</span> Cadastrar
                 </button>
               </div>
 
               {selectedPatient && (
                 <div className={styles.selectedPatientTag}>
-                  ✓ {selectedPatient.name} — {selectedPatient.phone || 'Sem telefone'}
+                  ✓ {selectedPatient.name} — {selectedPatient.phone || 'Sem WhatsApp'}
                 </div>
               )}
             </div>
@@ -455,10 +506,10 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
             />
           </div>
 
-          {/* ─── MENSAGEM DE CONFIRMAÇÃO & RETORNO ─── */}
+          {/* ─── MENSAGEM WHATSAPP & RETORNO ─── */}
           <div className={styles.row2}>
             <div className={styles.field}>
-              <label className={styles.label}>Enviar mensagem de confirmação?</label>
+              <label className={styles.label}>Enviar lembrete via WhatsApp?</label>
               <div className={styles.radioGroup}>
                 <label>
                   <input
@@ -496,7 +547,7 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
             </div>
           </div>
 
-          {/* ─── ETIQUETA ─── */}
+          {/* ─── ETIQUETA / TAG ─── */}
           <div className={styles.field}>
             <label className={styles.label}>Etiqueta</label>
             <div className={styles.tagWrapper}>
@@ -531,19 +582,24 @@ export default function NovoAgendamentoModal({ open, onClose, onSuccess }: Props
 
           {error && <p className={styles.error}>{error}</p>}
 
-          {/* ─── AÇÕES DO FOOTER ─── */}
+          {/* ─── FOOTER & AÇÕES ─── */}
           <div className={styles.actions}>
             <button type="button" className={styles.cancelBtn} onClick={handleClose}>
               Cancelar
             </button>
-            <button type="submit" className={styles.submitBtn} disabled={loading}>
+            <button
+              type="submit"
+              className={styles.submitBtn}
+              disabled={loading}
+              style={{ background: primaryColor }}
+            >
               {loading ? 'Agendando...' : '✓ Agendar consulta'}
             </button>
           </div>
         </form>
       </div>
 
-      {/* ─── MODAL AUXILIAR: BUSCADOR DE HORÁRIOS VAGOS ─── */}
+      {/* ─── MODAL AUXILIAR DE HORÁRIOS ─── */}
       {showSlotPicker && (
         <div className={styles.subModalOverlay}>
           <div className={styles.subModal}>
