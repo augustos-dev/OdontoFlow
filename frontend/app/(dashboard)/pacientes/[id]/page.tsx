@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { 
   ArrowLeft, 
@@ -17,7 +17,7 @@ import {
   Pencil, 
   Check, 
   Plus, 
-  Loader2,
+  Loader2, 
   Eye,
   ExternalLink,
   Save,
@@ -25,8 +25,7 @@ import {
   ChevronRight,
   CheckCircle,
   SendHorizontal,
-  Copy,
-  Share2
+  Copy
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './perfil.module.css'
@@ -84,7 +83,6 @@ export default function PerfilPacientePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Parâmetros vindos do Cockpit "Meu Consultório"
   const appointmentId = searchParams.get('appointmentId')
   const room = searchParams.get('room')
   const shouldOpenEvolution = searchParams.get('openEvolution') === 'true'
@@ -116,12 +114,13 @@ export default function PerfilPacientePage() {
   const [savingMR, setSavingMR] = useState(false)
   const [hasDraft, setHasDraft] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
+  const [generatingToken, setGeneratingToken] = useState(false)
 
   const [mrForm, setMrForm] = useState({
-    chiefComplaint: '',
+    mainComplaint: '',
     historyNotes: '',
     allergies: '',
-    medications: '',
+    medicationsInUse: '',
     bloodType: '',
     habits: '',
     systemicDiseases: '',
@@ -129,7 +128,6 @@ export default function PerfilPacientePage() {
 
   const DRAFT_KEY = `odontoflow_draft_mr_${id}`
 
-  // Abre automaticamente o modal de evolução clínica se veio do botão "Iniciar Atendimento"
   useEffect(() => {
     if (shouldOpenEvolution) {
       setIsAddEvolutionOpen(true)
@@ -177,15 +175,16 @@ export default function PerfilPacientePage() {
       setPatient(patientData)
 
       const savedDraft = typeof window !== 'undefined' ? localStorage.getItem(DRAFT_KEY) : null
-      if (patientData.medicalRecord && !savedDraft) {
+      const mr = patientData.medicalRecord as any
+      if (mr && !savedDraft) {
         setMrForm({
-          chiefComplaint: patientData.medicalRecord.chiefComplaint ?? '',
-          historyNotes: patientData.medicalRecord.historyNotes ?? '',
-          allergies: patientData.medicalRecord.allergies ?? '',
-          medications: patientData.medicalRecord.medications ?? '',
-          bloodType: patientData.medicalRecord.bloodType ?? '',
-          habits: patientData.medicalRecord.habits ?? '',
-          systemicDiseases: patientData.medicalRecord.systemicDiseases ?? '',
+          mainComplaint: mr.mainComplaint || mr.chiefComplaint || '',
+          historyNotes: mr.historyNotes || '',
+          allergies: mr.allergies || '',
+          medicationsInUse: mr.medicationsInUse || mr.medications || '',
+          bloodType: mr.bloodType || '',
+          habits: mr.habits || '',
+          systemicDiseases: mr.systemicDiseases || '',
         })
       }
 
@@ -205,7 +204,6 @@ export default function PerfilPacientePage() {
 
           const extractedFiles: PatientFile[] = evolutions.flatMap((evo: any) => {
             const rawAttachments = evo.attachments || []
-
             const attachmentsArray = typeof rawAttachments === 'string'
               ? JSON.parse(rawAttachments)
               : rawAttachments
@@ -248,40 +246,61 @@ export default function PerfilPacientePage() {
     if (id) load()
   }, [id])
 
-  // Gerador de Link Direto de Anamnese do Paciente
-  function getPatientAnamneseLink() {
-    if (!id) return ''
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://odontoflow.com.br'
+  async function generateSecureLink(): Promise<string> {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://odontoflow.omniatechlabs.com.br'
+    try {
+      const { data } = await api.post(`/patients/${id}/anamnesis-token`)
+      const token = data?.token || data?.data?.token
+      if (token) {
+        return `${origin}/anamnese?token=${token}`
+      }
+    } catch (e) {
+      console.warn('Endpoint de token indisponível. Usando fallback temporário:', e)
+    }
     return `${origin}/anamnese?patientId=${id}&name=${encodeURIComponent(patient?.name || '')}`
   }
 
-  function handleCopyAnamneseLink() {
-    const link = getPatientAnamneseLink()
-    if (!link) return
-    navigator.clipboard.writeText(link)
-    setCopiedLink(true)
-    setTimeout(() => setCopiedLink(false), 2500)
+  async function handleCopyAnamneseLink() {
+    if (!id) return
+    setGeneratingToken(true)
+    try {
+      const link = await generateSecureLink()
+      await navigator.clipboard.writeText(link)
+      setCopiedLink(true)
+      setTimeout(() => setCopiedLink(false), 2500)
+    } finally {
+      setGeneratingToken(false)
+    }
   }
 
-  function handleSendAnamneseWhatsApp() {
+  async function handleSendAnamneseWhatsApp() {
     if (!patient?.phone || !id) return
+    setGeneratingToken(true)
 
-    const cleanPhone = patient.phone.replace(/\D/g, '')
-    const fullPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`
-    const link = getPatientAnamneseLink()
+    try {
+      const link = await generateSecureLink()
+      const cleanPhone = patient.phone.replace(/\D/g, '')
+      const fullPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`
 
-    const lines = [
-      `Olá, *${patient.name}*! Tudo bem?`,
-      '',
-      `Pedimos que preencha a sua ficha clínica e anamnese com antecedência pelo link seguro da *Clarium Clinic - Messejana*:`,
-      '',
-      `🔗 ${link}`,
-      '',
-      `Leva menos de 2 minutos pelo celular e agiliza seu atendimento com o dentista. Se tiver dúvidas, estamos à disposição! 💙`
-    ]
+      const lines = [
+        `Olá, *${patient.name}*! Tudo bem?`,
+        '',
+        `Pedimos que preencha a sua ficha de saúde (anamnese) com antecedência pelo link seguro da *Clarium Clinic - Messejana*:`,
+        '',
+        `🔗 ${link}`,
+        '',
+        `⏱️ *Atenção:* Por medidas de segurança e sigilo médico, este link é exclusivo e expira em *36 horas*.`,
+        '',
+        `Leva menos de 2 minutos pelo celular e agiliza seu atendimento com o dentista. Se tiver dúvidas, estamos à disposição! 💙`
+      ]
 
-    const textEncoded = lines.map((l) => encodeURIComponent(l)).join('%0A')
-    window.open(`https://api.whatsapp.com/send?phone=${fullPhone}&text=${textEncoded}`, '_blank')
+      const textEncoded = lines.map((l) => encodeURIComponent(l)).join('%0A')
+      window.open(`https://api.whatsapp.com/send?phone=${fullPhone}&text=${textEncoded}`, '_blank')
+    } catch (err) {
+      alert('Erro ao gerar o link de anamnese.')
+    } finally {
+      setGeneratingToken(false)
+    }
   }
 
   const handleFinishAppointmentFromMocho = async () => {
@@ -331,7 +350,13 @@ export default function PerfilPacientePage() {
     e.preventDefault()
     setSavingMR(true)
     try {
-      await api.put(`/medical-records/${id}`, mrForm)
+      await api.put(`/medical-records/${id}`, {
+        mainComplaint: mrForm.mainComplaint || 'Avaliação de rotina',
+        allergies: mrForm.allergies || 'Nenhuma',
+        systemicDiseases: mrForm.systemicDiseases || 'Nenhuma',
+        habits: mrForm.habits || 'Não informado',
+        medicationsInUse: mrForm.medicationsInUse || 'Nenhum',
+      })
       
       localStorage.removeItem(DRAFT_KEY)
       setHasDraft(false)
@@ -350,14 +375,15 @@ export default function PerfilPacientePage() {
     localStorage.removeItem(DRAFT_KEY)
     setHasDraft(false)
     if (patient?.medicalRecord) {
+      const mr = patient.medicalRecord as any
       setMrForm({
-        chiefComplaint: patient.medicalRecord.chiefComplaint ?? '',
-        historyNotes: patient.medicalRecord.historyNotes ?? '',
-        allergies: patient.medicalRecord.allergies ?? '',
-        medications: patient.medicalRecord.medications ?? '',
-        bloodType: patient.medicalRecord.bloodType ?? '',
-        habits: patient.medicalRecord.habits ?? '',
-        systemicDiseases: patient.medicalRecord.systemicDiseases ?? '',
+        mainComplaint: mr.mainComplaint || mr.chiefComplaint || '',
+        historyNotes: mr.historyNotes || '',
+        allergies: mr.allergies || '',
+        medicationsInUse: mr.medicationsInUse || mr.medications || '',
+        bloodType: mr.bloodType || '',
+        habits: mr.habits || '',
+        systemicDiseases: mr.systemicDiseases || '',
       })
     }
   }
@@ -429,8 +455,11 @@ export default function PerfilPacientePage() {
   if (!patient) return <div className={styles.loading}>Paciente não encontrado.</div>
 
   const age = calcAge(patient.birthDate)
-  const mr = patient.medicalRecord
+  const mr = patient.medicalRecord as any
   const isBirthday = isBirthdayToday(patient.birthDate)
+
+  const currentComplaint = mr?.mainComplaint || mr?.chiefComplaint
+  const currentMeds = mr?.medicationsInUse || mr?.medications
 
   return (
     <div className={styles.page}>
@@ -615,20 +644,28 @@ export default function PerfilPacientePage() {
                       <button 
                         type="button" 
                         onClick={handleCopyAnamneseLink} 
+                        disabled={generatingToken}
                         className={styles.btnSecondary}
-                        title="Copiar link da anamnese do paciente"
+                        title="Copiar link seguro válido por 36h"
                         style={{ padding: '5px 10px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
                       >
-                        {copiedLink ? <Check size={12} color="#16a34a" /> : <Copy size={12} />}
-                        <span>{copiedLink ? 'Copiado!' : 'Copiar Link'}</span>
+                        {generatingToken ? (
+                          <Loader2 size={12} className={styles.spinner} />
+                        ) : copiedLink ? (
+                          <Check size={12} color="#16a34a" />
+                        ) : (
+                          <Copy size={12} />
+                        )}
+                        <span>{copiedLink ? 'Copiado (36h)!' : 'Copiar Link'}</span>
                       </button>
 
                       {patient.phone && (
                         <button 
                           type="button" 
                           onClick={handleSendAnamneseWhatsApp} 
+                          disabled={generatingToken}
                           className={styles.btnSecondary}
-                          title="Enviar formulário via WhatsApp para o paciente responder"
+                          title="Enviar formulário seguro por 36h via WhatsApp"
                           style={{
                             background: '#f0fdf4',
                             border: '1px solid #bbf7d0',
@@ -661,12 +698,12 @@ export default function PerfilPacientePage() {
                     <span className={styles.infoLabel}>QUEIXA PRINCIPAL</span>
                     <div className={styles.tagsWrapper}>
                       {['Dor de Dente', 'Limpeza / Check-up', 'Estética / Clareamento', 'Ortodontia', 'Prótese / Implante'].map((tag) => {
-                        const isActive = mrForm.chiefComplaint.includes(tag)
+                        const isActive = mrForm.mainComplaint.includes(tag)
                         return (
                           <button
                             type="button"
                             key={tag}
-                            onClick={() => toggleTag('chiefComplaint', tag)}
+                            onClick={() => toggleTag('mainComplaint', tag)}
                             className={`${styles.tagBtn} ${isActive ? styles.tagBtnActive : ''}`}
                           >
                             {isActive ? <Check size={11} /> : <Plus size={11} />}
@@ -678,8 +715,8 @@ export default function PerfilPacientePage() {
                     <input
                       type="text"
                       placeholder="Detalhamento da queixa..."
-                      value={mrForm.chiefComplaint}
-                      onChange={(e) => setMrForm({ ...mrForm, chiefComplaint: e.target.value })}
+                      value={mrForm.mainComplaint}
+                      onChange={(e) => setMrForm({ ...mrForm, mainComplaint: e.target.value })}
                       className={styles.input}
                     />
                   </div>
@@ -777,33 +814,10 @@ export default function PerfilPacientePage() {
                     <input
                       type="text"
                       placeholder="Ex: Anti-hipertensivo, Insulina..."
-                      value={mrForm.medications}
-                      onChange={(e) => setMrForm({ ...mrForm, medications: e.target.value })}
+                      value={mrForm.medicationsInUse}
+                      onChange={(e) => setMrForm({ ...mrForm, medicationsInUse: e.target.value })}
                       className={styles.input}
                     />
-                  </div>
-
-                  <div className={styles.twoCols}>
-                    <div className={styles.formGroup}>
-                      <span className={styles.infoLabel}>TIPO SANGUÍNEO</span>
-                      <input
-                        type="text"
-                        placeholder="Ex: O+, A-, AB+"
-                        value={mrForm.bloodType}
-                        onChange={(e) => setMrForm({ ...mrForm, bloodType: e.target.value })}
-                        className={styles.input}
-                      />
-                    </div>
-                    <div className={styles.formGroup}>
-                      <span className={styles.infoLabel}>HISTÓRICO / CIRURGIAS</span>
-                      <input
-                        type="text"
-                        placeholder="Internações, cirurgias..."
-                        value={mrForm.historyNotes}
-                        onChange={(e) => setMrForm({ ...mrForm, historyNotes: e.target.value })}
-                        className={styles.input}
-                      />
-                    </div>
                   </div>
 
                   <div className={styles.formActions}>
@@ -823,12 +837,13 @@ export default function PerfilPacientePage() {
               ) : !mr ? (
                 <div style={{ textAlign: 'center', padding: '24px 16px' }}>
                   <p className={styles.empty} style={{ marginBottom: '14px' }}>
-                    Prontuário ainda não preenchido. Você pode editar manualmente ou enviar o link direto para o paciente responder pelo WhatsApp.
+                    Prontuário ainda não preenchido. Você pode editar manualmente ou enviar o link seguro de 36h pelo WhatsApp.
                   </p>
                   {patient.phone && (
                     <button 
                       type="button" 
                       onClick={handleSendAnamneseWhatsApp} 
+                      disabled={generatingToken}
                       className={styles.btnPrimary}
                       style={{ margin: '0 auto', fontSize: '12px' }}
                     >
@@ -841,8 +856,8 @@ export default function PerfilPacientePage() {
                 <div className={styles.anamneseList}>
                   <div className={styles.infoItem}>
                     <span className={styles.infoLabel}>QUEIXA PRINCIPAL</span>
-                    <span className={`${styles.infoValue} ${!mr.chiefComplaint ? styles.infoEmpty : ''}`}>
-                      {mr.chiefComplaint || 'Não informado'}
+                    <span className={`${styles.infoValue} ${!currentComplaint ? styles.infoEmpty : ''}`}>
+                      {currentComplaint || 'Não informado'}
                     </span>
                   </div>
 
@@ -862,8 +877,8 @@ export default function PerfilPacientePage() {
 
                   <div className={styles.infoItem}>
                     <span className={styles.infoLabel}>MEDICAMENTOS EM USO</span>
-                    <span className={`${styles.infoValue} ${!mr.medications ? styles.infoEmpty : ''}`}>
-                      {mr.medications || 'Nenhum'}
+                    <span className={`${styles.infoValue} ${!currentMeds ? styles.infoEmpty : ''}`}>
+                      {currentMeds || 'Nenhum'}
                     </span>
                   </div>
 
@@ -872,17 +887,6 @@ export default function PerfilPacientePage() {
                     <span className={`${styles.infoValue} ${!mr.habits ? styles.infoEmpty : ''}`}>
                       {mr.habits || 'Não informado'}
                     </span>
-                  </div>
-
-                  <div className={styles.twoCols}>
-                    <div className={styles.infoItem}>
-                      <span className={styles.infoLabel}>TIPO SANGUÍNEO</span>
-                      <span className={styles.infoValue}>{mr.bloodType || '—'}</span>
-                    </div>
-                    <div className={styles.infoItem}>
-                      <span className={styles.infoLabel}>HISTÓRICO / OBS</span>
-                      <span className={styles.infoValue}>{mr.historyNotes || '—'}</span>
-                    </div>
                   </div>
                 </div>
               )}
@@ -991,7 +995,7 @@ export default function PerfilPacientePage() {
             </>
           )}
 
-          {/* ABA EVOLUÇÕES CLÍNICAS (HISTÓRICO COMPLETO) */}
+          {/* ABA EVOLUÇÕES CLÍNICAS */}
           {tab === 'evolucoes' && (
             <div className={styles.card}>
               <div className={styles.cardHeader}>

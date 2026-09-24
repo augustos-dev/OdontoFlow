@@ -10,104 +10,127 @@ import {
   Check, 
   Plus, 
   ShieldCheck, 
-  UserCheck 
+  UserCheck,
+  AlertCircle,
+  Clock
 } from 'lucide-react'
-import api from '@/lib/api'
+import axios from 'axios'
 import styles from '../anamnese/preCadastro.module.css'
 
-// Opções da Anamnese espelhadas do prontuário OdontoFlow
-const OPTIONS_QUEIXA = [
-  'Dor de Dente',
-  'Limpeza / Check-up',
-  'Estética / Clareamento',
-  'Ortodontia',
-  'Prótese / Implante',
-]
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://odontoflow.omniatechlabs.com.br/api'
 
-const OPTIONS_ALERGIAS = [
-  'Penicilina',
-  'AAS / Aspirina',
-  'Dipirona',
-  'Anestésicos',
-  'Látex',
-  'Nenhuma',
-]
-
-const OPTIONS_DOENCAS = [
-  'Pressão Alta',
-  'Diabetes',
-  'Cardiopatia',
-  'Hemorragia',
-  'Anemia',
-  'Asma/Respiratória',
-  'Disfunção Renal',
-  'Disfunção Hepática',
-  'Gastrite/Refluxo',
-  'Febre Reumática',
-  'Gestante',
-  'Amamentando',
-]
-
-const OPTIONS_ATM = [
-  'Estalido na boca',
-  'Dificuldade para abrir boca',
-  'Bruxismo',
-  'Fumante',
-  'Consome Álcool',
-  'Anticoncepcional',
-]
+const OPTIONS_QUEIXA = ['Dor de Dente', 'Limpeza / Check-up', 'Estética / Clareamento', 'Ortodontia', 'Prótese / Implante']
+const OPTIONS_ALERGIAS = ['Penicilina', 'AAS / Aspirina', 'Dipirona', 'Anestésicos', 'Látex', 'Nenhuma']
+const OPTIONS_DOENCAS = ['Pressão Alta', 'Diabetes', 'Cardiopatia', 'Hemorragia', 'Anemia', 'Asma/Respiratória', 'Disfunção Renal', 'Disfunção Hepática', 'Gastrite/Refluxo', 'Febre Reumática', 'Gestante', 'Amamentando']
+const OPTIONS_ATM = ['Estalido na boca', 'Dificuldade para abrir boca', 'Bruxismo', 'Fumante', 'Consome Álcool', 'Anticoncepcional']
 
 function AnamnesePacienteForm() {
   const searchParams = useSearchParams()
-  const patientId = searchParams.get('patientId') || ''
-  const patientName = searchParams.get('name') || ''
+  const token = searchParams.get('token') || ''
+  const fallbackPatientId = searchParams.get('patientId') || ''
 
-  // White-Label dinâmico da clínica
+  const [patientName, setPatientName] = useState('')
   const [clinicName, setClinicName] = useState('Clarium Clinic - Messejana')
   const [primaryColor, setPrimaryColor] = useState('#0284c7')
 
-  // Anamnese com Seleção Múltipla
+  // Chips e Seleções
   const [selectedQueixa, setSelectedQueixa] = useState<string[]>([])
   const [selectedAlergias, setSelectedAlergias] = useState<string[]>([])
   const [selectedDoencas, setSelectedDoencas] = useState<string[]>([])
   const [selectedAtm, setSelectedAtm] = useState<string[]>([])
 
-  // Campos Livres da Anamnese
-  const [medications, setMedications] = useState('')
-  const [bloodType, setBloodType] = useState('')
-  const [surgeries, setSurgeries] = useState('')
+  // Campos Digitáveis (Outros)
+  const [customQueixa, setCustomQueixa] = useState('')
+  const [customAlergias, setCustomAlergias] = useState('')
+  const [customDoencas, setCustomDoencas] = useState('')
+  const [customAtm, setCustomAtm] = useState('')
 
-  // Termos de Confirmação e Veracidade
+  const [medications, setMedications] = useState('')
   const [acceptedTerms, setAcceptedTerms] = useState(false)
 
+  const [initialLoading, setInitialLoading] = useState(true)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [expired, setExpired] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    async function loadBranding() {
+    async function loadData() {
+      if (!token && !fallbackPatientId) {
+        setExpired(true)
+        setInitialLoading(false)
+        return
+      }
+
       try {
-        const { data } = await api.get('/clinics').catch(() => ({ data: [] }))
-        const clinicsList = Array.isArray(data) ? data : data?.data || []
-        if (clinicsList.length > 0) {
-          if (clinicsList[0].name) setClinicName(clinicsList[0].name)
-          if (clinicsList[0].primaryColor) setPrimaryColor(clinicsList[0].primaryColor)
+        let res: any
+        if (token) {
+          res = await axios.get(`${API_URL}/public/anamnese?token=${token}`)
+        } else {
+          // Fallback transitório durante os testes
+          res = await axios.get(`${API_URL}/medical-records/${fallbackPatientId}`)
         }
-      } catch {}
+
+        const data = res.data
+        if (data.patientName) setPatientName(data.patientName)
+
+        const record = data?.medicalRecord || data
+        if (record) {
+          if (record.mainComplaint) {
+            const parts = record.mainComplaint.split(',').map((s: string) => s.trim()).filter(Boolean)
+            setSelectedQueixa(parts.filter((p: string) => OPTIONS_QUEIXA.includes(p)))
+            const custom = parts.filter((p: string) => !OPTIONS_QUEIXA.includes(p))
+            if (custom.length > 0) setCustomQueixa(custom.join(', '))
+          }
+          if (record.allergies) {
+            const parts = record.allergies.split(',').map((s: string) => s.trim()).filter(Boolean)
+            setSelectedAlergias(parts.filter((p: string) => OPTIONS_ALERGIAS.includes(p)))
+            const custom = parts.filter((p: string) => !OPTIONS_ALERGIAS.includes(p))
+            if (custom.length > 0) setCustomAlergias(custom.join(', '))
+          }
+          if (record.systemicDiseases) {
+            const parts = record.systemicDiseases.split(',').map((s: string) => s.trim()).filter(Boolean)
+            setSelectedDoencas(parts.filter((p: string) => OPTIONS_DOENCAS.includes(p)))
+            const custom = parts.filter((p: string) => !OPTIONS_DOENCAS.includes(p))
+            if (custom.length > 0) setCustomDoencas(custom.join(', '))
+          }
+          if (record.habits) {
+            const parts = record.habits.split(',').map((s: string) => s.trim()).filter(Boolean)
+            setSelectedAtm(parts.filter((p: string) => OPTIONS_ATM.includes(p)))
+            const custom = parts.filter((p: string) => !OPTIONS_ATM.includes(p))
+            if (custom.length > 0) setCustomAtm(custom.join(', '))
+          }
+          if (record.medicationsInUse && record.medicationsInUse !== 'Nenhum') {
+            setMedications(record.medicationsInUse)
+          }
+        }
+      } catch (err: any) {
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          setExpired(true)
+        } else {
+          console.warn('Iniciando formulário sem dados prévios:', err)
+        }
+      } finally {
+        setInitialLoading(false)
+      }
     }
-    loadBranding()
-  }, [])
+
+    loadData()
+  }, [token, fallbackPatientId])
 
   function toggleOption(item: string, currentList: string[], setList: (arr: string[]) => void) {
     if (currentList.includes(item)) {
       setList(currentList.filter((i) => i !== item))
     } else {
-      if (item === 'Nenhuma') {
-        setList(['Nenhuma'])
-      } else {
-        setList([...currentList.filter((i) => i !== 'Nenhuma'), item])
-      }
+      if (item === 'Nenhuma') setList(['Nenhuma'])
+      else setList([...currentList.filter((i) => i !== 'Nenhuma'), item])
     }
+  }
+
+  function combineData(chips: string[], customText: string, defaultVal = 'Nenhuma') {
+    const list = [...chips]
+    if (customText.trim()) list.push(customText.trim())
+    return list.filter(Boolean).join(', ') || defaultVal
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -115,51 +138,67 @@ function AnamnesePacienteForm() {
     setError('')
 
     if (!acceptedTerms) {
-      setError('Por favor, confirme o termo de veracidade das informações preenchidas.')
-      return
-    }
-
-    if (!patientId) {
-      setError('Identificador do paciente não encontrado na URL do formulário.')
+      setError('Por favor, confirme o termo de veracidade das informações.')
       return
     }
 
     setLoading(true)
-    try {
-      // Monta o payload estruturado exatamente como o PerfilPacientePage e o banco esperam
-      const anamnesePayload = {
-        chiefComplaint: selectedQueixa.join(', ') || 'Avaliação de rotina',
-        allergies: selectedAlergias.join(', ') || 'Nenhuma',
-        systemicDiseases: selectedDoencas.join(', ') || 'Nenhuma',
-        habits: selectedAtm.join(', ') || 'Não informado',
-        medications: medications || 'Nenhum',
-        bloodType: bloodType || undefined,
-        historyNotes: surgeries ? `Cirurgias/Internações: ${surgeries}` : undefined,
-      }
 
-      // 1. Tenta a rota oficial de prontuário existente no backend
-      try {
-        await api.put(`/medical-records/${patientId}`, anamnesePayload)
-        setSuccess(true)
-        return
-      } catch (err1: any) {
-        // 2. Se a rota de prontuário por ID do paciente retornar 404, tenta via patch no paciente
-        if (err1.response?.status === 404) {
-          await api.patch(`/patients/${patientId}`, {
-            medicalRecord: anamnesePayload
-          })
-          setSuccess(true)
-          return
-        }
-        throw err1
+    const payload = {
+      mainComplaint: combineData(selectedQueixa, customQueixa, 'Avaliação de rotina'),
+      allergies: combineData(selectedAlergias, customAlergias, 'Nenhuma'),
+      systemicDiseases: combineData(selectedDoencas, customDoencas, 'Nenhuma'),
+      habits: combineData(selectedAtm, customAtm, 'Não informado'),
+      medicationsInUse: medications || 'Nenhum',
+    }
+
+    try {
+      if (token) {
+        await axios.put(`${API_URL}/public/anamnese?token=${token}`, payload)
+      } else {
+        await axios.put(`${API_URL}/medical-records/${fallbackPatientId}`, payload)
       }
+      setSuccess(true)
     } catch (err: any) {
-      console.error('Erro ao salvar anamnese:', err.response?.data || err)
-      const msg = err.response?.data?.message || 'Erro ao salvar sua anamnese no prontuário. Informe a recepção ao chegar.'
-      setError(Array.isArray(msg) ? msg.join(', ') : msg)
+      const msg = err.response?.data?.message || 'Erro ao salvar sua anamnese.'
+      if (err.response?.status === 401) {
+        setExpired(true)
+      } else {
+        setError(Array.isArray(msg) ? msg.join(', ') : msg)
+      }
     } finally {
       setLoading(false)
     }
+  }
+
+  if (initialLoading) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.card} style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <Loader2 size={28} className={styles.spinner} style={{ margin: '0 auto 12px', color: primaryColor }} />
+          <p style={{ fontSize: '13px', color: '#64748b' }}>Carregando dados com segurança...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (expired) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.card} style={{ textAlign: 'center', padding: '40px 24px' }}>
+          <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#fee2e2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <Clock size={28} />
+          </div>
+          <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', margin: '0 0 8px' }}>Link de Anamnese Expirado</h2>
+          <p style={{ fontSize: '13px', color: '#64748b', lineHeight: '1.5', margin: '0 0 20px' }}>
+            Por motivos de privacidade e segurança médica, este link tinha validade de <strong>36 horas</strong> e já expirou.
+          </p>
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px', fontSize: '12px', color: '#475569' }}>
+            Por favor, solicite um novo link à recepção da <strong>{clinicName}</strong> ou preencha presencialmente ao chegar.
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (success) {
@@ -172,7 +211,7 @@ function AnamnesePacienteForm() {
             </div>
             <h2 className={styles.successTitle}>Anamnese Concluída com Sucesso!</h2>
             <p className={styles.successText}>
-              Obrigado, <strong>{patientName || 'Paciente'}</strong>! Suas informações clínicas foram salvas e enviadas com segurança diretamente para o seu prontuário na <strong>{clinicName}</strong>. Tenha um excelente atendimento!
+              Obrigado{patientName ? `, ${patientName}` : ''}! Suas informações clínicas foram salvas com sigilo diretamente no seu prontuário na <strong>{clinicName}</strong>. Tenha um excelente atendimento!
             </p>
           </div>
         </div>
@@ -183,8 +222,6 @@ function AnamnesePacienteForm() {
   return (
     <div className={styles.container} style={{ '--primary': primaryColor } as React.CSSProperties}>
       <div className={styles.card}>
-        
-        {/* ─── Header ─── */}
         <div className={styles.header}>
           <div className={styles.badgeClinic}>
             <Sparkles size={12} />
@@ -193,7 +230,7 @@ function AnamnesePacienteForm() {
           <h1 className={styles.title}>Ficha de Saúde (Anamnese)</h1>
           <p className={styles.subtitle}>
             {patientName ? (
-              <>Olá, <strong>{patientName}</strong>! Preencha as perguntas abaixo para orientar o atendimento do seu dentista.</>
+              <>Olá, <strong>{patientName}</strong>! Confira ou complemente as informações abaixo para sua consulta.</>
             ) : (
               <>Preencha suas informações de saúde para garantir um atendimento seguro e personalizado.</>
             )}
@@ -201,8 +238,6 @@ function AnamnesePacienteForm() {
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
-          
-          {/* ─── ANAMNESE CLÍNICA COM CHIPS ─── */}
           <div className={styles.section}>
             <div className={styles.sectionHeader}>
               <h3 className={styles.sectionTitle}>
@@ -214,7 +249,7 @@ function AnamnesePacienteForm() {
               </span>
             </div>
 
-            {/* QUEIXA PRINCIPAL */}
+            {/* 1. QUEIXA PRINCIPAL */}
             <div className={styles.chipsGroup}>
               <span className={styles.groupLabel}>Queixa Principal</span>
               <div className={styles.chipsContainer}>
@@ -235,14 +270,15 @@ function AnamnesePacienteForm() {
               </div>
               <input
                 type="text"
-                readOnly
-                className={`${styles.input} ${styles.inputSummary}`}
-                placeholder="Selecione as opções acima..."
-                value={selectedQueixa.join(', ')}
+                placeholder="Outro motivo ou detalhamento da queixa..."
+                value={customQueixa}
+                onChange={(e) => setCustomQueixa(e.target.value)}
+                className={styles.input}
+                style={{ marginTop: '8px' }}
               />
             </div>
 
-            {/* ALERGIAS & REAÇÕES */}
+            {/* 2. ALERGIAS & REAÇÕES */}
             <div className={styles.chipsGroup}>
               <span className={styles.groupLabel}>Alergias & Reações</span>
               <div className={styles.chipsContainer}>
@@ -263,14 +299,15 @@ function AnamnesePacienteForm() {
               </div>
               <input
                 type="text"
-                readOnly
-                className={`${styles.input} ${styles.inputSummary}`}
-                placeholder="Selecione caso possua alguma alergia..."
-                value={selectedAlergias.join(', ')}
+                placeholder="Outra alergia não listada acima..."
+                value={customAlergias}
+                onChange={(e) => setCustomAlergias(e.target.value)}
+                className={styles.input}
+                style={{ marginTop: '8px' }}
               />
             </div>
 
-            {/* DOENÇAS SISTÊMICAS & CONDIÇÕES */}
+            {/* 3. DOENÇAS SISTÊMICAS */}
             <div className={styles.chipsGroup}>
               <span className={styles.groupLabel}>Doenças Sistêmicas & Condições</span>
               <div className={styles.chipsContainer}>
@@ -291,16 +328,17 @@ function AnamnesePacienteForm() {
               </div>
               <input
                 type="text"
-                readOnly
-                className={`${styles.input} ${styles.inputSummary}`}
-                placeholder="Selecione condições pré-existentes..."
-                value={selectedDoencas.join(', ')}
+                placeholder="Outra doença ou diagnóstico pré-existente..."
+                value={customDoencas}
+                onChange={(e) => setCustomDoencas(e.target.value)}
+                className={styles.input}
+                style={{ marginTop: '8px' }}
               />
             </div>
 
-            {/* ATM & HÁBITOS */}
+            {/* 4. ATM & HÁBITOS ORAIS */}
             <div className={styles.chipsGroup}>
-              <span className={styles.groupLabel}>ATM & Hábitos Bucais</span>
+              <span className={styles.groupLabel}>ATM & Hábitos Orais</span>
               <div className={styles.chipsContainer}>
                 {OPTIONS_ATM.map((item) => {
                   const active = selectedAtm.includes(item)
@@ -319,14 +357,15 @@ function AnamnesePacienteForm() {
               </div>
               <input
                 type="text"
-                readOnly
-                className={`${styles.input} ${styles.inputSummary}`}
-                placeholder="Selecione sintomas ou hábitos..."
-                value={selectedAtm.join(', ')}
+                placeholder="Outro hábito ou sintoma bucal..."
+                value={customAtm}
+                onChange={(e) => setCustomAtm(e.target.value)}
+                className={styles.input}
+                style={{ marginTop: '8px' }}
               />
             </div>
 
-            {/* MEDICAMENTOS EM USO */}
+            {/* MEDICAMENTOS */}
             <div className={styles.field}>
               <label className={styles.label}>Medicamentos de Uso Contínuo</label>
               <input
@@ -337,33 +376,8 @@ function AnamnesePacienteForm() {
                 onChange={(e) => setMedications(e.target.value)}
               />
             </div>
-
-            {/* TIPO SANGUÍNEO & CIRURGIAS */}
-            <div className={styles.rowBloodSurgery}>
-              <div className={styles.field}>
-                <label className={styles.label}>Tipo Sanguíneo</label>
-                <input
-                  type="text"
-                  className={styles.input}
-                  placeholder="Ex: O+, A-, AB+"
-                  value={bloodType}
-                  onChange={(e) => setBloodType(e.target.value)}
-                />
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label}>Histórico de Cirurgias / Internações</label>
-                <input
-                  type="text"
-                  className={styles.input}
-                  placeholder="Ex: Cirurgia cardíaca, internação recente..."
-                  value={surgeries}
-                  onChange={(e) => setSurgeries(e.target.value)}
-                />
-              </div>
-            </div>
           </div>
 
-          {/* ─── TERMO DE VERACIDADE E CONFIDENCIALIDADE ─── */}
           <div className={styles.consentBox}>
             <div className={styles.consentContent}>
               <input
@@ -380,18 +394,18 @@ function AnamnesePacienteForm() {
             </div>
           </div>
 
-          {error && <div className={styles.errorBox}>{error}</div>}
+          {error && (
+            <div className={styles.errorBox}>
+              <AlertCircle size={14} style={{ flexShrink: 0 }} />
+              <span>{error}</span>
+            </div>
+          )}
 
-          {/* ─── BOTÃO DE ENVIO ─── */}
-          <button 
-            type="submit" 
-            disabled={loading} 
-            className={styles.submitBtn}
-          >
+          <button type="submit" disabled={loading} className={styles.submitBtn}>
             {loading ? (
               <>
                 <Loader2 size={16} className={styles.spinner} />
-                <span>Enviando questionário...</span>
+                <span>Gravando questionário seguro...</span>
               </>
             ) : (
               <>
@@ -401,7 +415,6 @@ function AnamnesePacienteForm() {
             )}
           </button>
         </form>
-
       </div>
     </div>
   )
@@ -409,7 +422,7 @@ function AnamnesePacienteForm() {
 
 export default function AnamnesePage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>Carregando formulário de anamnese...</div>}>
+    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>Carregando formulário seguro...</div>}>
       <AnamnesePacienteForm />
     </Suspense>
   )
