@@ -1,0 +1,351 @@
+.container {
+  min-height: 100vh;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  font-family: inherit;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  width: 100%;
+  max-width: 640px;
+  box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Header ─── */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.badgeClinic {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  background: #ecfeff;
+  color: var(--primary, #0284c7);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin-bottom: 6px;
+  border: 1px solid rgba(2, 132, 199, 0.2);
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* ─── Formulário ─── */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sectionHeader {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary, #0284c7);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badgeRascunho {
+  font-size: 11px;
+  font-weight: 600;
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ─── Campos e Inputs ─── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.required {
+  color: #ef4444;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--primary, #0284c7);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+
+.inputSummary {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  border-style: dashed;
+}
+
+/* ─── Grupos de Chips Interativos ─── */
+.chipsGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.groupLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chipsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 9999px;
+  padding: 5px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.chip:hover {
+  border-color: var(--primary, #0284c7);
+  color: var(--primary, #0284c7);
+}
+
+.chipActive {
+  background: #ecfeff;
+  border-color: var(--primary, #0284c7);
+  color: var(--primary, #0284c7);
+  font-weight: 600;
+}
+
+/* ─── Grids ─── */
+.row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.rowBloodSurgery {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 12px;
+}
+
+@media (max-width: 540px) {
+  .row2,
+  .rowBloodSurgery {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Termo de Confidencialidade e Veracidade ─── */
+.consentBox {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.consentContent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.checkbox {
+  margin-top: 3px;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary, #0284c7);
+}
+
+.consentText {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.consentText strong {
+  color: #0f172a;
+}
+
+/* ─── Ações e Alertas ─── */
+.errorBox {
+  font-size: 12px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+.submitBtn {
+  background: var(--primary, #0284c7);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 13px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity 0.15s ease;
+  box-shadow: 0 4px 6px -1px rgba(2, 132, 199, 0.2);
+}
+
+.submitBtn:hover:not(:disabled) {
+  opacity: 0.93;
+}
+
+.submitBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ─── Ecrã de Sucesso ─── */
+.successCard {
+  text-align: center;
+  padding: 36px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.successIconWrap {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #16a34a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.successTitle {
+  font-size: 21px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.successText {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  max-width: 420px;
+  line-height: 1.5;
+}
+
+.spinner {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

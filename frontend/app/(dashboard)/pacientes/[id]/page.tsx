@@ -24,6 +24,9 @@ import {
   Printer,
   ChevronRight,
   CheckCircle,
+  SendHorizontal,
+  Copy,
+  Share2
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './perfil.module.css'
@@ -112,6 +115,8 @@ export default function PerfilPacientePage() {
   const [isEditingMR, setIsEditingMR] = useState(false)
   const [savingMR, setSavingMR] = useState(false)
   const [hasDraft, setHasDraft] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
+
   const [mrForm, setMrForm] = useState({
     chiefComplaint: '',
     historyNotes: '',
@@ -243,7 +248,42 @@ export default function PerfilPacientePage() {
     if (id) load()
   }, [id])
 
-  // Ação de Concluir Consulta e Encaminhar para Recepção/Checkout
+  // Gerador de Link Direto de Anamnese do Paciente
+  function getPatientAnamneseLink() {
+    if (!id) return ''
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://odontoflow.com.br'
+    return `${origin}/anamnese?patientId=${id}&name=${encodeURIComponent(patient?.name || '')}`
+  }
+
+  function handleCopyAnamneseLink() {
+    const link = getPatientAnamneseLink()
+    if (!link) return
+    navigator.clipboard.writeText(link)
+    setCopiedLink(true)
+    setTimeout(() => setCopiedLink(false), 2500)
+  }
+
+  function handleSendAnamneseWhatsApp() {
+    if (!patient?.phone || !id) return
+
+    const cleanPhone = patient.phone.replace(/\D/g, '')
+    const fullPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`
+    const link = getPatientAnamneseLink()
+
+    const lines = [
+      `Olá, *${patient.name}*! Tudo bem?`,
+      '',
+      `Pedimos que preencha a sua ficha clínica e anamnese com antecedência pelo link seguro da *Clarium Clinic - Messejana*:`,
+      '',
+      `🔗 ${link}`,
+      '',
+      `Leva menos de 2 minutos pelo celular e agiliza seu atendimento com o dentista. Se tiver dúvidas, estamos à disposição! 💙`
+    ]
+
+    const textEncoded = lines.map((l) => encodeURIComponent(l)).join('%0A')
+    window.open(`https://api.whatsapp.com/send?phone=${fullPhone}&text=${textEncoded}`, '_blank')
+  }
+
   const handleFinishAppointmentFromMocho = async () => {
     if (!appointmentId) return
     try {
@@ -558,7 +598,7 @@ export default function PerfilPacientePage() {
         {tab !== 'arquivos' && (
           <div className={styles.column}>
             <div className={styles.card}>
-              <div className={styles.cardHeader}>
+              <div className={styles.cardHeader} style={{ flexWrap: 'wrap', gap: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <h3 className={styles.sectionTitle}>Anamnese & Saúde Base</h3>
                   {hasDraft && isEditingMR && (
@@ -567,12 +607,52 @@ export default function PerfilPacientePage() {
                     </span>
                   )}
                 </div>
-                {!isEditingMR && (
-                  <button type="button" onClick={() => setIsEditingMR(true)} className={styles.btnEdit}>
-                    <Pencil size={13} />
-                    <span>Editar Anamnese</span>
-                  </button>
-                )}
+
+                {/* Ações de Edição e Disparo do Link da Anamnese */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {!isEditingMR && (
+                    <>
+                      <button 
+                        type="button" 
+                        onClick={handleCopyAnamneseLink} 
+                        className={styles.btnSecondary}
+                        title="Copiar link da anamnese do paciente"
+                        style={{ padding: '5px 10px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                      >
+                        {copiedLink ? <Check size={12} color="#16a34a" /> : <Copy size={12} />}
+                        <span>{copiedLink ? 'Copiado!' : 'Copiar Link'}</span>
+                      </button>
+
+                      {patient.phone && (
+                        <button 
+                          type="button" 
+                          onClick={handleSendAnamneseWhatsApp} 
+                          className={styles.btnSecondary}
+                          title="Enviar formulário via WhatsApp para o paciente responder"
+                          style={{
+                            background: '#f0fdf4',
+                            border: '1px solid #bbf7d0',
+                            color: '#16a34a',
+                            padding: '5px 10px',
+                            fontSize: '11px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            fontWeight: 600
+                          }}
+                        >
+                          <SendHorizontal size={12} />
+                          <span>Enviar WhatsApp</span>
+                        </button>
+                      )}
+
+                      <button type="button" onClick={() => setIsEditingMR(true)} className={styles.btnEdit}>
+                        <Pencil size={13} />
+                        <span>Editar</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
 
               {isEditingMR ? (
@@ -741,7 +821,22 @@ export default function PerfilPacientePage() {
                   </div>
                 </form>
               ) : !mr ? (
-                <p className={styles.empty}>Prontuário ainda não preenchido. Clique em "Editar Anamnese" para cadastrar.</p>
+                <div style={{ textAlign: 'center', padding: '24px 16px' }}>
+                  <p className={styles.empty} style={{ marginBottom: '14px' }}>
+                    Prontuário ainda não preenchido. Você pode editar manualmente ou enviar o link direto para o paciente responder pelo WhatsApp.
+                  </p>
+                  {patient.phone && (
+                    <button 
+                      type="button" 
+                      onClick={handleSendAnamneseWhatsApp} 
+                      className={styles.btnPrimary}
+                      style={{ margin: '0 auto', fontSize: '12px' }}
+                    >
+                      <SendHorizontal size={13} />
+                      <span>Enviar Link de Anamnese via WhatsApp</span>
+                    </button>
+                  )}
+                </div>
               ) : (
                 <div className={styles.anamneseList}>
                   <div className={styles.infoItem}>

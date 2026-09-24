@@ -46,6 +46,12 @@ interface DentistOption {
   name: string
 }
 
+interface ClinicBranding {
+  clinicName: string
+  clinicAddress: string
+  primaryColor: string
+}
+
 type UserPlan = 'BASIC' | 'PREMIUM' | 'ENTERPRISE'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -76,6 +82,16 @@ export default function AgendaPage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
   const [loading, setLoading] = useState(true)
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
+
+  // Usuário autenticado
+  const [loggedUserName, setLoggedUserName] = useState<string>('')
+
+  // White-Label dinâmico
+  const [branding, setBranding] = useState<ClinicBranding>({
+    clinicName: 'Clarium Clinic - Messejana',
+    clinicAddress: 'Avenida Frei Cirilo, 3748, Messejana',
+    primaryColor: '#0284c7',
+  })
 
   // Planos & Limites
   const [userPlan, setUserPlan] = useState<UserPlan>('PREMIUM')
@@ -108,9 +124,10 @@ export default function AgendaPage() {
 
   async function loadAuxiliaryData() {
     try {
-      const [patientsRes, usersRes] = await Promise.all([
+      const [patientsRes, usersRes, clinicsRes] = await Promise.all([
         api.get('/patients?limit=100').catch(() => ({ data: [] })),
-        api.get('/users?role=DENTIST').catch(() => ({ data: [] }))
+        api.get('/users?role=DENTIST').catch(() => ({ data: [] })),
+        api.get('/clinics').catch(() => ({ data: [] })),
       ])
 
       const pList = Array.isArray(patientsRes.data) ? patientsRes.data : patientsRes.data?.data || []
@@ -120,6 +137,16 @@ export default function AgendaPage() {
       setDentists(dList)
       if (pList.length > 0) setSelectedPatientId(pList[0].id)
       if (dList.length > 0) setSelectedDentistId(dList[0].id)
+
+      const cList = Array.isArray(clinicsRes.data) ? clinicsRes.data : clinicsRes.data?.data || []
+      if (cList.length > 0) {
+        const activeClinic = cList[0]
+        setBranding((prev) => ({
+          clinicName: activeClinic.name || prev.clinicName,
+          clinicAddress: activeClinic.address || prev.clinicAddress,
+          primaryColor: activeClinic.primaryColor || prev.primaryColor,
+        }))
+      }
     } catch (e) {
       console.error('Erro ao carregar dados auxiliares:', e)
     }
@@ -138,8 +165,22 @@ export default function AgendaPage() {
       }
 
       if (meRes.status === 'fulfilled') {
-        const plan = meRes.value.data?.tenant?.plan || 'PREMIUM'
+        const meData = meRes.value.data
+        const plan = meData?.tenant?.plan || 'PREMIUM'
         setUserPlan(plan)
+
+        // Resgata o nome de quem está logado para assinar os lembretes
+        if (meData?.name || meData?.user?.name) {
+          setLoggedUserName(meData?.name || meData?.user?.name)
+        }
+
+        if (meData?.tenant?.name || meData?.clinic?.name) {
+          setBranding((prev) => ({
+            clinicName: meData.clinic?.name || meData.tenant?.name || prev.clinicName,
+            clinicAddress: meData.clinic?.address || prev.clinicAddress,
+            primaryColor: prev.primaryColor,
+          }))
+        }
       }
     } catch (err) {
       console.error('Erro ao carregar dados da agenda:', err)
@@ -386,7 +427,7 @@ export default function AgendaPage() {
           </button>
         </div>
 
-        {/* Seletor de Salas e Dropdown */}
+        {/* Seletor de Salas */}
         <div className={styles.filterGroup}>
           <div className={styles.roomsSelector}>
             <button
@@ -427,7 +468,7 @@ export default function AgendaPage() {
           </select>
         </div>
 
-        {/* Legendas de Status Completas */}
+        {/* Legendas de Status */}
         <div className={styles.legend}>
           <span className={styles.legendItem}>
             <span className={styles.dotAgendado} /> Agendado
@@ -599,7 +640,7 @@ export default function AgendaPage() {
               <span className={styles.sectionLabel}>Fila de Espera / Encaixe ({waitingList.length})</span>
               <button 
                 type="button" 
-                onClick={() => setIsWaitingModalOpen(true)}
+                onClick={() => setIsWaitingModalOpen(true)} 
                 className={styles.btnAddWaiting}
                 title="Adicionar paciente no encaixe"
               >
@@ -784,10 +825,19 @@ export default function AgendaPage() {
         </div>
       )}
 
+      {/* ─── MODAL DE DETALHES ─── */}
       <DetalhesAgendamentoModal
         appointment={selectedAppt}
         onClose={() => setSelectedAppt(null)}
-        onSuccess={() => loadAppointments(selectedDate)}
+        onSuccess={() => {
+          loadAppointments(selectedDate)
+        }} 
+        branding={{
+          clinicName: branding.clinicName,
+          clinicAddress: branding.clinicAddress,
+          primaryColor: branding.primaryColor,
+        }}
+        loggedUserName={loggedUserName}
       />
     </div>
   )

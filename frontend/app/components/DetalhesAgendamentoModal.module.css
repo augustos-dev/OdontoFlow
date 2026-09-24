@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -39,8 +39,6 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: #e0f2fe;
-  color: #0284c7;
   font-weight: 700;
   font-size: 14px;
   display: flex;
@@ -63,7 +61,7 @@
 }
 
 .patientNameClickable:hover {
-  color: #0284c7;
+  color: var(--brand-primary, #0284c7);
   text-decoration: underline;
 }
 
@@ -84,10 +82,18 @@
   font-weight: 600;
   cursor: pointer;
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.btnWhatsapp:hover {
+.btnWhatsapp:hover:not(:disabled) {
   text-decoration: underline;
+}
+
+.btnWhatsapp:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .emailSub {
@@ -131,8 +137,8 @@
 
 .btnOutline:hover {
   background: #f8fafc;
-  border-color: #0284c7;
-  color: #0284c7;
+  border-color: var(--brand-primary, #0284c7);
+  color: var(--brand-primary, #0284c7);
 }
 
 /* ─── AÇÃO PRINCIPAL ─── */
@@ -141,9 +147,9 @@
   gap: 8px;
 }
 
-.btnEdit {
+.btnFinishAction {
   flex: 1;
-  background: #2563eb;
+  background: #16a34a;
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -155,11 +161,11 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  transition: background 0.15s ease;
+  transition: opacity 0.15s ease;
 }
 
-.btnEdit:hover {
-  background: #1d4ed8;
+.btnFinishAction:hover {
+  opacity: 0.92;
 }
 
 .btnIconCopy {
@@ -208,8 +214,6 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #0369a1;
-  background: #e0f2fe;
   padding: 6px 10px;
   border-radius: 6px;
   margin-top: 2px;
@@ -259,7 +263,7 @@
   justify-content: space-between;
   padding: 10px 14px;
   border-radius: 8px;
-  border: 1.5px solid #0284c7;
+  border: 1.5px solid var(--brand-primary, #0284c7);
   background: #ffffff;
   font-size: 13px;
   font-weight: 700;
@@ -314,11 +318,11 @@
 
 .selectedOption {
   background: #f0f9ff;
-  color: #0284c7;
+  color: var(--brand-primary, #0284c7);
 }
 
 .check {
-  color: #0284c7;
+  color: var(--brand-primary, #0284c7);
   font-weight: 700;
 }
 
