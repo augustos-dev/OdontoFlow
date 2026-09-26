@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import * as transactionService from '../services/transactionService'
-import type { UserRole, TransactionType, PaymentMethod } from '@prisma/client'
+import type { TransactionType, PaymentMethod } from '@prisma/client'
 import type { AuthUserSession } from '../types/auth.types'
 import type {
   CreateTransactionDTO,
@@ -54,6 +54,7 @@ export async function listTransactionsController(req: Request, res: Response, ne
       costCenter: req.query.costCenter as string | undefined,
       isReconciled: req.query.isReconciled !== undefined ? req.query.isReconciled === 'true' : undefined,
       supplierId: req.query.supplierId as string | undefined,
+      accountReceivableId: req.query.accountReceivableId as string | undefined,
       startDate: req.query.startDate as string | undefined,
       endDate: req.query.endDate as string | undefined,
       page: req.query.page ? Number(req.query.page) : undefined,

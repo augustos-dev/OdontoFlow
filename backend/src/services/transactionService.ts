@@ -38,9 +38,16 @@ const TRANSACTION_INCLUDES = {
       title: true,
     },
   },
+  accountReceivable: {
+    select: {
+      id: true,
+      description: true,
+      installmentNumber: true,
+      totalInstallments: true,
+      status: true,
+    },
+  },
 } satisfies Prisma.TransactionInclude
-
-// ─── Create ──────────────────────────────────────────────────────────────────
 
 export async function createTransaction(
   tenantId: string,
@@ -59,10 +66,10 @@ export async function createTransaction(
     appointmentId,
     treatmentPlanId,
     supplierId,
+    accountReceivableId,
     paidAt,
   } = data
 
-  // Validação de vínculo com Agendamento
   if (appointmentId) {
     const appointment = await prisma.appointment.findFirst({
       where: { id: appointmentId, tenantId, clinicId },
@@ -80,7 +87,6 @@ export async function createTransaction(
     }
   }
 
-  // Validação de vínculo com Fornecedor (comum em Despesas)
   if (supplierId) {
     const supplier = await prisma.supplier.findFirst({
       where: { id: supplierId, tenantId, clinicId },
@@ -88,12 +94,18 @@ export async function createTransaction(
     if (!supplier) throw new AppError('Fornecedor não encontrado nesta unidade.', 404)
   }
 
-  // Validação de vínculo com Plano de Tratamento
   if (treatmentPlanId) {
     const plan = await prisma.treatmentPlan.findFirst({
       where: { id: treatmentPlanId, tenantId, clinicId },
     })
     if (!plan) throw new AppError('Plano de tratamento não encontrado.', 404)
+  }
+
+  if (accountReceivableId) {
+    const receivable = await prisma.accountReceivable.findFirst({
+      where: { id: accountReceivableId, tenantId, clinicId },
+    })
+    if (!receivable) throw new AppError('Título a receber não encontrado.', 404)
   }
 
   const transaction = await prisma.transaction.create({
@@ -110,12 +122,12 @@ export async function createTransaction(
       appointmentId: appointmentId || null,
       treatmentPlanId: treatmentPlanId || null,
       supplierId: supplierId || null,
+      accountReceivableId: accountReceivableId || null,
       paidAt: paidAt ? new Date(paidAt) : new Date(),
     },
     include: TRANSACTION_INCLUDES,
   })
 
-  // Log de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -125,13 +137,13 @@ export async function createTransaction(
     action: 'CREATE',
     entity: 'TRANSACTION',
     entityId: transaction.id,
-    details: `Registrou ${type}: R$ ${Number(amount).toFixed(2)} (${paymentMethod}) - ${description || category || 'Sem categoria'}${costCenter ? ` | Centro de Custo: ${costCenter}` : ''}${transaction.supplier ? ` | Fornecedor: ${transaction.supplier.name}` : ''}`,
+    details: `Registrou ${type}: R$ ${Number(amount).toFixed(2)} (${paymentMethod}) - ${
+      description || category || 'Sem categoria'
+    }${costCenter ? ` | Centro de Custo: ${costCenter}` : ''}`,
   })
 
   return transaction
 }
-
-// ─── List ─────────────────────────────────────────────────────────────────────
 
 export async function listTransactions(
   tenantId: string,
@@ -145,6 +157,7 @@ export async function listTransactions(
     costCenter,
     isReconciled,
     supplierId,
+    accountReceivableId,
     startDate,
     endDate,
     page = 1,
@@ -172,6 +185,7 @@ export async function listTransactions(
     ...(costCenter && { costCenter: { contains: costCenter, mode: 'insensitive' } }),
     ...(isReconciled !== undefined && { isReconciled }),
     ...(supplierId && { supplierId }),
+    ...(accountReceivableId && { accountReceivableId }),
   }
 
   const [transactions, total] = await Promise.all([
@@ -191,8 +205,6 @@ export async function listTransactions(
   }
 }
 
-// ─── Get by ID ────────────────────────────────────────────────────────────────
-
 export async function getTransactionById(
   tenantId: string,
   clinicId: string,
@@ -207,8 +219,6 @@ export async function getTransactionById(
 
   return transaction
 }
-
-// ─── Update ───────────────────────────────────────────────────────────────────
 
 export async function updateTransaction(
   tenantId: string,
@@ -243,7 +253,6 @@ export async function updateTransaction(
     include: TRANSACTION_INCLUDES,
   })
 
-  // Log de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -253,13 +262,11 @@ export async function updateTransaction(
     action: 'UPDATE',
     entity: 'TRANSACTION',
     entityId: transactionId,
-    details: `Atualizou transação (${transaction.type}). Novo valor: R$ ${Number(updatedTransaction.amount).toFixed(2)}${data.costCenter !== undefined ? ` | Centro de Custo: ${data.costCenter}` : ''}${data.isReconciled !== undefined ? ` | Conciliado: ${data.isReconciled}` : ''}`,
+    details: `Atualizou transação (${transaction.type}). Novo valor: R$ ${Number(updatedTransaction.amount).toFixed(2)}`,
   })
 
   return updatedTransaction
 }
-
-// ─── Reconcile (Conciliação Rápida de Caixa / Banco) ──────────────────────────
 
 export async function setTransactionReconciliation(
   tenantId: string,
@@ -295,8 +302,6 @@ export async function setTransactionReconciliation(
   return updatedTransaction
 }
 
-// ─── Delete ───────────────────────────────────────────────────────────────────
-
 export async function deleteTransaction(
   tenantId: string,
   clinicId: string,
@@ -310,12 +315,11 @@ export async function deleteTransaction(
   if (!transaction) throw new AppError('Transação não encontrada.', 404)
 
   if (transaction.appointmentId) {
-    throw new AppError('Transações vinculadas a agendamentos não podem ser deletadas. Estorne via nova transação.', 400)
+    throw new AppError('Transações vinculadas a agendamentos não podem ser deletadas.', 400)
   }
 
   await prisma.transaction.delete({ where: { id: transactionId } })
 
-  // Log de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -325,11 +329,9 @@ export async function deleteTransaction(
     action: 'DELETE',
     entity: 'TRANSACTION',
     entityId: transactionId,
-    details: `Deletou transação de ${transaction.type} no valor de R$ ${Number(transaction.amount).toFixed(2)} (${transaction.description || 'Sem descrição'})`,
+    details: `Deletou transação de ${transaction.type} no valor de R$ ${Number(transaction.amount).toFixed(2)}`,
   })
 }
-
-// ─── Report & DRE ─────────────────────────────────────────────────────────────
 
 export async function getFinancialReport(
   tenantId: string,

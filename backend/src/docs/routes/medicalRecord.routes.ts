@@ -9,13 +9,102 @@ import {
   createEvolutionController,
   updateEvolutionController,
   lockEvolutionController,
+  generateAnamnesisTokenController,
+  getPublicAnamnesisController,
+  updatePublicAnamnesisController,
 } from '../../controllers/medicalRecordController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
 import { upload } from '../../middlewares/uploadMiddleware'
 
 const router = Router()
 
+/**
+ * @openapi
+ * /medical-records/public/anamnese:
+ *   get:
+ *     summary: Recupera anamnese pública através de Magic Link com token assinado de 36 horas
+ *     tags: [Medical Records Public]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema: { type: string }
+ *         description: Token JWT temporário assinado pelo backend
+ *     responses:
+ *       200:
+ *         description: Dados clínicos da anamnese carregados
+ *       400:
+ *         description: Token ausente
+ *       401:
+ *         description: Token expirado ou assinatura inválida
+ *   put:
+ *     summary: Preenchimento público da ficha de saúde pelo paciente via Magic Link (Token 36h)
+ *     tags: [Medical Records Public]
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               mainComplaint: { type: string }
+ *               chiefComplaint: { type: string }
+ *               allergies: { type: string }
+ *               systemicDiseases: { type: string }
+ *               medicationsInUse: { type: string }
+ *               medications: { type: string }
+ *               habits: { type: string }
+ *               bloodType: { type: string }
+ *               historyNotes: { type: string }
+ *     responses:
+ *       200:
+ *         description: Anamnese salva com sucesso e vinculada ao prontuário
+ *       401:
+ *         description: Token expirado ou link inválido
+ */
+router.get('/public/anamnese', getPublicAnamnesisController)
+router.put('/public/anamnese', updatePublicAnamnesisController)
+
+// ─── ROTAS PRIVADAS (EXIGEM AUTENTICAÇÃO) ─────────────────────────────────────
 router.use(authenticate)
+
+/**
+ * @openapi
+ * /medical-records/{patientId}/anamnesis-token:
+ *   post:
+ *     summary: Emite token seguro de acesso à anamnese (Magic Link) válido por 36 horas
+ *     tags: [Medical Records]
+ *     parameters:
+ *       - in: path
+ *         name: patientId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Token gerado com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token: { type: string }
+ *                 expiresInHours: { type: integer, example: 36 }
+ *                 expiresAt: { type: string, format: date-time }
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+router.post(
+  '/:patientId/anamnesis-token',
+  authorize('ADMIN', 'SECRETARY', 'DENTIST'),
+  generateAnamnesisTokenController
+)
 
 /**
  * @openapi
@@ -202,8 +291,12 @@ router.delete('/:patientId/odontogram/:toothNumber', authorize('ADMIN', 'DENTIST
  *               allergies: { type: string }
  *               systemicDiseases: { type: string }
  *               medicationsInUse: { type: string }
+ *               medications: { type: string }
  *               habits: { type: string }
  *               mainComplaint: { type: string }
+ *               chiefComplaint: { type: string }
+ *               historyNotes: { type: string }
+ *               bloodType: { type: string }
  *     responses:
  *       200: { description: Prontuário atualizado }
  */

@@ -31,6 +31,8 @@ export async function listPatientsController(
     const filters: PatientFiltersDTO = {
       name: req.query.name as string | undefined,
       cpf: req.query.cpf as string | undefined,
+      phone: req.query.phone as string | undefined,
+      insuranceName: req.query.insuranceName as string | undefined,
       page: req.query.page ? Number(req.query.page) : undefined,
       limit: req.query.limit ? Number(req.query.limit) : undefined,
     }

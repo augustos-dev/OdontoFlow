@@ -37,8 +37,6 @@ interface ActorContext {
   userRole?: UserRole
 }
 
-// ─── Create ──────────────────────────────────────────────────────────────────
-
 export async function createUser(
   tenantId: string,
   clinicId: string,
@@ -68,10 +66,8 @@ export async function createUser(
     select: USER_SAFE_SELECT,
   })
 
-  // Inicializa permissões padrões da role para a clínica/tenant se não existirem
   await ensureDefaultRolePermissions(tenantId, clinicId, role)
 
-  // Log de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -86,8 +82,6 @@ export async function createUser(
 
   return newUser
 }
-
-// ─── List ─────────────────────────────────────────────────────────────────────
 
 export async function listUsers(tenantId: string, clinicId: string, filters: UserFiltersDTO) {
   const { name, role, isActive, page = 1, limit = 20 } = filters
@@ -118,8 +112,6 @@ export async function listUsers(tenantId: string, clinicId: string, filters: Use
   }
 }
 
-// ─── Get by ID ────────────────────────────────────────────────────────────────
-
 export async function getUserById(tenantId: string, clinicId: string, userId: string) {
   const user = await prisma.user.findFirst({
     where: { id: userId, tenantId, clinicId },
@@ -130,8 +122,6 @@ export async function getUserById(tenantId: string, clinicId: string, userId: st
 
   return user
 }
-
-// ─── Update ───────────────────────────────────────────────────────────────────
 
 export async function updateUser(
   tenantId: string,
@@ -172,8 +162,6 @@ export async function updateUser(
   return updatedUser
 }
 
-// ─── Update Role (apenas ADMIN) ───────────────────────────────────────────────
-
 export async function updateUserRole(
   tenantId: string,
   clinicId: string,
@@ -211,8 +199,6 @@ export async function updateUserRole(
 
   return updatedUser
 }
-
-// ─── Update Status (ativar/desativar) ────────────────────────────────────────
 
 export async function updateUserStatus(
   tenantId: string,
@@ -252,8 +238,6 @@ export async function updateUserStatus(
   return updatedUser
 }
 
-// ─── Reset Account Lockout (Desbloqueio Manual por ADMIN) ────────────────────
-
 export async function resetUserLockout(
   tenantId: string,
   clinicId: string,
@@ -289,8 +273,6 @@ export async function resetUserLockout(
 
   return unlockedUser
 }
-
-// ─── Change Password (próprio usuário) ───────────────────────────────────────
 
 export async function changePassword(
   tenantId: string,
@@ -335,8 +317,6 @@ export async function changePassword(
   })
 }
 
-// ─── Delete ───────────────────────────────────────────────────────────────────
-
 export async function deleteUser(
   tenantId: string,
   clinicId: string,
@@ -378,8 +358,6 @@ export async function deleteUser(
     details: `Excluiu permanentemente a conta do usuário: ${user.name} (${user.email})`,
   })
 }
-
-// ─── RBAC: Permissões por Role ────────────────────────────────────────────────
 
 export async function getRolePermissions(tenantId: string, clinicId: string, role: UserRole) {
   await ensureDefaultRolePermissions(tenantId, clinicId, role)
@@ -446,7 +424,7 @@ export async function updateRolePermissions(
     userRole: actor.userRole || 'ADMIN',
     action: 'UPDATE',
     entity: 'ROLE_PERMISSION',
-    details: `Permissões de acesso granulares atualizadas para o perfil: ${role} na clínica: ${targetClinicId}`,
+    details: `Permissões de acesso granulares atualizadas para o perfil: ${role}`,
   })
 
   return updatedPermissions
@@ -474,11 +452,18 @@ async function ensureDefaultRolePermissions(tenantId: string, clinicId: string, 
     'SUPPLIERS',
     'SETTINGS',
     'REPORTS',
+    'AI_TRANSCRIPTION',
+    'COMMISSIONS',
+    'TASKS',
+    'MY_OFFICE',
+    'RECEIVABLES',
+    'INSURANCE_BATCHES',
   ]
 
   const defaults = allModules.map((module) => {
     const isSecretaryRestricted =
-      role === 'SECRETARY' && ['FINANCIAL', 'SETTINGS', 'REPORTS'].includes(module)
+      role === 'SECRETARY' &&
+      ['FINANCIAL', 'SETTINGS', 'REPORTS', 'COMMISSIONS', 'RECEIVABLES', 'INSURANCE_BATCHES'].includes(module)
 
     return {
       tenantId,
@@ -487,9 +472,17 @@ async function ensureDefaultRolePermissions(tenantId: string, clinicId: string, 
       module,
       canRead: role === 'ADMIN' ? true : !isSecretaryRestricted,
       canCreate:
-        role === 'ADMIN' ? true : role === 'SECRETARY' ? ['AGENDA', 'PATIENTS'].includes(module) : true,
+        role === 'ADMIN'
+          ? true
+          : role === 'SECRETARY'
+          ? ['AGENDA', 'PATIENTS'].includes(module)
+          : true,
       canUpdate:
-        role === 'ADMIN' ? true : role === 'SECRETARY' ? ['AGENDA', 'PATIENTS'].includes(module) : true,
+        role === 'ADMIN'
+          ? true
+          : role === 'SECRETARY'
+          ? ['AGENDA', 'PATIENTS'].includes(module)
+          : true,
       canDelete: role === 'ADMIN',
     }
   })

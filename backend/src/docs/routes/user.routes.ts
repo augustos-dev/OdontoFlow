@@ -51,7 +51,7 @@ router.patch('/me/change-password', changePasswordController)
  *       - in: path
  *         name: role
  *         required: true
- *         schema: { type: string, enum: [ADMIN, DENTIST, SECRETARY, RECEPTIONIST] }
+ *         schema: { type: string, enum: [ADMIN, DENTIST, SECRETARY] }
  *     responses:
  *       200: { description: Matriz de permissões retornada }
  */

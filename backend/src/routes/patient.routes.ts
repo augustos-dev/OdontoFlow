@@ -7,23 +7,32 @@ import {
   getPatientByIdController,
   updatePatientController,
   deletePatientController,
-} from '../controllers/patientController' // Alinhado com a nomenclatura .controller
+} from '../controllers/patientController'
+import { generateAnamnesisTokenController } from '../controllers/medicalRecordController'
 import { authenticate, authorize } from '../middlewares/authMiddlewares'
+import { can } from '../middlewares/rbac.middleware'
 
 const patientRoutes = Router()
 
-// Todas as rotas exigem autenticação
+// Todas as rotas de pacientes exigem autenticação
 patientRoutes.use(authenticate)
 
 // 📖 Rotas de Leitura
-patientRoutes.get('/', listPatientsController)
-patientRoutes.get('/:id', getPatientByIdController)
+patientRoutes.get('/', can('PATIENTS', 'READ'), listPatientsController)
+patientRoutes.get('/:id', can('PATIENTS', 'READ'), getPatientByIdController)
 
 // ✍️ Rotas de Ações (Escrita/Edição)
-patientRoutes.post('/', authorize('ADMIN', 'SECRETARY', 'DENTIST'), createPatientController)
-patientRoutes.put('/:id', authorize('ADMIN', 'SECRETARY', 'DENTIST'), updatePatientController)
+patientRoutes.post('/', can('PATIENTS', 'CREATE'), createPatientController)
+patientRoutes.put('/:id', can('PATIENTS', 'UPDATE'), updatePatientController)
 
-// 🗑️ Rota de Exclusão (Apenas Admin)
+// 🔗 Token Seguro de Anamnese (36 Horas)
+patientRoutes.post(
+  '/:id/anamnesis-token',
+  authorize('ADMIN', 'SECRETARY', 'DENTIST'),
+  generateAnamnesisTokenController
+)
+
+// 🗑️ Rota de Exclusão (Soft Delete - Apenas Admin)
 patientRoutes.delete('/:id', authorize('ADMIN'), deletePatientController)
 
 export default patientRoutes

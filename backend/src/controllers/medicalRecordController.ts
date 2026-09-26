@@ -68,6 +68,61 @@ async function processAttachments(req: Request): Promise<string[]> {
   return attachmentUrls
 }
 
+// ─── Token Seguro de Anamnese (36 Horas) ──────────────────────────────────────
+
+export async function generateAnamnesisTokenController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const user = getSessionUser(req)
+    const patientId = getRecordIdParam(req)
+    const actor = extractActor(req)
+
+    const tokenData = await medicalRecordService.generateAnamnesisToken(
+      user.tenantId,
+      user.clinicId,
+      patientId,
+      actor.userId
+    )
+
+    res.status(200).json(tokenData)
+  } catch (error) {
+    next(error)
+  }
+}
+
+// Rota Pública (sem auth middleware): GET /public/anamnese?token=...
+export async function getPublicAnamnesisController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const token = (req.query.token as string) || ''
+    const anamnesis = await medicalRecordService.getPublicAnamnesisByToken(token)
+    res.status(200).json(anamnesis)
+  } catch (error) {
+    next(error)
+  }
+}
+
+// Rota Pública (sem auth middleware): PUT /public/anamnese?token=...
+export async function updatePublicAnamnesisController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const token = (req.query.token as string) || ''
+    const context = {
+      ip: req.ip || (req.headers['x-forwarded-for'] as string) || undefined,
+      userAgent: req.headers['user-agent'] || undefined,
+    }
+
+    const updated = await medicalRecordService.updatePublicAnamnesisByToken(
+      token,
+      req.body as UpdateMedicalRecordsDTO,
+      context
+    )
+
+    res.status(200).json(updated)
+  } catch (error) {
+    next(error)
+  }
+}
+
+// ─── Evoluções & Prontuário ───────────────────────────────────────────────────
+
 export async function getEvolutionsController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const user = getSessionUser(req)

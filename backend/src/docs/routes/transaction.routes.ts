@@ -1,5 +1,3 @@
-// backend/src/routes/transaction.routes.ts
-
 import { Router } from 'express'
 import {
   createTransactionController,
@@ -14,8 +12,6 @@ import { authenticate, authorize } from '../../middlewares/authMiddlewares'
 import { can } from '../../middlewares/rbac.middleware'
 
 const router = Router()
-
-// ─── Todas as rotas de transações são privadas ────────────────────────────────
 
 router.use(authenticate)
 
@@ -71,7 +67,7 @@ router.get('/report', can('FINANCIAL', 'READ'), getFinancialReportController)
  *         schema: { type: string, enum: [RECEITA, DESPESA] }
  *       - in: query
  *         name: paymentMethod
- *         schema: { type: string, enum: [PIX, CREDITO, DEBITO, DINHEIRO, CONVENIO] }
+ *         schema: { type: string, enum: [PIX, CREDITO, DEBITO, DINHEIRO, CONVENIO, BOLETO, TRANSFERENCIA] }
  *       - in: query
  *         name: category
  *         schema: { type: string }
@@ -83,6 +79,9 @@ router.get('/report', can('FINANCIAL', 'READ'), getFinancialReportController)
  *         schema: { type: boolean }
  *       - in: query
  *         name: supplierId
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: accountReceivableId
  *         schema: { type: string, format: uuid }
  *       - in: query
  *         name: startDate
@@ -164,7 +163,7 @@ router.get('/:id', can('FINANCIAL', 'READ'), getTransactionByIdController)
  *                 example: 150.00
  *               paymentMethod:
  *                 type: string
- *                 enum: [PIX, CREDITO, DEBITO, DINHEIRO, CONVENIO]
+ *                 enum: [PIX, CREDITO, DEBITO, DINHEIRO, CONVENIO, BOLETO, TRANSFERENCIA]
  *               description:
  *                 type: string
  *               category:
@@ -180,6 +179,9 @@ router.get('/:id', can('FINANCIAL', 'READ'), getTransactionByIdController)
  *                 type: string
  *                 format: uuid
  *               supplierId:
+ *                 type: string
+ *                 format: uuid
+ *               accountReceivableId:
  *                 type: string
  *                 format: uuid
  *               paidAt:
@@ -225,7 +227,7 @@ router.post('/', can('FINANCIAL', 'CREATE'), createTransactionController)
  *                 type: number
  *               paymentMethod:
  *                 type: string
- *                 enum: [PIX, CREDITO, DEBITO, DINHEIRO, CONVENIO]
+ *                 enum: [PIX, CREDITO, DEBITO, DINHEIRO, CONVENIO, BOLETO, TRANSFERENCIA]
  *               description:
  *                 type: string
  *               category:
@@ -235,6 +237,9 @@ router.post('/', can('FINANCIAL', 'CREATE'), createTransactionController)
  *               isReconciled:
  *                 type: boolean
  *               supplierId:
+ *                 type: string
+ *                 format: uuid
+ *               accountReceivableId:
  *                 type: string
  *                 format: uuid
  *               paidAt:

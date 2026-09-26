@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import * as commissionService from '../services/commissionService'
-import type { CalculateCommissionDTO, FilterCommissionDTO } from '../types/commission.types'
+import type { CalculateCommissionDTO, FilterCommissionDTO, PayCommissionDTO } from '../types/commission.types'
 import type { AuthUserSession } from '../types/auth.types'
 import { AppError } from '../shared/AppError'
 
@@ -10,6 +10,14 @@ function getSessionUser(req: Request): AuthUserSession {
     throw new AppError('Usuário não autenticado ou sessão inválida.', 401)
   }
   return user
+}
+
+function getActor(user: AuthUserSession) {
+  return {
+    userId: user.userId || (user.sub as string),
+    userName: user.name || 'Gestor Clínico',
+    userRole: user.role,
+  }
 }
 
 export async function listCommissionsController(
@@ -35,11 +43,13 @@ export async function createCommissionController(
 ): Promise<void> {
   try {
     const user = getSessionUser(req)
+    const actor = getActor(user)
 
     const commission = await commissionService.calculateAndCreate(
       user.tenantId,
       user.clinicId,
-      req.body as CalculateCommissionDTO
+      req.body as CalculateCommissionDTO,
+      actor
     )
 
     res.status(201).json({ status: 'success', data: commission })
@@ -55,9 +65,17 @@ export async function payCommissionController(
 ): Promise<void> {
   try {
     const user = getSessionUser(req)
+    const actor = getActor(user)
     const { id } = req.params
 
-    const commission = await commissionService.markAsPaid(user.tenantId, user.clinicId, id as string)
+    const commission = await commissionService.markAsPaid(
+      user.tenantId,
+      user.clinicId,
+      id as string,
+      req.body as PayCommissionDTO,
+      actor
+    )
+
     res.status(200).json({ status: 'success', data: commission })
   } catch (error) {
     next(error)

@@ -1,12 +1,8 @@
-// backend/src/types/transaction.types.ts
+
 
 import { TransactionType, PaymentMethod } from '@prisma/client'
 
 export { TransactionType, PaymentMethod }
-
-// =============================================================================
-// ENTIDADE (RETORNO DO BANCO)
-// =============================================================================
 
 export interface Transaction {
   id: string
@@ -15,6 +11,7 @@ export interface Transaction {
   appointmentId?: string | null
   treatmentPlanId?: string | null
   supplierId?: string | null
+  accountReceivableId?: string | null // Vinculação com o título/parcela liquidada
   amount: number
   type: TransactionType
   paymentMethod: PaymentMethod
@@ -43,11 +40,13 @@ export interface Transaction {
     id: string
     title: string
   } | null
+  accountReceivable?: {
+    id: string
+    description: string
+    installmentNumber: number
+    totalInstallments: number
+  } | null
 }
-
-// =============================================================================
-// DTOs
-// =============================================================================
 
 export interface CreateTransactionDTO {
   type: TransactionType
@@ -60,6 +59,7 @@ export interface CreateTransactionDTO {
   appointmentId?: string
   treatmentPlanId?: string
   supplierId?: string
+  accountReceivableId?: string // Permite dar baixa direta em um recebível
   paidAt?: Date | string
 }
 
@@ -72,6 +72,7 @@ export interface UpdateTransactionDTO {
   costCenter?: string | null
   isReconciled?: boolean
   supplierId?: string | null
+  accountReceivableId?: string | null
   paidAt?: Date | string
 }
 
@@ -82,6 +83,7 @@ export interface TransactionFiltersDTO {
   costCenter?: string
   isReconciled?: boolean
   supplierId?: string
+  accountReceivableId?: string
   startDate?: string
   endDate?: string
   page?: number

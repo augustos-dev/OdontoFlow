@@ -8,7 +8,9 @@ import {
   updatePatientController,
   deletePatientController,
 } from '../../controllers/patientController'
+import { generateAnamnesisTokenController } from '../../controllers/medicalRecordController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
+import { can } from '../../middlewares/rbac.middleware'
 
 const router = Router()
 
@@ -30,7 +32,15 @@ router.use(authenticate)
  *       - in: query
  *         name: cpf
  *         schema: { type: string }
- *         description: Filtra por CPF
+ *         description: Filtra por dígitos do CPF
+ *       - in: query
+ *         name: phone
+ *         schema: { type: string }
+ *         description: Filtra por número de telefone
+ *       - in: query
+ *         name: insuranceName
+ *         schema: { type: string }
+ *         description: Filtra por nome da operadora/convênio
  *       - in: query
  *         name: page
  *         schema: { type: integer, default: 1 }
@@ -51,8 +61,10 @@ router.use(authenticate)
  *                 meta: { $ref: '#/components/schemas/PaginationMeta' }
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
  */
-router.get('/', listPatientsController)
+router.get('/', can('PATIENTS', 'READ'), listPatientsController)
 
 /**
  * @openapi
@@ -72,16 +84,18 @@ router.get('/', listPatientsController)
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Patient'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.get('/:id', getPatientByIdController)
+router.get('/:id', can('PATIENTS', 'READ'), getPatientByIdController)
 
 /**
  * @openapi
  * /patients:
  *   post:
- *     summary: Cria um novo paciente (e prontuário vinculado)
+ *     summary: Cria um novo paciente com prontuário vinculado
  *     tags: [Patients]
  *     requestBody:
  *       required: true
@@ -96,18 +110,20 @@ router.get('/:id', getPatientByIdController)
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Patient'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       409:
  *         $ref: '#/components/responses/Conflict'
  */
-router.post('/', authorize('ADMIN', 'SECRETARY', 'DENTIST'), createPatientController)
+router.post('/', can('PATIENTS', 'CREATE'), createPatientController)
 
 /**
  * @openapi
  * /patients/{id}:
  *   put:
- *     summary: Atualiza os dados de um paciente
+ *     summary: Atualiza os dados cadastrais e prontuário de um paciente
  *     tags: [Patients]
  *     parameters:
  *       - in: path
@@ -119,10 +135,16 @@ router.post('/', authorize('ADMIN', 'SECRETARY', 'DENTIST'), createPatientContro
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/CreatePatientDTO'
+ *             $ref: '#/components/schemas/UpdatePatientDTO'
  *     responses:
  *       200:
  *         description: Paciente atualizado com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Patient'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:
@@ -130,7 +152,40 @@ router.post('/', authorize('ADMIN', 'SECRETARY', 'DENTIST'), createPatientContro
  *       409:
  *         $ref: '#/components/responses/Conflict'
  */
-router.put('/:id', authorize('ADMIN', 'SECRETARY', 'DENTIST'), updatePatientController)
+router.put('/:id', can('PATIENTS', 'UPDATE'), updatePatientController)
+
+/**
+ * @openapi
+ * /patients/{id}/anamnesis-token:
+ *   post:
+ *     summary: Emite token seguro de anamnese digital com validade de 36 horas
+ *     tags: [Patients]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Token gerado com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token: { type: string }
+ *                 expiresInHours: { type: integer, example: 36 }
+ *                 expiresAt: { type: string, format: date-time }
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+router.post(
+  '/:id/anamnesis-token',
+  authorize('ADMIN', 'SECRETARY', 'DENTIST'),
+  generateAnamnesisTokenController
+)
 
 /**
  * @openapi
@@ -146,6 +201,8 @@ router.put('/:id', authorize('ADMIN', 'SECRETARY', 'DENTIST'), updatePatientCont
  *     responses:
  *       204:
  *         description: Paciente removido com sucesso
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  *       404:

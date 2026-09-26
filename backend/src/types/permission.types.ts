@@ -6,6 +6,10 @@ export { SystemModule, UserRole }
 
 export type PermissionAction = 'READ' | 'CREATE' | 'UPDATE' | 'DELETE'
 
+// =============================================================================
+// ENTIDADE / RETORNO DO BANCO
+// =============================================================================
+
 export interface RolePermissionDTO {
   id: string
   tenantId: string
@@ -16,9 +20,13 @@ export interface RolePermissionDTO {
   canCreate: boolean
   canUpdate: boolean
   canDelete: boolean
-  createdAt: Date
-  updatedAt: Date
+  createdAt: Date | string
+  updatedAt: Date | string
 }
+
+// =============================================================================
+// DTOs DE ATUALIZAÇÃO
+// =============================================================================
 
 export interface UpdateModulePermissionDTO {
   module: SystemModule
@@ -34,16 +42,28 @@ export interface BulkUpdateRolePermissionsDTO {
   permissions: UpdateModulePermissionDTO[]
 }
 
+// =============================================================================
+// MAPAS & HELPERS DE CONSUMO NO FRONT/BACK
+// =============================================================================
+
+export type ModulePermissionFlags = {
+  canRead: boolean
+  canCreate: boolean
+  canUpdate: boolean
+  canDelete: boolean
+}
+
 export interface RolePermissionsMapDTO {
   role: UserRole
   clinicId?: string | null
-  modules: Record<
-    SystemModule,
-    {
-      canRead: boolean
-      canCreate: boolean
-      canUpdate: boolean
-      canDelete: boolean
-    }
-  >
+  modules: Record<SystemModule, ModulePermissionFlags>
+}
+
+// DTO para verificação pontual (ex: Guards / Middlewares)
+export interface CheckPermissionDTO {
+  userId: string
+  role: UserRole
+  module: SystemModule
+  action: PermissionAction
+  clinicId?: string
 }

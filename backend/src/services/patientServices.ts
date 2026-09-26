@@ -11,9 +11,19 @@ interface ActorContext {
 }
 
 // Helpers de Higienização de Payload
-const clean = (val?: string) => (val && val.trim() !== '' ? val.trim() : null)
-const cleanDoc = (val?: string) => (val ? val.replace(/\D/g, '') || null : null)
-const parseDate = (val?: string) => (val && val.trim() !== '' ? new Date(val) : null)
+const clean = (val?: string | null) => (val && val.trim() !== '' ? val.trim() : null)
+const cleanDoc = (val?: string | null) => (val ? val.replace(/\D/g, '') || null : null)
+
+// Helper com suporte a string, Date ou undefined/null
+const parseDate = (val?: string | Date | null): Date | null => {
+  if (!val) return null
+  if (val instanceof Date) return val
+  if (typeof val === 'string' && val.trim() !== '') {
+    const parsed = new Date(val)
+    return isNaN(parsed.getTime()) ? null : parsed
+  }
+  return null
+}
 
 // ─── Create ──────────────────────────────────────────────────────────────────
 
@@ -36,11 +46,19 @@ export async function createPatient(
     historyNotes,
     allergies,
     medications,
+    medicationsInUse,
+    mainComplaint,
+    chiefComplaint,
+    habits,
+    systemicDiseases,
     bloodType,
     birthDate,
     guardianBirthDate,
     ...patientData
   } = data
+
+  const normalizedComplaint = clean(mainComplaint || chiefComplaint)
+  const normalizedMeds = clean(medicationsInUse || medications)
 
   const patient = await prisma.patient.create({
     data: {
@@ -75,10 +93,15 @@ export async function createPatient(
         create: {
           tenantId,
           clinicId,
+          chiefComplaint: normalizedComplaint,
+          mainComplaint: normalizedComplaint,
           historyNotes: clean(historyNotes),
           allergies: clean(allergies),
-          medications: clean(medications),
+          medications: normalizedMeds,
+          medicationsInUse: normalizedMeds,
           bloodType: clean(bloodType),
+          habits: clean(habits),
+          systemicDiseases: clean(systemicDiseases),
         },
       },
     },
@@ -106,9 +129,10 @@ export async function createPatient(
 // ─── List ─────────────────────────────────────────────────────────────────────
 
 export async function listPatients(tenantId: string, clinicId: string, filters: PatientFiltersDTO) {
-  const { name, cpf, page = 1, limit = 20 } = filters
+  const { name, cpf, phone, insuranceName, page = 1, limit = 20 } = filters
   const skip = (page - 1) * limit
   const sanitizedCpf = cleanDoc(cpf)
+  const sanitizedPhone = cleanDoc(phone)
 
   const where: Prisma.PatientWhereInput = {
     tenantId,
@@ -116,6 +140,8 @@ export async function listPatients(tenantId: string, clinicId: string, filters: 
     deletedAt: null,
     ...(name && { name: { contains: name.trim(), mode: 'insensitive' } }),
     ...(sanitizedCpf && { cpf: { contains: sanitizedCpf } }),
+    ...(sanitizedPhone && { phone: { contains: sanitizedPhone } }),
+    ...(insuranceName && { insuranceName: { contains: insuranceName.trim(), mode: 'insensitive' } }),
   }
 
   const [patients, total] = await Promise.all([
@@ -154,9 +180,11 @@ export async function getPatientById(tenantId: string, clinicId: string, patient
       medicalRecord: {
         select: {
           id: true,
+          mainComplaint: true,
           chiefComplaint: true,
           historyNotes: true,
           allergies: true,
+          medicationsInUse: true,
           medications: true,
           bloodType: true,
           habits: true,
@@ -222,11 +250,35 @@ export async function updatePatient(
     historyNotes,
     allergies,
     medications,
+    medicationsInUse,
+    mainComplaint,
+    chiefComplaint,
+    habits,
+    systemicDiseases,
     bloodType,
     birthDate,
     guardianBirthDate,
     ...patientData
   } = data
+
+  const normalizedComplaint = mainComplaint !== undefined || chiefComplaint !== undefined
+    ? clean(mainComplaint || chiefComplaint)
+    : undefined
+
+  const normalizedMeds = medicationsInUse !== undefined || medications !== undefined
+    ? clean(medicationsInUse || medications)
+    : undefined
+
+  const hasMrUpdates =
+    historyNotes !== undefined ||
+    allergies !== undefined ||
+    medications !== undefined ||
+    medicationsInUse !== undefined ||
+    mainComplaint !== undefined ||
+    chiefComplaint !== undefined ||
+    habits !== undefined ||
+    systemicDiseases !== undefined ||
+    bloodType !== undefined
 
   const updatedPatient = await prisma.patient.update({
     where: { id: patientId },
@@ -255,14 +307,23 @@ export async function updatePatient(
       ...(patientData.insuranceHolderName !== undefined && { insuranceHolderName: clean(patientData.insuranceHolderName) }),
       ...(patientData.insuranceHolderCpf !== undefined && { insuranceHolderCpf: cleanDoc(patientData.insuranceHolderCpf) }),
 
-      // Atualiza prontuário médico caso os campos de anamnese tenham sido fornecidos
-      ...(patient.medicalRecord && (historyNotes !== undefined || allergies !== undefined || medications !== undefined || bloodType !== undefined) && {
+      // Atualiza prontuário médico caso existam alterações de saúde/anamnese
+      ...(patient.medicalRecord && hasMrUpdates && {
         medicalRecord: {
           update: {
+            ...(normalizedComplaint !== undefined && {
+              chiefComplaint: normalizedComplaint,
+              mainComplaint: normalizedComplaint,
+            }),
             ...(historyNotes !== undefined && { historyNotes: clean(historyNotes) }),
             ...(allergies !== undefined && { allergies: clean(allergies) }),
-            ...(medications !== undefined && { medications: clean(medications) }),
+            ...(normalizedMeds !== undefined && {
+              medications: normalizedMeds,
+              medicationsInUse: normalizedMeds,
+            }),
             ...(bloodType !== undefined && { bloodType: clean(bloodType) }),
+            ...(habits !== undefined && { habits: clean(habits) }),
+            ...(systemicDiseases !== undefined && { systemicDiseases: clean(systemicDiseases) }),
           },
         },
       }),
@@ -279,7 +340,7 @@ export async function updatePatient(
     action: 'UPDATE',
     entity: 'PATIENT',
     entityId: patientId,
-    details: `Atualizou informações do cadastrais/prontuário do paciente "${updatedPatient.name}"`,
+    details: `Atualizou informações cadastrais/prontuário do paciente "${updatedPatient.name}"`,
   })
 
   return updatedPatient
