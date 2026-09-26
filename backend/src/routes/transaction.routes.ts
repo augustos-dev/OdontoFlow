@@ -16,7 +16,7 @@ const transactionRoute = Router()
 // Todas as rotas de transações exigem autenticação
 transactionRoute.use(authenticate)
 
-// Relatórios / DRE (rota estática antes de /:id)
+// Relatórios / DRE (Rota estática antes das rotas dinâmicas com /:id)
 transactionRoute.get('/report', can('FINANCIAL', 'READ'), getFinancialReportController)
 
 // Leitura
@@ -28,7 +28,7 @@ transactionRoute.post('/', can('FINANCIAL', 'CREATE'), createTransactionControll
 transactionRoute.put('/:id', can('FINANCIAL', 'UPDATE'), updateTransactionController)
 transactionRoute.patch('/:id/reconcile', can('FINANCIAL', 'UPDATE'), reconcileTransactionController)
 
-// Exclusão (apenas ADMIN)
+// Exclusão (Apenas ADMIN)
 transactionRoute.delete('/:id', authorize('ADMIN'), deleteTransactionController)
 
 export default transactionRoute

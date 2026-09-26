@@ -1,4 +1,5 @@
-import { CommissionStatus } from '@prisma/client'
+
+import { CommissionStatus, PaymentMethod } from '@prisma/client'
 
 export interface DentistCommissionDTO {
   id: string
@@ -13,17 +14,30 @@ export interface DentistCommissionDTO {
   percentage: number
   commissionAmount: number
   status: CommissionStatus
-  paidAt?: Date | null
-  createdAt: Date
-  updatedAt: Date
+  
+  // Auditoria da liquidação / repasse
+  paidAt?: Date | string | null
+  paymentMethod?: PaymentMethod | null
+  paymentNotes?: string | null
+  receiptFileUrl?: string | null
+
+  createdAt: Date | string
+  updatedAt: Date | string
+
   dentist?: {
+    id?: string
     name: string
     cro?: string | null
   }
   procedure?: {
+    id?: string
     name: string
     code?: string | null
   }
+  treatmentPlan?: {
+    id: string
+    title: string
+  } | null
 }
 
 export interface CalculateCommissionDTO {
@@ -40,4 +54,23 @@ export interface FilterCommissionDTO {
   status?: CommissionStatus
   startDate?: string
   endDate?: string
+  page?: number
+  limit?: number
+}
+
+export interface PayCommissionDTO {
+  paymentMethod: PaymentMethod
+  paymentDate?: string | Date
+  notes?: string
+  receiptFileUrl?: string
+}
+
+// DTO para liquidação em lote (múltiplas comissões de uma só vez para o dentista)
+export interface PayBatchCommissionDTO {
+  commissionIds: string[]
+  dentistId: string
+  paymentMethod: PaymentMethod
+  paymentDate?: string | Date
+  notes?: string
+  receiptFileUrl?: string
 }

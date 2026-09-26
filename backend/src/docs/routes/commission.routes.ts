@@ -5,6 +5,7 @@ import {
   payCommissionController,
 } from '../../controllers/commissionController'
 import { authenticate, authorize } from '../../middlewares/authMiddlewares'
+import { can } from '../../middlewares/rbac.middleware'
 
 const router = Router()
 
@@ -46,7 +47,7 @@ router.use(authenticate)
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  */
-router.get('/', authorize('ADMIN', 'DENTIST'), listCommissionsController)
+router.get('/', can('COMMISSIONS', 'READ'), listCommissionsController)
 
 /**
  * @openapi
@@ -83,16 +84,27 @@ router.post('/', authorize('ADMIN'), createCommissionController)
  * @openapi
  * /commissions/{id}/pay:
  *   patch:
- *     summary: Liquida e marca comissão como paga (Apenas ADMIN)
+ *     summary: Liquida repasse com método de pagamento e anexo de comprovante (Apenas ADMIN)
  *     tags: [Commissions]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               paymentMethod: { type: string, enum: [PIX, TRANSFERENCIA, DINHEIRO, BOLETO], default: PIX }
+ *               paymentDate: { type: string, format: date-time }
+ *               notes: { type: string }
+ *               receiptFileUrl: { type: string, format: uri }
  *     responses:
  *       200:
- *         description: Comissão liquidada com registro de data
+ *         description: Repasse liquidado com sucesso
  *       400:
  *         description: Comissão já liquidada
  *       401:

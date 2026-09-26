@@ -1,3 +1,5 @@
+import crypto from 'crypto'
+import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
 import { auditLogService } from './auditLog.service'
@@ -16,6 +18,8 @@ const VALID_TOOTH_NUMBERS = [
   ...Array.from({ length: 8 }, (_, i) => 41 + i),
 ]
 
+const JWT_SECRET = process.env.JWT_SECRET || 'odontoflow_super_secret_jwt_key_2026'
+
 interface ActorContext {
   userId: string
   userName: string
@@ -24,7 +28,7 @@ interface ActorContext {
 
 export async function findMedicalRecord(
   tenantId: string,
-  clinicId: string,
+  _clinicId: string,
   recordOrPatientId: string
 ) {
   const medicalRecord = await prisma.medicalRecord.findFirst({
@@ -56,6 +60,7 @@ export async function getMedicalRecordByPatient(
         include: {
           dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
           procedure: { select: { id: true, name: true, basePrice: true } },
+          aiTranscription: true,
         },
       },
       toothConditions: {
@@ -87,6 +92,7 @@ export async function getEvolutionsByPatient(
     include: {
       dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
       procedure: { select: { id: true, name: true, basePrice: true } },
+      aiTranscription: true,
     },
   })
 }
@@ -102,9 +108,22 @@ export async function updateMedicalRecord(
 ) {
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
+  const normalizedComplaint = data.mainComplaint || data.chiefComplaint
+  const normalizedMeds = data.medicationsInUse || data.medications
+
   const updatedRecord = await prisma.medicalRecord.update({
     where: { id: medicalRecord.id },
-    data,
+    data: {
+      chiefComplaint: normalizedComplaint,
+      mainComplaint: normalizedComplaint,
+      historyNotes: data.historyNotes,
+      allergies: data.allergies,
+      medications: normalizedMeds,
+      medicationsInUse: normalizedMeds,
+      bloodType: data.bloodType,
+      habits: data.habits,
+      systemicDiseases: data.systemicDiseases,
+    },
   })
 
   await auditLogService.createLog({
@@ -122,6 +141,192 @@ export async function updateMedicalRecord(
   return updatedRecord
 }
 
+// ─── Token Seguro de Anamnese (36 Horas) ──────────────────────────────────────
+
+export async function generateAnamnesisToken(
+  tenantId: string,
+  clinicId: string,
+  patientId: string,
+  createdById?: string
+) {
+  const patient = await prisma.patient.findFirst({
+    where: { id: patientId, tenantId, clinicId, deletedAt: null },
+  })
+
+  if (!patient) {
+    throw new AppError('Paciente não encontrado.', 404)
+  }
+
+  const token = jwt.sign(
+    {
+      sub: patient.id,
+      tenantId,
+      clinicId,
+      name: patient.name,
+      scope: 'patient_anamnesis',
+    },
+    JWT_SECRET,
+    { expiresIn: '36h' }
+  )
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+  const expiresAt = new Date(Date.now() + 36 * 60 * 60 * 1000)
+
+  await prisma.patientAnamnesisToken.create({
+    data: {
+      tenantId,
+      clinicId,
+      patientId: patient.id,
+      createdById: createdById || null,
+      tokenHash,
+      expiresAt,
+    },
+  })
+
+  return {
+    token,
+    expiresInHours: 36,
+    expiresAt: expiresAt.toISOString(),
+  }
+}
+
+export async function getPublicAnamnesisByToken(token: string) {
+  if (!token) throw new AppError('Token de anamnese não fornecido.', 400)
+
+  let payload: any
+  try {
+    payload = jwt.verify(token, JWT_SECRET)
+  } catch {
+    throw new AppError('Link de anamnese expirado (limite de 36h) ou inválido.', 401)
+  }
+
+  if (payload.scope !== 'patient_anamnesis' || !payload.sub) {
+    throw new AppError('Token de acesso inválido.', 403)
+  }
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+  const registeredToken = await prisma.patientAnamnesisToken.findUnique({
+    where: { tokenHash },
+  })
+
+  if (registeredToken?.isRevoked) {
+    throw new AppError('Este link de anamnese foi revogado.', 403)
+  }
+
+  const medicalRecord = await prisma.medicalRecord.findFirst({
+    where: {
+      patientId: payload.sub,
+      tenantId: payload.tenantId,
+    },
+  })
+
+  const clinic = await prisma.clinic.findUnique({
+    where: { id: payload.clinicId },
+    select: { name: true },
+  })
+
+  return {
+    patientName: payload.name,
+    clinicName: clinic?.name || 'Clarium Clinic',
+    medicalRecord: medicalRecord || null,
+  }
+}
+
+export async function updatePublicAnamnesisByToken(
+  token: string,
+  data: UpdateMedicalRecordsDTO,
+  context?: { ip?: string; userAgent?: string }
+) {
+  if (!token) throw new AppError('Token de anamnese não fornecido.', 400)
+
+  let payload: any
+  try {
+    payload = jwt.verify(token, JWT_SECRET)
+  } catch {
+    throw new AppError('Link expirado após 36 horas. Solicite um novo à recepção.', 401)
+  }
+
+  if (payload.scope !== 'patient_anamnesis' || !payload.sub) {
+    throw new AppError('Operação não autorizada.', 403)
+  }
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+  const registeredToken = await prisma.patientAnamnesisToken.findUnique({
+    where: { tokenHash },
+  })
+
+  if (registeredToken?.isRevoked) {
+    throw new AppError('Este link já foi invalidado.', 403)
+  }
+
+  const normalizedComplaint = data.mainComplaint || data.chiefComplaint
+  const normalizedMeds = data.medicationsInUse || data.medications
+
+  const updatedRecord = await prisma.medicalRecord.upsert({
+    where: {
+      tenantId_patientId: {
+        tenantId: payload.tenantId,
+        patientId: payload.sub,
+      },
+    },
+    update: {
+      chiefComplaint: normalizedComplaint,
+      mainComplaint: normalizedComplaint,
+      historyNotes: data.historyNotes,
+      allergies: data.allergies,
+      medications: normalizedMeds,
+      medicationsInUse: normalizedMeds,
+      bloodType: data.bloodType,
+      habits: data.habits,
+      systemicDiseases: data.systemicDiseases,
+    },
+    create: {
+      tenantId: payload.tenantId,
+      clinicId: payload.clinicId,
+      patientId: payload.sub,
+      chiefComplaint: normalizedComplaint,
+      mainComplaint: normalizedComplaint,
+      historyNotes: data.historyNotes,
+      allergies: data.allergies,
+      medications: normalizedMeds,
+      medicationsInUse: normalizedMeds,
+      bloodType: data.bloodType,
+      habits: data.habits,
+      systemicDiseases: data.systemicDiseases,
+    },
+  })
+
+  if (registeredToken) {
+    await prisma.patientAnamnesisToken.update({
+      where: { id: registeredToken.id },
+      data: {
+        usedAt: new Date(),
+        acceptedTerms: true,
+        signerIp: context?.ip || null,
+        signerUserAgent: context?.userAgent || null,
+      },
+    })
+  }
+
+  await auditLogService.createLog({
+    tenantId: payload.tenantId,
+    clinicId: payload.clinicId,
+    userId: undefined,
+    userName: `Paciente: ${payload.name}`,
+    userRole: undefined,
+    action: 'UPDATE',
+    entity: 'MEDICAL_RECORD',
+    entityId: updatedRecord.id,
+    details: `Paciente concluiu o preenchimento digital da anamnese via Magic Link seguro de 36h.`,
+    ipAddress: context?.ip,
+    userAgent: context?.userAgent,
+  })
+
+  return updatedRecord
+}
+
+// ─── Evoluções & Odontograma ──────────────────────────────────────────────────
+
 export async function CreateEvolution(
   tenantId: string,
   clinicId: string,
@@ -130,12 +335,10 @@ export async function CreateEvolution(
   data: CreateEvolutionDTO,
   actor?: ActorContext
 ) {
-  // 🛡️ Garante que data nunca seja undefined
-  data = data || {} as CreateEvolutionDTO
+  data = data || ({} as CreateEvolutionDTO)
 
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-  // 1. Busca profissional/usuário responsável de forma flexível
   let dentist = await prisma.user.findFirst({
     where: {
       id: dentistId,
@@ -144,7 +347,6 @@ export async function CreateEvolution(
     },
   })
 
-  // Fallback caso o ID venha de admin global ou sessão administrativa
   if (!dentist) {
     dentist = await prisma.user.findFirst({
       where: {
@@ -158,7 +360,6 @@ export async function CreateEvolution(
   const responsibleUserName = dentist?.name || actor?.userName || 'Profissional'
   const responsibleUserRole = (dentist?.role || actor?.userRole || 'DENTIST') as UserRole
 
-  // Validação de procedimento no catálogo (se enviado)
   if (data.procedureId) {
     const procedureExists = await prisma.procedure.findFirst({
       where: { id: data.procedureId, tenantId },
@@ -168,7 +369,15 @@ export async function CreateEvolution(
     }
   }
 
-  // 2. Trata snapshot do odontograma
+  if (data.aiTranscriptionId) {
+    const transcriptionExists = await prisma.clinicalAiTranscription.findFirst({
+      where: { id: data.aiTranscriptionId, tenantId },
+    })
+    if (!transcriptionExists) {
+      throw new AppError('Transcrição de IA informada não foi encontrada.', 404)
+    }
+  }
+
   let parsedSnapshot: Record<string, any> | null = null
   if (data.odontogramSnapshot) {
     if (typeof data.odontogramSnapshot === 'string') {
@@ -182,7 +391,6 @@ export async function CreateEvolution(
     }
   }
 
-  // 3. Normalização de lista de anexos (protegido contra undefined)
   let attachmentsList: string[] = []
   if (data.attachments) {
     if (Array.isArray(data.attachments)) {
@@ -199,26 +407,24 @@ export async function CreateEvolution(
     }
   }
 
-  // 4. Criação da Evolução e Atualização de Dentes na Transação
   const evolution = await prisma.$transaction(async (tx) => {
     const createdEvolution = await tx.evolution.create({
       data: {
         tenantId,
-        // clinicId,
         medicalRecordId: medicalRecord.id,
         dentistId: responsibleUserId,
         procedureId: data.procedureId || null,
-        description: data.description || 'Upload de arquivo rápido via Aba Arquivos',
+        description: data.description || 'Evolução registrada',
+        aiTranscriptionId: data.aiTranscriptionId || null,
         attachments: attachmentsList,
-        odontogramSnapshot: parsedSnapshot,
-      } as any,
+        odontogramSnapshot: (parsedSnapshot as any ) ?? undefined
+      },
       include: {
         dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
         procedure: { select: { id: true, name: true, basePrice: true } },
       },
     })
 
-    // Sincroniza dentes no Odontograma caso haja snapshot
     if (parsedSnapshot && typeof parsedSnapshot === 'object') {
       const toothEntries = Object.entries(parsedSnapshot)
 
@@ -264,36 +470,26 @@ export async function CreateEvolution(
     return createdEvolution
   })
 
-  // 5. Gravação em MedicalFile protegida (popula tabela de arquivos do paciente)
   if (attachmentsList.length > 0) {
     try {
       for (const url of attachmentsList) {
         const fileName = url.split('/').pop()?.split('?')[0] || 'Anexo Clínico'
-        const isPdf = url.toLowerCase().includes('.pdf')
-
-        await (prisma as any).medicalFile?.create({
+        await prisma.medicalFile.create({
           data: {
             tenantId,
             clinicId,
-            medicalRecordId: medicalRecord.id,
             patientId: medicalRecord.patientId,
-            evolutionId: evolution.id,
             name: fileName,
-            fileUrl: url,
-            url: url,
-            type: isPdf ? 'PDF' : 'IMAGE',
-            fileType: isPdf ? 'APPLICATION_PDF' : 'IMAGE_JPEG',
-            fileSize: 0,
-            uploadedBy: responsibleUserId,
+            url,
+            size: 0,
           },
-        }).catch((err: any) => console.warn('[MedicalFiles Warning] Campo ignorado:', err?.message))
+        }).catch((err: any) => console.warn('[MedicalFiles Warning] Ignorado:', err?.message))
       }
     } catch (fileErr) {
       console.error('[MedicalFiles Error]:', fileErr)
     }
   }
 
-  // 6. Exit Inteligente (Baixa de estoque automática)
   if (data.procedureId) {
     try {
       await triggerAutoStockExit({
@@ -308,7 +504,6 @@ export async function CreateEvolution(
     }
   }
 
-  // 7. Registro de Auditoria
   await auditLogService.createLog({
     tenantId,
     clinicId,
@@ -336,12 +531,8 @@ export async function lockEvolution(
     where: { id: evolutionId, tenantId },
   })
 
-  if (!evolution) {
-    throw new AppError('Evolução não encontrada.', 404)
-  }
-  if (evolution.isLocked) {
-    throw new AppError('Evolução já está travada.', 400)
-  }
+  if (!evolution) throw new AppError('Evolução não encontrada.', 404)
+  if (evolution.isLocked) throw new AppError('Evolução já está travada.', 400)
 
   const updated = await prisma.evolution.update({
     where: { id: evolutionId },
@@ -357,7 +548,7 @@ export async function lockEvolution(
     action: 'UPDATE',
     entity: 'EVOLUTION',
     entityId: evolutionId,
-    details: `Bloqueou/Trancou permanentemente a evolução clínica ID: ${evolutionId}`,
+    details: `Bloqueou permanentemente a evolução clínica ID: ${evolutionId}`,
   })
 
   return updated
@@ -374,12 +565,8 @@ export async function updateEvolution(
     where: { id: evolutionId, tenantId },
   })
 
-  if (!evolution) {
-    throw new AppError('Evolução não encontrada.', 404)
-  }
-  if (evolution.isLocked) {
-    throw new AppError('Evolução travada não pode ser editada.', 400)
-  }
+  if (!evolution) throw new AppError('Evolução não encontrada.', 404)
+  if (evolution.isLocked) throw new AppError('Evolução travada não pode ser editada.', 400)
 
   const updated = await prisma.evolution.update({
     where: { id: evolutionId },

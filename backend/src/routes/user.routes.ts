@@ -17,30 +17,29 @@ import { can } from '../middlewares/rbac.middleware'
 
 const router = Router()
 
-// Todas as rotas de usuários exigem autenticação
 router.use(authenticate)
 
-// Própria conta
+// Troca da própria senha
 router.patch('/me/change-password', changePasswordController)
 
-// Permissões Granulares (RBAC - apenas ADMIN)
+// Gestão de permissões RBAC por módulo
 router.get('/permissions/:role', authorize('ADMIN'), getRolePermissionsController)
 router.put('/permissions', authorize('ADMIN'), updateRolePermissionsController)
 
-// Desbloqueio manual de conta bloqueada por tentativas (apenas ADMIN)
+// Desbloqueio preventivo de conta bloqueada por tentativas inválidas
 router.patch('/:id/unlock', authorize('ADMIN'), resetUserLockoutController)
 
-// Leitura
+// Listagem e visualização de equipe
 router.get('/', can('SETTINGS', 'READ'), listUsersController)
 router.get('/:id', can('SETTINGS', 'READ'), getUserByIdController)
 
-// Escrita e Modificação
+// Criação e edição
 router.post('/', can('SETTINGS', 'CREATE'), createUserController)
 router.put('/:id', can('SETTINGS', 'UPDATE'), updateUserController)
 router.patch('/:id/role', authorize('ADMIN'), updateUserRoleController)
 router.patch('/:id/status', authorize('ADMIN'), updateUserStatusController)
 
-// Exclusão (apenas ADMIN)
+// Exclusão definitiva (Apenas ADMIN)
 router.delete('/:id', authorize('ADMIN'), deleteUserController)
 
 export default router

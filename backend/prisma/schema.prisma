@@ -9,7 +9,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-
+  
 }
 
 // =============================================================================
@@ -70,7 +70,9 @@ enum SystemModule {
   AI_TRANSCRIPTION
   COMMISSIONS
   TASKS
-  MY_OFFICE // Módulo "Meu Consultório"
+  MY_OFFICE
+  INSURANCE_BATCHES // Faturamento de Lotes de Convénio
+  RECEIVABLES       // Gestão de Contas a Receber
 }
 
 enum AppointmentStatus {
@@ -110,6 +112,7 @@ enum PaymentMethod {
   DINHEIRO
   CONVENIO
   BOLETO
+  TRANSFERENCIA
 }
 
 enum TransactionType {
@@ -166,6 +169,34 @@ enum PreRegStatus {
   EXPIRED
 }
 
+// Novos Enums: Contas a Receber e Faturamento de Convénios
+enum ReceivableStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELED
+  RENEGOTIATED
+}
+
+enum InsuranceBatchStatus {
+  DRAFT       // Em digitação / conferência
+  GENERATED   // Lote fechado / Guia gerada
+  SENT        // Enviado à operadora
+  PAID        // Liquidado integralmente
+  PARTIAL     // Liquidado com glosas
+  REJECTED    // Lote recusado/devolvido
+}
+
+enum InsuranceGuideStatus {
+  AUTHORIZED
+  PENDING_SUBMISSION
+  SUBMITTED
+  PAID
+  GLOSSED     // Procedimento/guia glosado
+  CONTESTED   // Em recurso de glosa
+}
+
 // =============================================================================
 // MODELS: CORE & MULTI-TENANCY
 // =============================================================================
@@ -178,7 +209,7 @@ model Tenant {
   billingCycle  BillingCycle       @default(ANNUAL)
   status        SubscriptionStatus @default(TRIAL)
   trialEndsAt   DateTime?
-  isBetaPartner Boolean            @default(false) // Trava especial para parceiros de teste
+  isBetaPartner Boolean            @default(false)
   databaseUrl   String?
   isActive      Boolean            @default(true)
   createdAt     DateTime           @default(now())
@@ -208,6 +239,10 @@ model Tenant {
   publicPreRegistrations PublicPreRegistration[]
   aiTranscriptions       ClinicalAiTranscription[]
   dentistProfiles        DentistProfile[]
+  anamnesisTokens        PatientAnamnesisToken[]
+  receivables            AccountReceivable[]
+  insuranceBatches       InsuranceBatch[]
+  insuranceGuides        InsuranceGuide[]
 
   @@map("tenants")
 }
@@ -262,6 +297,10 @@ model Clinic {
   contracts              ClinicalContract[]
   publicPreRegistrations PublicPreRegistration[]
   dentistProfiles        DentistProfile[]
+  anamnesisTokens        PatientAnamnesisToken[]
+  receivables            AccountReceivable[]
+  insuranceBatches       InsuranceBatch[]
+  insuranceGuides        InsuranceGuide[]
 
   @@index([tenantId])
   @@map("clinics")
@@ -277,7 +316,6 @@ model ClinicCustomization {
   fontFamily           String   @default("Inter")
   darkModeDefault      Boolean  @default(false)
   
-  // Customização de Marca e Impressos (White-Label)
   customLogoUrl        String?
   customFavicon        String?
   customDocumentHeader String?  @db.Text
@@ -315,41 +353,40 @@ model RolePermission {
 }
 
 model User {
-  id                  String    @id @default(uuid())
-  tenantId            String
-  clinicId            String
-  name                String
-  email               String    @unique
-  passwordHash        String
-  role                UserRole
-  phone               String?
-  cro                 String?
-  avatarUrl           String?
-  isActive            Boolean   @default(true)
-  lastLoginAt         DateTime?
+  id                          String    @id @default(uuid())
+  tenantId                    String
+  clinicId                    String
+  name                        String
+  email                       String    @unique
+  passwordHash                String
+  role                        UserRole
+  phone                       String?
+  cro                         String?
+  avatarUrl                   String?
+  isActive                    Boolean   @default(true)
+  lastLoginAt                 DateTime?
   
-  // Proteção contra ataques de força bruta
-  failedLoginAttempts Int       @default(0)
-  lockedUntil         DateTime?
+  failedLoginAttempts         Int       @default(0)
+  lockedUntil                 DateTime?
 
-  // Configuração padrão de repasse do profissional
-  defaultCommissionPercentage Decimal? @db.Decimal(5, 2)
+  defaultCommissionPercentage Decimal?  @db.Decimal(5, 2)
 
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 
-  tenant           Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  clinic           Clinic                    @relation(fields: [clinicId], references: [id])
-  appointments     Appointment[]             @relation("DentistAppointments")
-  evolutions       Evolution[]
-  treatmentPlans   TreatmentPlan[]
-  auditLogs        AuditLog[]
-  stockMovements   StockMovement[]
-  assignedTasks    ClinicTask[]              @relation("AssignedTasks")
-  createdTasks     ClinicTask[]              @relation("CreatedTasks")
-  commissions      DentistCommission[]       @relation("DentistCommissions")
+  tenant          Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic          Clinic                    @relation(fields: [clinicId], references: [id])
+  appointments    Appointment[]             @relation("DentistAppointments")
+  evolutions      Evolution[]
+  treatmentPlans  TreatmentPlan[]
+  auditLogs       AuditLog[]
+  stockMovements  StockMovement[]
+  assignedTasks   ClinicTask[]              @relation("AssignedTasks")
+  createdTasks    ClinicTask[]              @relation("CreatedTasks")
+  commissions     DentistCommission[]       @relation("DentistCommissions")
   aiTranscriptions ClinicalAiTranscription[]
-  dentistProfile   DentistProfile?
+  dentistProfile  DentistProfile?
+  issuedTokens    PatientAnamnesisToken[]   @relation("TokenIssuer")
 
   @@index([tenantId])
   @@index([clinicId])
@@ -358,33 +395,25 @@ model User {
   @@map("users")
 }
 
-// =============================================================================
-// NOVO MODEL: MEU CONSULTÓRIO (PERFIL E PREFERÊNCIAS DO CIRURGIÃO-DENTISTA)
-// =============================================================================
-
 model DentistProfile {
   id                String   @id @default(uuid())
   tenantId          String
   clinicId          String
   userId            String   @unique
   
-  // Identificação e Atuação
-  specialties       String[] @default([]) // Ex: ["Ortodontia", "Implantodontia", "Harmonização"]
+  specialties       String[] @default([])
   bio               String?  @db.Text
-  defaultRoom       Room     @default(SALA_1) // Consultório/Cadeira preferencial
+  defaultRoom       Room     @default(SALA_1)
   
-  // Regulação e Validação em Documentos/Receituários
-  signatureImageUrl String?  // Assinatura digitalizada para carimbo automático
-  croState          String?  // Ex: "CE", "SP"
-  rqe               String?  // Registro de Qualificação de Especialista (se houver)
+  signatureImageUrl String?
+  croState          String?
+  rqe               String?
 
-  // Configurações da Agenda Individual
-  slotDurationMin   Int      @default(30) // Duração média da consulta na cadeira
-  workSchedule      Json?    // Ex: { "seg": { "start": "08:00", "end": "18:00", "lunch": "12:00-13:00" } }
+  slotDurationMin   Int      @default(30)
+  workSchedule      Json?
   
-  // Produtividade & IA
-  aiVoiceShortcut   Boolean  @default(true) // Habilita gravação direta no mocho
-  quickNotes        Json?    // Textos rápidos / templates de conduta favoritos
+  aiVoiceShortcut   Boolean  @default(true)
+  quickNotes        Json?
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -398,32 +427,33 @@ model DentistProfile {
 }
 
 // =============================================================================
-// MODELS: PACIENTES, PRONTUÁRIOS & COMPLIANCE CFO/LGPD
+// MODELS: PACIENTES, PRONTUÁRIOS, TOKENS DE 36H & LGPD
 // =============================================================================
 
 model Patient {
-  id        String    @id @default(uuid())
-  tenantId  String
-  clinicId  String
-  name      String
-  phone     String
-  email     String?
-  cpf       String?
-  birthDate DateTime?
-  gender    Gender    @default(NAO_INFORMADO)
-  address   String?
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id                String    @id @default(uuid())
+  tenantId          String
+  clinicId          String
+  name              String
+  phone             String
+  email             String?
+  cpf               String?
+  birthDate         DateTime?
+  gender            Gender    @default(NAO_INFORMADO)
+  address           String?
+  deletedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  zipCode String?
-  city    String?
-  state   String?
+  zipCode           String?
+  city              String?
+  state             String?
 
   guardianName      String?
   guardianCpf       String?
   guardianBirthDate DateTime?
 
+  // Informações de Convénio Base
   insuranceName       String? @default("Particular")
   insuranceCardNumber String?
   insuranceHolderName String?
@@ -438,6 +468,9 @@ model Patient {
   clinicalTasks          ClinicTask[]
   contracts              ClinicalContract[]
   publicPreRegistrations PublicPreRegistration[]
+  anamnesisTokens        PatientAnamnesisToken[]
+  receivables            AccountReceivable[]
+  insuranceGuides        InsuranceGuide[]
 
   @@unique([tenantId, cpf])
   @@index([tenantId])
@@ -448,18 +481,26 @@ model Patient {
   @@map("patients")
 }
 
+// Prontuário Clínico Alinhado com o DTO do Swagger
 model MedicalRecord {
   id               String   @id @default(uuid())
   tenantId         String
   clinicId         String
   patientId        String   @unique
-  chiefComplaint   String?  @db.Text
+  
+  mainComplaint    String?  @db.Text
+  chiefComplaint   String?  @db.Text // Alias mantido para histórico e integridade
+  
   historyNotes     String?  @db.Text
   allergies        String?  @db.Text
-  medications      String?  @db.Text
+  
+  medicationsInUse String?  @db.Text
+  medications      String?  @db.Text // Alias mantido para integridade
+  
   bloodType        String?
   habits           String?  @db.Text
   systemicDiseases String?  @db.Text
+  
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -474,23 +515,52 @@ model MedicalRecord {
   @@map("medical_records")
 }
 
-model Evolution {
-  id              String   @id @default(uuid())
-  tenantId        String
-  medicalRecordId String
-  dentistId       String
-  procedureId     String?
-  description     String   @db.Text
+// Token Seguro de Acesso à Anamnese (Validade de 36 Horas)
+model PatientAnamnesisToken {
+  id           String    @id @default(uuid())
+  tenantId     String
+  clinicId     String
+  patientId    String
+  createdById  String?   // Utilizador (receção/dentista) que despachou o link
+  
+  tokenHash    String    @unique // Hash SHA256 do token assinado
+  expiresAt    DateTime  // Data e hora exatas de corte (geração + 36h)
+  usedAt       DateTime? // Registo de quando o formulário foi concluído
+  isRevoked    Boolean   @default(false)
+  
+  // Auditoria e Evidência LGPD / Termo de Veracidade
+  signerIp     String?
+  signerUserAgent String?
+  acceptedTerms Boolean  @default(false)
 
-  odontogramSnapshot Json?
-  attachments        String[] @default([])
+  createdAt    DateTime  @default(now())
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic    Clinic   @relation(fields: [clinicId], references: [id])
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation("TokenIssuer", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, clinicId])
+  @@index([patientId, expiresAt])
+  @@map("patient_anamnesis_tokens")
+}
+
+model Evolution {
+  id                  String   @id @default(uuid())
+  tenantId            String
+  medicalRecordId     String
+  dentistId           String
+  procedureId         String?
+  description         String   @db.Text
+
+  odontogramSnapshot  Json?
+  attachments         String[] @default([])
 
   // Trava Temporal CFO / LGPD (24 Horas)
   isLocked            Boolean   @default(false)
   lockedAt            DateTime?
   rectificationReason String?   @db.Text
 
-  // Rastreabilidade de Transcrição por Inteligência Artificial
   isAiGenerated       Boolean   @default(false)
   aiTranscriptionId   String?   @unique
 
@@ -527,10 +597,6 @@ model ToothCondition {
   @@index([tenantId])
   @@map("tooth_conditions")
 }
-
-// =============================================================================
-// MODEL: TRANSCRIÇÃO & ESTRUTURAÇÃO DE CONSULTA COM IA
-// =============================================================================
 
 model ClinicalAiTranscription {
   id               String   @id @default(uuid())
@@ -577,6 +643,7 @@ model TreatmentPlan {
   planProcedures PlanProcedure[]
   transactions   Transaction[]
   commissions    DentistCommission[]
+  receivables    AccountReceivable[]
 
   @@index([tenantId])
   @@index([clinicId])
@@ -589,7 +656,7 @@ model Procedure {
   id          String   @id @default(uuid())
   tenantId    String
   name        String
-  code        String?
+  code        String?  // Código TUSS se aplicável a convénio
   basePrice   Decimal  @db.Decimal(10, 2)
   durationMin Int      @default(30)
   category    String?  @default("Dentística / Estética")
@@ -603,6 +670,7 @@ model Procedure {
   appointments      Appointment[]
   evolutions        Evolution[]
   commissions       DentistCommission[]
+  insuranceGuides   InsuranceGuide[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -626,6 +694,7 @@ model PlanProcedure {
   @@map("plan_procedures")
 }
 
+// Repasse de Comissões com Auditoria de Liquidação
 model DentistCommission {
   id               String           @id @default(uuid())
   tenantId         String
@@ -639,7 +708,13 @@ model DentistCommission {
   percentage       Decimal          @db.Decimal(5, 2)
   commissionAmount Decimal          @db.Decimal(10, 2)
   status           CommissionStatus @default(PENDING)
+  
+  // Auditoria da Liquidação (PATCH /commissions/:id/pay)
   paidAt           DateTime?
+  paymentMethod    PaymentMethod?   @default(PIX)
+  paymentNotes     String?          @db.Text
+  receiptFileUrl   String?
+
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -655,7 +730,7 @@ model DentistCommission {
 }
 
 // =============================================================================
-// MODELS: AGENDAMENTOS & TRAVA DE IDEMPOTÊNCIA
+// MODELS: AGENDAMENTOS
 // =============================================================================
 
 model Appointment {
@@ -674,18 +749,18 @@ model Appointment {
   cancellationReason String?
   cancelledAt        DateTime?
 
-  // Trava de Idempotência: sinaliza se o Exit Inteligente já foi disparado
   autoStockDeducted  Boolean           @default(false)
 
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
-  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  clinic      Clinic        @relation(fields: [clinicId], references: [id])
-  patient     Patient       @relation(fields: [patientId], references: [id])
-  dentist     User          @relation("DentistAppointments", fields: [dentistId], references: [id])
-  procedure   Procedure?    @relation(fields: [procedureId], references: [id], onDelete: SetNull)
-  transaction Transaction?
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic          Clinic          @relation(fields: [clinicId], references: [id])
+  patient         Patient         @relation(fields: [patientId], references: [id])
+  dentist         User            @relation("DentistAppointments", fields: [dentistId], references: [id])
+  procedure       Procedure?      @relation(fields: [procedureId], references: [id], onDelete: SetNull)
+  transaction     Transaction?
+  insuranceGuide  InsuranceGuide?
 
   @@index([tenantId])
   @@index([tenantId, clinicId])
@@ -760,7 +835,6 @@ model StockMovement {
   quantity      Float
   reason        String?
 
-  // Chaves de concorrência e idempotência
   appointmentId String?
   procedureId   String?
 
@@ -799,32 +873,34 @@ model Supplier {
 }
 
 // =============================================================================
-// MODELS: FINANCEIRO & DRE ANALÍTICO
+// MODELS: FINANCEIRO, DRE & CONTAS A RECEBER
 // =============================================================================
 
 model Transaction {
-  id              String          @id @default(uuid())
-  tenantId        String
-  clinicId        String
-  appointmentId   String?         @unique
-  treatmentPlanId String?
-  supplierId      String?
-  amount          Decimal         @db.Decimal(10, 2)
-  type            TransactionType @default(RECEITA)
-  paymentMethod   PaymentMethod
-  description     String?
-  category        String?
-  costCenter      String?
-  isReconciled    Boolean         @default(true)
-  paidAt          DateTime        @default(now())
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id                   String             @id @default(uuid())
+  tenantId             String
+  clinicId             String
+  appointmentId        String?            @unique
+  treatmentPlanId      String?
+  supplierId           String?
+  accountReceivableId  String?            // Associação direta à liquidação do Contas a Receber
+  amount               Decimal            @db.Decimal(10, 2)
+  type                 TransactionType    @default(RECEITA)
+  paymentMethod        PaymentMethod
+  description          String?
+  category             String?
+  costCenter           String?
+  isReconciled         Boolean            @default(true)
+  paidAt               DateTime           @default(now())
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  clinic        Clinic         @relation(fields: [clinicId], references: [id])
-  appointment   Appointment?   @relation(fields: [appointmentId], references: [id])
-  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id])
-  supplier      Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic            Clinic             @relation(fields: [clinicId], references: [id])
+  appointment       Appointment?       @relation(fields: [appointmentId], references: [id])
+  treatmentPlan     TreatmentPlan?     @relation(fields: [treatmentPlanId], references: [id])
+  supplier          Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  accountReceivable AccountReceivable? @relation(fields: [accountReceivableId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, createdAt])
   @@index([tenantId, clinicId])
@@ -832,6 +908,124 @@ model Transaction {
   @@index([clinicId, paymentMethod])
   @@index([supplierId])
   @@map("transactions")
+}
+
+// Módulo Contas a Receber (Parcelamentos, Carnês, Boletos e Promissórias)
+model AccountReceivable {
+  id              String           @id @default(uuid())
+  tenantId        String
+  clinicId        String
+  patientId       String
+  treatmentPlanId String?
+  
+  description     String
+  installmentNumber Int            @default(1) // Ex: Parcela 1
+  totalInstallments Int            @default(1) // de 6
+  
+  originalAmount  Decimal          @db.Decimal(10, 2)
+  discountAmount  Decimal          @default(0) @db.Decimal(10, 2)
+  interestAmount  Decimal          @default(0) @db.Decimal(10, 2)
+  paidAmount      Decimal          @default(0) @db.Decimal(10, 2)
+  remainingAmount Decimal          @db.Decimal(10, 2)
+  
+  dueDate         DateTime
+  paidAt          DateTime?
+  status          ReceivableStatus @default(PENDING)
+  paymentMethod   PaymentMethod    @default(PIX)
+  
+  barcode         String?          // Código de barras / Linha digitável se boleto
+  pixQrCode       String?          @db.Text
+  notes           String?          @db.Text
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic        Clinic         @relation(fields: [clinicId], references: [id])
+  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)
+  transactions  Transaction[]
+
+  @@index([tenantId, clinicId])
+  @@index([patientId, status])
+  @@index([clinicId, dueDate, status])
+  @@map("account_receivables")
+}
+
+// =============================================================================
+// MODELS: CONVÉNIOS, FATURAMENTO EM LOTE & RECURSO DE GLOSAS (TISS)
+// =============================================================================
+
+model InsuranceBatch {
+  id              String               @id @default(uuid())
+  tenantId        String
+  clinicId        String
+  insuranceName   String               // Ex: "Unimed Odonto", "Bradesco Dental", "Amil"
+  batchNumber     String               // Identificador do Lote (sequencial clínico)
+  periodStart     DateTime
+  periodEnd       DateTime
+  
+  totalGuides     Int                  @default(0)
+  totalAmount     Decimal              @db.Decimal(10, 2)
+  paidAmount      Decimal              @default(0) @db.Decimal(10, 2)
+  glossAmount     Decimal              @default(0) @db.Decimal(10, 2) // Valor retido/glosado
+  
+  status          InsuranceBatchStatus @default(DRAFT)
+  submissionDate  DateTime?
+  expectedPayment DateTime?
+  settledAt       DateTime?
+  xmlFileUrl      String?              // URL do arquivo gerado padrão TISS XML
+  notes           String?              @db.Text
+
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic Clinic           @relation(fields: [clinicId], references: [id])
+  guides InsuranceGuide[]
+
+  @@unique([tenantId, insuranceName, batchNumber])
+  @@index([tenantId, clinicId])
+  @@index([insuranceName, status])
+  @@map("insurance_batches")
+}
+
+model InsuranceGuide {
+  id               String               @id @default(uuid())
+  tenantId         String
+  clinicId         String
+  insuranceBatchId String?
+  patientId        String
+  appointmentId    String?              @unique
+  procedureId      String?
+  
+  guideNumber      String               // Número da Guia de Atendimento
+  authorizationCode String?             // Senha/Código de autorização
+  tussCode         String?              // Código TUSS oficial do procedimento
+  
+  claimedAmount    Decimal              @db.Decimal(10, 2) // Valor cobrado
+  approvedAmount   Decimal?             @db.Decimal(10, 2) // Valor deferido pela operadora
+  glossedAmount    Decimal?             @default(0) @db.Decimal(10, 2) // Valor glosado
+  
+  status           InsuranceGuideStatus @default(PENDING_SUBMISSION)
+  glossReason      String?              @db.Text // Motivo da glosa apontado no demonstrativo
+  appealNotes      String?              @db.Text // Argumentação de recurso da glosa
+
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic         Clinic          @relation(fields: [clinicId], references: [id])
+  insuranceBatch InsuranceBatch? @relation(fields: [insuranceBatchId], references: [id], onDelete: SetNull)
+  patient        Patient         @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  appointment    Appointment?    @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  procedure      Procedure?      @relation(fields: [procedureId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, clinicId])
+  @@index([insuranceBatchId])
+  @@index([patientId])
+  @@index([status])
+  @@map("insurance_guides")
 }
 
 // =============================================================================

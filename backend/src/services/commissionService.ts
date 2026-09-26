@@ -1,6 +1,18 @@
-import {prisma} from '../lib/prisma'
+import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
-import type { CalculateCommissionDTO, FilterCommissionDTO } from '../types/commission.types'
+import { auditLogService } from './auditLog.service'
+import type { UserRole } from '@prisma/client'
+import type {
+  CalculateCommissionDTO,
+  FilterCommissionDTO,
+  PayCommissionDTO,
+} from '../types/commission.types'
+
+interface ActorContext {
+  userId: string
+  userName: string
+  userRole?: UserRole
+}
 
 export async function list(tenantId: string, clinicId: string, filters: FilterCommissionDTO) {
   return prisma.dentistCommission.findMany({
@@ -11,8 +23,8 @@ export async function list(tenantId: string, clinicId: string, filters: FilterCo
       ...(filters.status && { status: filters.status }),
       ...(filters.startDate && filters.endDate && {
         createdAt: {
-          gte: new Date(filters.startDate),
-          lte: new Date(filters.endDate),
+          gte: new Date(`${filters.startDate}T00:00:00.000Z`),
+          lte: new Date(`${filters.endDate}T23:59:59.999Z`),
         },
       }),
     },
@@ -28,7 +40,8 @@ export async function list(tenantId: string, clinicId: string, filters: FilterCo
 export async function calculateAndCreate(
   tenantId: string,
   clinicId: string,
-  data: CalculateCommissionDTO
+  data: CalculateCommissionDTO,
+  actor?: ActorContext
 ) {
   const dentist = await prisma.user.findFirst({
     where: { id: data.dentistId, tenantId, clinicId },
@@ -46,17 +59,16 @@ export async function calculateAndCreate(
     throw new AppError('O valor bruto do procedimento deve ser maior que zero.', 400)
   }
 
-  // Base Líquida Real = Bruto - Custo dos Insumos
   const netBaseAmount = Math.max(0, gross - materialsCost)
   const commissionAmount = Number(((netBaseAmount * percentage) / 100).toFixed(2))
 
-  return prisma.dentistCommission.create({
+  const commission = await prisma.dentistCommission.create({
     data: {
       tenantId,
       clinicId,
       dentistId: data.dentistId,
-      treatmentPlanId: data.treatmentPlanId,
-      procedureId: data.procedureId,
+      treatmentPlanId: data.treatmentPlanId || null,
+      procedureId: data.procedureId || null,
       grossAmount: gross,
       materialsCost,
       netBaseAmount,
@@ -68,11 +80,34 @@ export async function calculateAndCreate(
       dentist: { select: { name: true, cro: true } },
     },
   })
+
+  if (actor) {
+    await auditLogService.createLog({
+      tenantId,
+      clinicId,
+      userId: actor.userId,
+      userName: actor.userName,
+      userRole: actor.userRole || 'ADMIN',
+      action: 'CREATE',
+      entity: 'DENTIST_COMMISSION',
+      entityId: commission.id,
+      details: `Gerou comissão de R$ ${commissionAmount.toFixed(2)} para Dr(a). ${dentist.name}`,
+    })
+  }
+
+  return commission
 }
 
-export async function markAsPaid(tenantId: string, clinicId: string, commissionId: string) {
+export async function markAsPaid(
+  tenantId: string,
+  clinicId: string,
+  commissionId: string,
+  data?: PayCommissionDTO,
+  actor?: ActorContext
+) {
   const commission = await prisma.dentistCommission.findFirst({
     where: { id: commissionId, tenantId, clinicId },
+    include: { dentist: { select: { name: true } } },
   })
 
   if (!commission) {
@@ -83,11 +118,33 @@ export async function markAsPaid(tenantId: string, clinicId: string, commissionI
     throw new AppError('Esta comissão já foi liquidada.', 400)
   }
 
-  return prisma.dentistCommission.update({
+  const updatedCommission = await prisma.dentistCommission.update({
     where: { id: commissionId },
     data: {
       status: 'PAID',
-      paidAt: new Date(),
+      paidAt: data?.paymentDate ? new Date(data.paymentDate) : new Date(),
+      paymentMethod: data?.paymentMethod || 'PIX',
+      paymentNotes: data?.notes || null,
+      receiptFileUrl: data?.receiptFileUrl || null,
+    },
+    include: {
+      dentist: { select: { name: true } },
     },
   })
+
+  if (actor) {
+    await auditLogService.createLog({
+      tenantId,
+      clinicId,
+      userId: actor.userId,
+      userName: actor.userName,
+      userRole: actor.userRole || 'ADMIN',
+      action: 'UPDATE',
+      entity: 'DENTIST_COMMISSION',
+      entityId: commissionId,
+      details: `Liquidou repasse de R$ ${Number(updatedCommission.commissionAmount).toFixed(2)} para Dr(a). ${commission.dentist?.name}`,
+    })
+  }
+
+  return updatedCommission
 }

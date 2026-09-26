@@ -7,15 +7,10 @@ import {
 import { authenticate } from '../middlewares/authMiddlewares'
 import { loginLimiter } from '../middlewares/rateLimiter.middleware'
 
-const authRouter = Router()
+const router = Router()
 
-// Registro de conta/clínica
-authRouter.post('/register', registerController)
+router.post('/register', registerController)
+router.post('/login', loginLimiter, loginController)
+router.get('/me', authenticate, getMeController)
 
-// Login blindado com rate limiting por IP + e-mail
-authRouter.post('/login', loginLimiter, loginController)
-
-// Perfil autenticado
-authRouter.get('/me', authenticate, getMeController)
-
-export default authRouter
+export default router
