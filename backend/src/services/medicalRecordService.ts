@@ -151,26 +151,25 @@ export async function generateAnamnesisToken(
 ) {
   const patient = await prisma.patient.findFirst({
     where: { id: patientId, tenantId, clinicId, deletedAt: null },
+    select: { id: true, name: true },
   })
 
   if (!patient) {
     throw new AppError('Paciente não encontrado.', 404)
   }
 
-  const token = jwt.sign(
-    {
-      sub: patient.id,
-      tenantId,
-      clinicId,
-      name: patient.name,
-      scope: 'patient_anamnesis',
-    },
-    JWT_SECRET,
-    { expiresIn: '36h' }
-  )
+  // Gera um token aleatório limpo (32 caracteres) sem pontos ou caracteres que quebrem no WhatsApp
+  const rawToken = crypto.randomBytes(24).toString('hex')
+  
+  // Hash SHA-256 para busca indexada rápida e segura no banco
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
+  const expiresAt = new Date(Date.now() + 36 * 60 * 60 * 1000) // 36 horas
 
-  const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
-  const expiresAt = new Date(Date.now() + 36 * 60 * 60 * 1000)
+  // Revoga tokens pendentes anteriores deste paciente para manter apenas o mais recente
+  await prisma.patientAnamnesisToken.updateMany({
+    where: { patientId, isRevoked: false, usedAt: null },
+    data: { isRevoked: true },
+  })
 
   await prisma.patientAnamnesisToken.create({
     data: {
@@ -184,79 +183,88 @@ export async function generateAnamnesisToken(
   })
 
   return {
-    token,
+    token: rawToken, // Token limpo enviado na URL
     expiresInHours: 36,
     expiresAt: expiresAt.toISOString(),
   }
 }
 
-export async function getPublicAnamnesisByToken(token: string) {
-  if (!token) throw new AppError('Token de anamnese não fornecido.', 400)
+export async function getPublicAnamnesisByToken(rawToken: string) {
+  if (!rawToken) throw new AppError('Token de anamnese não fornecido.', 400)
 
-  let payload: any
-  try {
-    payload = jwt.verify(token, JWT_SECRET)
-  } catch {
-    throw new AppError('Link de anamnese expirado (limite de 36h) ou inválido.', 401)
-  }
-
-  if (payload.scope !== 'patient_anamnesis' || !payload.sub) {
-    throw new AppError('Token de acesso inválido.', 403)
-  }
-
+  const token = rawToken.trim()
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
-  const registeredToken = await prisma.patientAnamnesisToken.findUnique({
-    where: { tokenHash },
+
+  // 1. Busca pelo token opaco curto
+  const registeredToken = await prisma.patientAnamnesisToken.findFirst({
+    where: {
+      OR: [
+        { tokenHash },
+        // Fallback caso venha com hash direto
+        { id: token.length === 36 ? token : undefined }
+      ]
+    },
+    include: {
+      patient: { select: { id: true, name: true } },
+    }
   })
 
-  if (registeredToken?.isRevoked) {
-    throw new AppError('Este link de anamnese foi revogado.', 403)
+  if (!registeredToken) {
+    throw new AppError('Link de anamnese inválido ou não encontrado.', 401)
+  }
+
+  if (registeredToken.isRevoked) {
+    throw new AppError('Este link de anamnese foi cancelado.', 403)
+  }
+
+  if (new Date() > new Date(registeredToken.expiresAt)) {
+    throw new AppError('Este link de anamnese expirou (limite de 36 horas).', 401)
   }
 
   const medicalRecord = await prisma.medicalRecord.findFirst({
     where: {
-      patientId: payload.sub,
-      tenantId: payload.tenantId,
+      patientId: registeredToken.patientId,
+      tenantId: registeredToken.tenantId,
     },
   })
 
   const clinic = await prisma.clinic.findUnique({
-    where: { id: payload.clinicId },
+    where: { id: registeredToken.clinicId },
     select: { name: true },
   })
 
   return {
-    patientName: payload.name,
+    patientName: registeredToken.patient?.name || 'Paciente',
     clinicName: clinic?.name || 'Clarium Clinic',
     medicalRecord: medicalRecord || null,
   }
 }
 
 export async function updatePublicAnamnesisByToken(
-  token: string,
+  rawToken: string,
   data: UpdateMedicalRecordsDTO,
   context?: { ip?: string; userAgent?: string }
 ) {
-  if (!token) throw new AppError('Token de anamnese não fornecido.', 400)
+  if (!rawToken) throw new AppError('Token de anamnese não fornecido.', 400)
 
-  let payload: any
-  try {
-    payload = jwt.verify(token, JWT_SECRET)
-  } catch {
-    throw new AppError('Link expirado após 36 horas. Solicite um novo à recepção.', 401)
-  }
-
-  if (payload.scope !== 'patient_anamnesis' || !payload.sub) {
-    throw new AppError('Operação não autorizada.', 403)
-  }
-
+  const token = rawToken.trim()
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
-  const registeredToken = await prisma.patientAnamnesisToken.findUnique({
+
+  const registeredToken = await prisma.patientAnamnesisToken.findFirst({
     where: { tokenHash },
+    include: { patient: { select: { id: true, name: true } } }
   })
 
-  if (registeredToken?.isRevoked) {
-    throw new AppError('Este link já foi invalidado.', 403)
+  if (!registeredToken) {
+    throw new AppError('Link de anamnese inválido.', 401)
+  }
+
+  if (registeredToken.isRevoked) {
+    throw new AppError('Este link de anamnese já foi utilizado ou revogado.', 403)
+  }
+
+  if (new Date() > new Date(registeredToken.expiresAt)) {
+    throw new AppError('Este link de anamnese expirou (limite de 36 horas).', 401)
   }
 
   const normalizedComplaint = data.mainComplaint || data.chiefComplaint
@@ -265,8 +273,8 @@ export async function updatePublicAnamnesisByToken(
   const updatedRecord = await prisma.medicalRecord.upsert({
     where: {
       tenantId_patientId: {
-        tenantId: payload.tenantId,
-        patientId: payload.sub,
+        tenantId: registeredToken.tenantId,
+        patientId: registeredToken.patientId,
       },
     },
     update: {
@@ -281,9 +289,9 @@ export async function updatePublicAnamnesisByToken(
       systemicDiseases: data.systemicDiseases,
     },
     create: {
-      tenantId: payload.tenantId,
-      clinicId: payload.clinicId,
-      patientId: payload.sub,
+      tenantId: registeredToken.tenantId,
+      clinicId: registeredToken.clinicId,
+      patientId: registeredToken.patientId,
       chiefComplaint: normalizedComplaint,
       mainComplaint: normalizedComplaint,
       historyNotes: data.historyNotes,
@@ -296,24 +304,22 @@ export async function updatePublicAnamnesisByToken(
     },
   })
 
-  if (registeredToken) {
-    await prisma.patientAnamnesisToken.update({
-      where: { id: registeredToken.id },
-      data: {
-        usedAt: new Date(),
-        acceptedTerms: true,
-        signerIp: context?.ip || null,
-        signerUserAgent: context?.userAgent || null,
-      },
-    })
-  }
+  // Marca como usado
+  await prisma.patientAnamnesisToken.update({
+    where: { id: registeredToken.id },
+    data: {
+      usedAt: new Date(),
+      acceptedTerms: true,
+      signerIp: context?.ip || null,
+      signerUserAgent: context?.userAgent || null,
+    },
+  })
 
   await auditLogService.createLog({
-    tenantId: payload.tenantId,
-    clinicId: payload.clinicId,
+    tenantId: registeredToken.tenantId,
+    clinicId: registeredToken.clinicId,
     userId: undefined,
-    userName: `Paciente: ${payload.name}`,
-    userRole: undefined,
+    userName: `Paciente: ${registeredToken.patient?.name || 'Anônimo'}`,
     action: 'UPDATE',
     entity: 'MEDICAL_RECORD',
     entityId: updatedRecord.id,
