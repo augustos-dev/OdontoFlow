@@ -302,6 +302,7 @@ export async function updatePublicAnamnesisByToken(
       habits: data.habits,
       systemicDiseases: data.systemicDiseases,
     },
+    
   })
 
   // Marca como usado
