@@ -55,121 +55,135 @@ function AnamnesePacienteForm() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    async function loadData() {
-      if (!token && !fallbackPatientId) {
-        setExpired(true)
-        setInitialLoading(false)
-        return
-      }
-
-      try {
-        let res: any
-        if (token) {
-          res = await axios.get(`${API_URL}/public/anamnese?token=${token}`)
-        } else {
-          // Fallback transitório durante os testes
-          res = await axios.get(`${API_URL}/medical-records/${fallbackPatientId}`)
-        }
-
-        const data = res.data
-        if (data.patientName) setPatientName(data.patientName)
-
-        const record = data?.medicalRecord || data
-        if (record) {
-          if (record.mainComplaint) {
-            const parts = record.mainComplaint.split(',').map((s: string) => s.trim()).filter(Boolean)
-            setSelectedQueixa(parts.filter((p: string) => OPTIONS_QUEIXA.includes(p)))
-            const custom = parts.filter((p: string) => !OPTIONS_QUEIXA.includes(p))
-            if (custom.length > 0) setCustomQueixa(custom.join(', '))
-          }
-          if (record.allergies) {
-            const parts = record.allergies.split(',').map((s: string) => s.trim()).filter(Boolean)
-            setSelectedAlergias(parts.filter((p: string) => OPTIONS_ALERGIAS.includes(p)))
-            const custom = parts.filter((p: string) => !OPTIONS_ALERGIAS.includes(p))
-            if (custom.length > 0) setCustomAlergias(custom.join(', '))
-          }
-          if (record.systemicDiseases) {
-            const parts = record.systemicDiseases.split(',').map((s: string) => s.trim()).filter(Boolean)
-            setSelectedDoencas(parts.filter((p: string) => OPTIONS_DOENCAS.includes(p)))
-            const custom = parts.filter((p: string) => !OPTIONS_DOENCAS.includes(p))
-            if (custom.length > 0) setCustomDoencas(custom.join(', '))
-          }
-          if (record.habits) {
-            const parts = record.habits.split(',').map((s: string) => s.trim()).filter(Boolean)
-            setSelectedAtm(parts.filter((p: string) => OPTIONS_ATM.includes(p)))
-            const custom = parts.filter((p: string) => !OPTIONS_ATM.includes(p))
-            if (custom.length > 0) setCustomAtm(custom.join(', '))
-          }
-          if (record.medicationsInUse && record.medicationsInUse !== 'Nenhum') {
-            setMedications(record.medicationsInUse)
-          }
-        }
-      } catch (err: any) {
-        if (err.response?.status === 401 || err.response?.status === 403) {
-          setExpired(true)
-        } else {
-          console.warn('Iniciando formulário sem dados prévios:', err)
-        }
-      } finally {
-        setInitialLoading(false)
-      }
-    }
-
-    loadData()
-  }, [token, fallbackPatientId])
-
-  function toggleOption(item: string, currentList: string[], setList: (arr: string[]) => void) {
-    if (currentList.includes(item)) {
-      setList(currentList.filter((i) => i !== item))
-    } else {
-      if (item === 'Nenhuma') setList(['Nenhuma'])
-      else setList([...currentList.filter((i) => i !== 'Nenhuma'), item])
-    }
-  }
-
-  function combineData(chips: string[], customText: string, defaultVal = 'Nenhuma') {
-    const list = [...chips]
-    if (customText.trim()) list.push(customText.trim())
-    return list.filter(Boolean).join(', ') || defaultVal
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-
-    if (!acceptedTerms) {
-      setError('Por favor, confirme o termo de veracidade das informações.')
+  async function loadData() {
+    if (!token && !fallbackPatientId) {
+      setExpired(true)
+      setInitialLoading(false)
       return
     }
 
-    setLoading(true)
-
-    const payload = {
-      mainComplaint: combineData(selectedQueixa, customQueixa, 'Avaliação de rotina'),
-      allergies: combineData(selectedAlergias, customAlergias, 'Nenhuma'),
-      systemicDiseases: combineData(selectedDoencas, customDoencas, 'Nenhuma'),
-      habits: combineData(selectedAtm, customAtm, 'Não informado'),
-      medicationsInUse: medications || 'Nenhum',
-    }
-
     try {
+      let res: any
       if (token) {
-        await axios.put(`${API_URL}/public/anamnese?token=${token}`, payload)
+        // Rota pública correta baseada no prefixo /medical-records
+        res = await axios.get(`${API_URL}/medical-records/public/anamnese?token=${token}`)
       } else {
-        await axios.put(`${API_URL}/medical-records/${fallbackPatientId}`, payload)
+        // Fallback legado com ID do paciente para testes internos
+        res = await axios.get(`${API_URL}/medical-records/${fallbackPatientId}`)
       }
-      setSuccess(true)
+
+      const data = res.data
+      if (data.patientName) setPatientName(data.patientName)
+
+      const record = data?.medicalRecord || data
+      if (record) {
+        // Queixa principal (suporte a mainComplaint e chiefComplaint)
+        const complaint = record.mainComplaint || record.chiefComplaint
+        if (complaint) {
+          const parts = complaint.split(',').map((s: string) => s.trim()).filter(Boolean)
+          setSelectedQueixa(parts.filter((p: string) => OPTIONS_QUEIXA.includes(p)))
+          const custom = parts.filter((p: string) => !OPTIONS_QUEIXA.includes(p))
+          if (custom.length > 0) setCustomQueixa(custom.join(', '))
+        }
+
+        // Alergias
+        if (record.allergies) {
+          const parts = record.allergies.split(',').map((s: string) => s.trim()).filter(Boolean)
+          setSelectedAlergias(parts.filter((p: string) => OPTIONS_ALERGIAS.includes(p)))
+          const custom = parts.filter((p: string) => !OPTIONS_ALERGIAS.includes(p))
+          if (custom.length > 0) setCustomAlergias(custom.join(', '))
+        }
+
+        // Doenças sistémicas
+        if (record.systemicDiseases) {
+          const parts = record.systemicDiseases.split(',').map((s: string) => s.trim()).filter(Boolean)
+          setSelectedDoencas(parts.filter((p: string) => OPTIONS_DOENCAS.includes(p)))
+          const custom = parts.filter((p: string) => !OPTIONS_DOENCAS.includes(p))
+          if (custom.length > 0) setCustomDoencas(custom.join(', '))
+        }
+
+        // Hábitos / Disfunção de ATM
+        if (record.habits) {
+          const parts = record.habits.split(',').map((s: string) => s.trim()).filter(Boolean)
+          setSelectedAtm(parts.filter((p: string) => OPTIONS_ATM.includes(p)))
+          const custom = parts.filter((p: string) => !OPTIONS_ATM.includes(p))
+          if (custom.length > 0) setCustomAtm(custom.join(', '))
+        }
+
+        // Medicamentos em uso (compatibilidade Swagger e schema)
+        const meds = record.medicationsInUse || record.medications
+        if (meds && meds !== 'Nenhum') {
+          setMedications(meds)
+        }
+      }
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Erro ao salvar sua anamnese.'
-      if (err.response?.status === 401) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
         setExpired(true)
       } else {
-        setError(Array.isArray(msg) ? msg.join(', ') : msg)
+        console.warn('Iniciando formulário sem dados prévios:', err)
       }
     } finally {
-      setLoading(false)
+      setInitialLoading(false)
     }
   }
+
+  loadData()
+}, [token, fallbackPatientId])
+
+function toggleOption(item: string, currentList: string[], setList: (arr: string[]) => void) {
+  if (currentList.includes(item)) {
+    setList(currentList.filter((i) => i !== item))
+  } else {
+    if (item === 'Nenhuma') setList(['Nenhuma'])
+    else setList([...currentList.filter((i) => i !== 'Nenhuma'), item])
+  }
+}
+
+function combineData(chips: string[], customText: string, defaultVal = 'Nenhuma') {
+  const list = [...chips]
+  if (customText.trim()) list.push(customText.trim())
+  return list.filter(Boolean).join(', ') || defaultVal
+}
+
+async function handleSubmit(e: React.FormEvent) {
+  e.preventDefault()
+  setError('')
+
+  if (!acceptedTerms) {
+    setError('Por favor, confirme o termo de veracidade das informações.')
+    return
+  }
+
+  setLoading(true)
+
+  const payload = {
+    mainComplaint: combineData(selectedQueixa, customQueixa, 'Avaliação de rotina'),
+    allergies: combineData(selectedAlergias, customAlergias, 'Nenhuma'),
+    systemicDiseases: combineData(selectedDoencas, customDoencas, 'Nenhuma'),
+    habits: combineData(selectedAtm, customAtm, 'Não informado'),
+    medicationsInUse: medications.trim() || 'Nenhum',
+  }
+
+  try {
+    if (token) {
+      // Submissão pública via Magic Link de 36 horas
+      await axios.put(`${API_URL}/medical-records/public/anamnese?token=${token}`, payload)
+    } else {
+      // Rota protegida interna de prontuário
+      await axios.put(`${API_URL}/medical-records/${fallbackPatientId}`, payload)
+    }
+    setSuccess(true)
+  } catch (err: any) {
+    const msg = err.response?.data?.message || 'Erro ao guardar a sua anamnese.'
+    if (err.response?.status === 401 || err.response?.status === 403) {
+      setExpired(true)
+    } else {
+      setError(Array.isArray(msg) ? msg.join(', ') : msg)
+    }
+  } finally {
+    setLoading(false)
+  }
+}
 
   if (initialLoading) {
     return (

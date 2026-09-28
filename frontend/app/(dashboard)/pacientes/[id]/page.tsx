@@ -249,13 +249,23 @@ export default function PerfilPacientePage() {
   async function generateSecureLink(): Promise<string> {
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://odontoflow.omniatechlabs.com.br'
     try {
+      // Chamada alinhada com as rotas validadas no Swagger (/patients/:id/anamnesis-token ou /medical-records/:id/anamnesis-token)
       const { data } = await api.post(`/patients/${id}/anamnesis-token`)
       const token = data?.token || data?.data?.token
       if (token) {
         return `${origin}/anamnese?token=${token}`
       }
     } catch (e) {
-      console.warn('Endpoint de token indisponível. Usando fallback temporário:', e)
+      console.warn('Endpoint de token /patients indisponível, tentando /medical-records:', e)
+      try {
+        const { data } = await api.post(`/medical-records/${id}/anamnesis-token`)
+        const token = data?.token || data?.data?.token
+        if (token) {
+          return `${origin}/anamnese?token=${token}`
+        }
+      } catch (errFallback) {
+        console.warn('Fallback ativado com patientId direto:', errFallback)
+      }
     }
     return `${origin}/anamnese?patientId=${id}&name=${encodeURIComponent(patient?.name || '')}`
   }
@@ -285,13 +295,13 @@ export default function PerfilPacientePage() {
       const lines = [
         `Olá, *${patient.name}*! Tudo bem?`,
         '',
-        `Pedimos que preencha a sua ficha de saúde (anamnese) com antecedência pelo link seguro da *Clarium Clinic - Messejana*:`,
+        `Pedimos que preencha a sua ficha de saúde (anamnese) com antecedência pelo link seguro da clínica:`,
         '',
         `🔗 ${link}`,
         '',
-        `⏱️ *Atenção:* Por medidas de segurança e sigilo médico, este link é exclusivo e expira em *36 horas*.`,
+        `⏱️ *Atenção:* Por medidas de segurança e conformidade LGPD, este link é exclusivo e expira em *36 horas*.`,
         '',
-        `Leva menos de 2 minutos pelo celular e agiliza seu atendimento com o dentista. Se tiver dúvidas, estamos à disposição! 💙`
+        `O preenchimento demora menos de 2 minutos pelo telemóvel e agiliza o seu atendimento com o dentista. Se tiver dúvidas, estamos à disposição! 💙`
       ]
 
       const textEncoded = lines.map((l) => encodeURIComponent(l)).join('%0A')
@@ -569,9 +579,9 @@ export default function PerfilPacientePage() {
                   <span>{age} anos</span>
                 </span>
               )}
-              {patient.gender !== 'NAO_INFORMADO' && <span>• {GENDER_LABEL[patient.gender]}</span>}
-              {patient.cpf && <span>• CPF: {patient.cpf}</span>}
-              <span>• Cadastrado em {formatDate(patient.createdAt)}</span>
+              {patient.gender !== 'NAO_INFORMADO' && <span>{GENDER_LABEL[patient.gender]}</span>}
+              {patient.cpf && <span>CPF: {patient.cpf}</span>}
+              <span>Cadastrado em {formatDate(patient.createdAt)}</span>
             </div>
             
             <div className={styles.profileContacts}>
@@ -1036,8 +1046,8 @@ export default function PerfilPacientePage() {
                   </thead>
                   <tbody>
                     {patient.appointments.map((appt) => (
-                      <tr
-                        key={appt.id}
+                      <tr 
+                        key={appt.id} 
                         className={styles.row}
                         onClick={() => setSelectedAppt({ ...appt, patient: { id: patient.id, name: patient.name, phone: patient.phone } } as any)}
                         style={{ cursor: 'pointer' }}
