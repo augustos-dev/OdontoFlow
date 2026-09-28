@@ -151,6 +151,7 @@ export async function generateAnamnesisToken(
 ) {
   const patient = await prisma.patient.findFirst({
     where: { id: patientId, tenantId, clinicId, deletedAt: null },
+    select: { id: true, name: true },
   })
 
   if (!patient) {
@@ -160,9 +161,8 @@ export async function generateAnamnesisToken(
   const token = jwt.sign(
     {
       sub: patient.id,
-      tenantId,
-      clinicId,
-      name: patient.name,
+      tid: tenantId,
+      cid: clinicId,
       scope: 'patient_anamnesis',
     },
     JWT_SECRET,
