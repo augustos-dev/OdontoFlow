@@ -27,17 +27,17 @@ import {
   SendHorizontal,
   Copy
 } from 'lucide-react'
-import api from '@/lib/api'
-import styles from './perfil.module.css'
+import api from '../../../../lib/api'
+import styles from "./perfil.module.css"
 
 // Import de Componentes
-import DetalhesAgendamentoModal from '@/app/components/DetalhesAgendamentoModal'
+import DetalhesAgendamentoModal from '../../../components/DetalhesAgendamentoModal'
 import { EvolutionsTimeline } from '../../../components/medical-record/EvolutionsTimeline'
 import { AddEvolutionModal } from '../../../components/medical-record/AddEvolutionModal'
 import { Odontogram, OdontogramData } from '../../../components/tooth/Odontogram'
 import { PatientFilesTab, PatientFile } from '../../../components/pacienteFile/PatientFilesTab'
 import { PDFDownloadLink } from '@react-pdf/renderer'
-import { MedicalRecordPDF } from '@/app/components/pacienteFile/MedicalRecordPDF'
+import { MedicalRecordPDF } from '../../../components/pacienteFile/MedicalRecordPDF'
 
 // Import de Tipos Globais
 import { Patient } from '../../../../types/patient.types'
@@ -284,33 +284,34 @@ export default function PerfilPacientePage() {
   }
 
   async function handleSendAnamneseWhatsApp() {
-    if (!patient?.phone || !id) return
-    setGeneratingToken(true)
+  if (!patient?.phone || !id) return
+  setGeneratingToken(true)
 
-    try {
-      const link = await generateSecureLink()
-      const cleanPhone = patient.phone.replace(/\D/g, '')
-      const fullPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`
+  try {
+    const link = await generateSecureLink()
+    const cleanPhone = patient.phone.replace(/\D/g, '')
+    const fullPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`
 
-      const lines = [
-        `Olá, *${patient.name}*! Tudo bem?`,
-        '',
-        `Pedimos que preencha a sua ficha de saúde (anamnese) com antecedência pelo link seguro da clínica:`,
-        '',
-        `🔗 ${link}`,
-        '',
-        `⏱️ *Atenção:* Por medidas de segurança e conformidade LGPD, este link é exclusivo e expira em *36 horas*.`,
-        '',
-        `O preenchimento demora menos de 2 minutos pelo telemóvel e agiliza o seu atendimento com o dentista. Se tiver dúvidas, estamos à disposição! 💙`
-      ]
+    // Monta o texto garantindo linhas vazias antes e depois da URL para o parser do WhatsApp não quebrar o link
+    const message = [
+      `Olá, *${patient.name}*! Tudo bem?`,
+      '',
+      `Pedimos que preencha a sua ficha de saúde (anamnese) com antecedência pelo link seguro da clínica:`,
+      '',
+      link,
+      '',
+      `⏱️ *Atenção:* Por medidas de segurança e conformidade LGPD, este link é exclusivo e expira em *36 horas*.`,
+      '',
+      `O preenchimento demora menos de 2 minutos pelo telemóvel e agiliza o seu atendimento com o dentista. Se tiver dúvidas, estamos à disposição! 💙`
+    ].join('\n')
 
-      const textEncoded = lines.map((l) => encodeURIComponent(l)).join('%0A')
-      window.open(`https://api.whatsapp.com/send?phone=${fullPhone}&text=${textEncoded}`, '_blank')
-    } catch (err) {
-      alert('Erro ao gerar o link de anamnese.')
-    } finally {
-      setGeneratingToken(false)
-    }
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(message)}`
+    window.open(whatsappUrl, '_blank')
+  } catch (err) {
+    alert('Erro ao gerar o link de anamnese.')
+  } finally {
+    setGeneratingToken(false)
+  }
   }
 
   const handleFinishAppointmentFromMocho = async () => {
