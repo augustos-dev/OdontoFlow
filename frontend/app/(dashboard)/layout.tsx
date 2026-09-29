@@ -27,7 +27,9 @@ import {
   X,
   FileText,
   Activity,
-  ShieldAlert
+  ShieldAlert,
+  Coins,
+  DollarSign
 } from 'lucide-react'
 import styles from './layout.module.css'
 import { ModalProvider, useModal } from '@/app/components/ModalContext'
@@ -50,7 +52,7 @@ interface NavGroup {
   items: NavItem[]
 }
 
-// 🛡️ Matriz de Navegação com RBAC por Roles
+// 🛡️ Matriz de Navegação com RBAC por Roles (incluindo Comissões)
 const NAV_GROUPS: NavGroup[] = [
   {
     label: 'VISÃO GERAL',
@@ -78,10 +80,11 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: 'GESTÃO & ESTOQUE',
-    roles: ['ADMIN', 'SECRETARY'],
+    roles: ['ADMIN', 'DENTIST', 'SECRETARY'],
     items: [
       { href: '/estoque', label: 'Estoque & Insumos', icon: Package, roles: ['ADMIN', 'SECRETARY'] },
       { href: '/financeiro', label: 'Financeiro & DRE', icon: CreditCard, roles: ['ADMIN'] },
+      { href: '/comissoes', label: 'Comissões & Repasses', icon: Coins, roles: ['ADMIN', 'DENTIST'] },
     ],
   },
   {
@@ -92,6 +95,20 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ]
+
+// Mapeamento estrito de títulos para o Topo (Header)
+const ROUTE_PAGE_TITLES: Record<string, string> = {
+  '/': 'Dashboard Geral',
+  '/consultorio': 'Meu Consultório',
+  '/agenda': 'Agenda Integrada',
+  '/pacientes': 'Pacientes & Prontuários',
+  '/tratamentos': 'Planos & Orçamentos',
+  '/procedimentos': 'Tabela de Procedimentos',
+  '/estoque': 'Estoque & Insumos',
+  '/financeiro': 'Financeiro & DRE',
+  '/comissoes': 'Comissões & Repasses',
+  '/configuracoes': 'Configurações & Visual',
+}
 
 interface ClinicVisualState {
   name: string
@@ -114,7 +131,7 @@ interface NotificationItem {
   title: string
   description: string
   time: string
-  type: 'warning' | 'info' | 'success'
+  type: 'warning' | 'info' | 'success' | 'commission' // <-- adicione 'commission'
   read: boolean
   targetPath?: string
 }
@@ -164,21 +181,24 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Carregar Notificações do Backend
+  // Carregar Notificações do Backend incluindo Comissões
   const loadDynamicNotifications = useCallback(async () => {
     try {
       setLoadingNotifs(true)
       const todayStr = new Date().toISOString().slice(0, 10)
 
-      const [stockRes, apptRes, transRes] = await Promise.allSettled([
+      // Disparos paralelos: Stock, Agenda, Transações e Comissões
+      const [stockRes, apptRes, transRes, commRes] = await Promise.allSettled([
         api.get('/products/low-stock').catch(() => api.get('/products?limit=50')),
         api.get(`/appointments?date=${todayStr}&limit=15`),
         api.get('/transactions?type=RECEITA&limit=5'),
+        api.get('/commissions?status=PENDING&limit=10'),
       ])
 
       const generatedNotifs: NotificationItem[] = []
       const readNotifIds = JSON.parse(localStorage.getItem('odontoflow_read_notifs') || '[]')
 
+      // 1. Estoque Crítico
       if (stockRes.status === 'fulfilled') {
         const rawStock = stockRes.value.data?.data || stockRes.value.data || []
         const lowItems = Array.isArray(rawStock)
@@ -199,6 +219,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         })
       }
 
+      // 2. Agendamentos
       if (apptRes.status === 'fulfilled') {
         const rawAppts = apptRes.value.data?.data || apptRes.value.data || []
         const activeAppts = Array.isArray(rawAppts)
@@ -220,6 +241,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         })
       }
 
+      // 3. Faturamento (Apenas ADMIN)
       if (transRes.status === 'fulfilled' && user?.role === 'ADMIN') {
         const rawTrans = transRes.value.data?.data || transRes.value.data || []
         const recentTrans = Array.isArray(rawTrans) ? rawTrans.slice(0, 2) : []
@@ -239,13 +261,41 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         })
       }
 
+      // 4. Comissões & Repasses Pendentes (ADMIN e DENTIST)
+      if (commRes.status === 'fulfilled' && (user?.role === 'ADMIN' || user?.role === 'DENTIST')) {
+        const rawComms = commRes.value.data?.data || commRes.value.data || []
+        const list = Array.isArray(rawComms) ? rawComms : []
+
+        const pendingComms = user?.role === 'DENTIST'
+          ? list.filter((c: any) => c.dentistId === user.id)
+          : list
+
+        if (pendingComms.length > 0) {
+          const totalPending = pendingComms.reduce((acc: number, cur: any) => acc + (Number(cur.commissionAmount) || 0), 0)
+          const valFormatted = totalPending.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+          const id = `comm-pending-${todayStr}-${pendingComms.length}`
+
+          generatedNotifs.push({
+            id,
+            title: user?.role === 'DENTIST' ? 'Comissões a Receber' : 'Repasses a Liquidar',
+            description: user?.role === 'DENTIST'
+              ? `Possui ${valFormatted} acumulado em ${pendingComms.length} procedimento(s) a aguardar liquidação.`
+              : `${pendingComms.length} comissão(ões) pendente(s) totalizando ${valFormatted} prontas para baixa.`,
+            time: 'Hoje',
+            type: 'warning',
+            read: readNotifIds.includes(id),
+            targetPath: '/comissoes',
+          })
+        }
+      }
+
       setNotifications(generatedNotifs)
     } catch (err) {
       console.error('Erro ao buscar notificações dinâmicas:', err)
     } finally {
       setLoadingNotifs(false)
     }
-  }, [user?.role])
+  }, [user?.role, user?.id])
 
   const applyThemeVariables = useCallback((theme: ClinicVisualState) => {
     if (typeof document === 'undefined') return
@@ -319,7 +369,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           router.replace('/consultorio')
         }
       } else if (currentRole === 'SECRETARY') {
-        if (pathname === '/financeiro' || pathname === '/configuracoes' || pathname === '/consultorio') {
+        if (pathname === '/financeiro' || pathname === '/configuracoes' || pathname === '/consultorio' || pathname === '/comissoes') {
           router.replace('/agenda')
         }
       }
@@ -353,7 +403,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }, [router, pathname, fetchClinicCustomization, loadDynamicNotifications])
 
-  // Busca global paralela
+  // Busca global
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([])
@@ -384,7 +434,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           id: pr.id,
           type: 'PROCEDURE' as const,
           title: pr.name,
-          subtitle: `Procedimento: ${pr.category || 'Geral'} • R$ ${Number(pr.basePrice || 0).toFixed(2)}`,
+          subtitle: `Procedimento • R$ ${Number(pr.basePrice || 0).toFixed(2)}`,
           link: `/procedimentos`,
         }))
 
@@ -452,8 +502,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   })
   const todayFormatted = today.charAt(0).toUpperCase() + today.slice(1)
 
-  const allNavItems = useMemo(() => NAV_GROUPS.flatMap((g) => g.items), [])
-  const pageTitle = allNavItems.find((n) => n.href === pathname)?.label ?? 'OdontoFlow'
+  // Resolução correta do título da tela
+  const pageTitle = ROUTE_PAGE_TITLES[pathname] ?? 'OdontoFlow'
 
   const initials = user?.name
     ? user.name.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()
@@ -595,7 +645,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   <Search size={16} className={styles.searchIcon} />
                 )}
                 <input 
-                  type="text"
+                  type="text" 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => { if (searchQuery.trim()) setIsSearchOpen(true) }}
@@ -709,6 +759,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                             {n.type === 'warning' && <AlertTriangle size={14} />}
                             {n.type === 'info' && <Info size={14} />}
                             {n.type === 'success' && <CheckCircle2 size={14} />}
+                            {n.type === 'commission' && <Coins size={14} />} {/* <-- Ícone exclusivo */}
                           </div>
                           <div className={styles.notifContent}>
                             <div className={styles.notifTop}>

@@ -651,3 +651,8 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+.notif_commission {
+  background-color: #f0fdf4;
+  color: #059669;
+  border: 1px solid #bbf7d0;
+}
