@@ -2,7 +2,7 @@ import { UserRole, TenantPlan, BillingCycle, SubscriptionStatus } from '@prisma/
 
 export { UserRole, TenantPlan, BillingCycle, SubscriptionStatus }
 
-// ─── REGISTRO ATÔMICO DO SAAS (ONBOARDING & CONVERSÃO) ───
+// ─── REGISTRO ATÔMICO DO SAAS (ONBOARDING LANDING PAGE) ───
 export interface RegisterTenantDTO {
   tenantName: string
   slug: string
@@ -38,7 +38,7 @@ export interface RegisterTenantResponseDTO {
   }
 }
 
-// ─── CADASTRO DE USUÁRIO INTERNO NA CLÍNICA ───
+// ─── CADASTRO DE USUÁRIO INTERNO NA CLÍNICA (EQUIPE) ───
 export interface RegisterDTO {
   tenantId: string
   clinicId: string
@@ -50,6 +50,7 @@ export interface RegisterDTO {
   cro?: string
 }
 
+// ─── AUTENTICAÇÃO / LOGIN ───
 export interface LoginDTO {
   email: string
   password: string
@@ -77,7 +78,6 @@ export interface AuthResponse {
     tenantId: string
     clinicId: string
     avatarUrl?: string | null
-    defaultRoom?: string | null // 👈 Adicione esta linha
     plan: TenantPlan
   }
 }
