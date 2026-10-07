@@ -27,9 +27,9 @@ import {
   X,
   FileText,
   Activity,
-  ShieldAlert,
   Coins,
-  DollarSign
+  ArrowDownLeft,
+  Truck
 } from 'lucide-react'
 import styles from './layout.module.css'
 import { ModalProvider, useModal } from '@/app/components/ModalContext'
@@ -52,7 +52,7 @@ interface NavGroup {
   items: NavItem[]
 }
 
-// 🛡️ Matriz de Navegação com RBAC por Roles (incluindo Comissões)
+// 🛡️ Matriz de Navegação com RBAC por Perfis (com a nova rota /gestao-de-titulos)
 const NAV_GROUPS: NavGroup[] = [
   {
     label: 'VISÃO GERAL',
@@ -84,6 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/estoque', label: 'Estoque & Insumos', icon: Package, roles: ['ADMIN', 'SECRETARY'] },
       { href: '/financeiro', label: 'Financeiro & DRE', icon: CreditCard, roles: ['ADMIN'] },
+      { href: '/gestao-de-titulos', label: 'Gestão de Títulos', icon: ArrowDownLeft, roles: ['ADMIN', 'SECRETARY'] },
       { href: '/comissoes', label: 'Comissões & Repasses', icon: Coins, roles: ['ADMIN', 'DENTIST'] },
     ],
   },
@@ -96,7 +97,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-// Mapeamento estrito de títulos para o Topo (Header)
+// Mapeamento de Títulos no Cabeçalho (Header)
 const ROUTE_PAGE_TITLES: Record<string, string> = {
   '/': 'Dashboard Geral',
   '/consultorio': 'Meu Consultório',
@@ -106,6 +107,7 @@ const ROUTE_PAGE_TITLES: Record<string, string> = {
   '/procedimentos': 'Tabela de Procedimentos',
   '/estoque': 'Estoque & Insumos',
   '/financeiro': 'Financeiro & DRE',
+  '/gestao-de-titulos': 'Gestão de Títulos (Pagar & Receber)',
   '/comissoes': 'Comissões & Repasses',
   '/configuracoes': 'Configurações & Visual',
 }
@@ -120,7 +122,7 @@ interface ClinicVisualState {
 
 interface SearchResultItem {
   id: string
-  type: 'PATIENT' | 'PROCEDURE' | 'PLAN'
+  type: 'PATIENT' | 'PROCEDURE' | 'PLAN' | 'SUPPLIER'
   title: string
   subtitle: string
   link: string
@@ -131,7 +133,7 @@ interface NotificationItem {
   title: string
   description: string
   time: string
-  type: 'warning' | 'info' | 'success' | 'commission' // <-- adicione 'commission'
+  type: 'warning' | 'info' | 'success' | 'commission'
   read: boolean
   targetPath?: string
 }
@@ -152,14 +154,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     logoUrl: null,
   })
 
-  // Busca Global
+  // Pesquisa Global
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
-  // Notificações Dinâmicas
+  // Notificações
   const [isNotifOpen, setIsNotifOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [loadingNotifs, setLoadingNotifs] = useState(false)
@@ -181,18 +183,18 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Carregar Notificações do Backend incluindo Comissões
+  // Consulta Notificações em Tempo Real (Estoque, Consultas, Financeiro, Gestão de Títulos e Repasses)
   const loadDynamicNotifications = useCallback(async () => {
     try {
       setLoadingNotifs(true)
       const todayStr = new Date().toISOString().slice(0, 10)
 
-      // Disparos paralelos: Stock, Agenda, Transações e Comissões
-      const [stockRes, apptRes, transRes, commRes] = await Promise.allSettled([
+      const [stockRes, apptRes, transRes, commRes, payablesRes] = await Promise.allSettled([
         api.get('/products/low-stock').catch(() => api.get('/products?limit=50')),
         api.get(`/appointments?date=${todayStr}&limit=15`),
         api.get('/transactions?type=RECEITA&limit=5'),
         api.get('/commissions?status=PENDING&limit=10'),
+        api.get('/transactions?type=DESPESA&limit=50'),
       ])
 
       const generatedNotifs: NotificationItem[] = []
@@ -219,7 +221,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         })
       }
 
-      // 2. Agendamentos
+      // 2. Agendamentos do Dia
       if (apptRes.status === 'fulfilled') {
         const rawAppts = apptRes.value.data?.data || apptRes.value.data || []
         const activeAppts = Array.isArray(rawAppts)
@@ -241,7 +243,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         })
       }
 
-      // 3. Faturamento (Apenas ADMIN)
+      // 3. Faturamento Recebido (Apenas ADMIN)
       if (transRes.status === 'fulfilled' && user?.role === 'ADMIN') {
         const rawTrans = transRes.value.data?.data || transRes.value.data || []
         const recentTrans = Array.isArray(rawTrans) ? rawTrans.slice(0, 2) : []
@@ -261,7 +263,46 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         })
       }
 
-      // 4. Comissões & Repasses Pendentes (ADMIN e DENTIST)
+      // 4. Gestão de Títulos (Contas a Pagar / Boletos Vencidos)
+      if (payablesRes.status === 'fulfilled' && (user?.role === 'ADMIN' || user?.role === 'SECRETARY')) {
+        const rawDespesas = payablesRes.value.data?.data || payablesRes.value.data || []
+        const despesas = Array.isArray(rawDespesas) ? rawDespesas : []
+
+        const pendingDespesas = despesas.filter((d: any) => !d.reconciled && (!d.paidAt || new Date(d.date) >= new Date(todayStr)))
+        const overdueDespesas = despesas.filter((d: any) => !d.reconciled && new Date(d.date) < new Date(todayStr))
+
+        if (overdueDespesas.length > 0) {
+          const totalOverdue = overdueDespesas.reduce((acc: number, cur: any) => acc + (Number(cur.amount) || 0), 0)
+          const valFormatted = totalOverdue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+          const id = `payable-overdue-${todayStr}-${overdueDespesas.length}`
+
+          generatedNotifs.push({
+            id,
+            title: 'Contas a Pagar Vencidas',
+            description: `${overdueDespesas.length} boleto(s) em atraso somando ${valFormatted}.`,
+            time: 'Atrasado',
+            type: 'warning',
+            read: readNotifIds.includes(id),
+            targetPath: '/gestao-de-titulos',
+          })
+        } else if (pendingDespesas.length > 0) {
+          const totalPending = pendingDespesas.reduce((acc: number, cur: any) => acc + (Number(cur.amount) || 0), 0)
+          const valFormatted = totalPending.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+          const id = `payable-pending-${todayStr}-${pendingDespesas.length}`
+
+          generatedNotifs.push({
+            id,
+            title: 'Títulos a Pagar no Mês',
+            description: `${pendingDespesas.length} conta(s) somando ${valFormatted} aguardando liquidação.`,
+            time: 'A Vencer',
+            type: 'info',
+            read: readNotifIds.includes(id),
+            targetPath: '/gestao-de-titulos',
+          })
+        }
+      }
+
+      // 5. Repasses de Comissões Pendentes (ADMIN e DENTIST)
       if (commRes.status === 'fulfilled' && (user?.role === 'ADMIN' || user?.role === 'DENTIST')) {
         const rawComms = commRes.value.data?.data || commRes.value.data || []
         const list = Array.isArray(rawComms) ? rawComms : []
@@ -279,10 +320,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             id,
             title: user?.role === 'DENTIST' ? 'Comissões a Receber' : 'Repasses a Liquidar',
             description: user?.role === 'DENTIST'
-              ? `Possui ${valFormatted} acumulado em ${pendingComms.length} procedimento(s) a aguardar liquidação.`
+              ? `Possui ${valFormatted} acumulado em ${pendingComms.length} procedimento(s) a receber.`
               : `${pendingComms.length} comissão(ões) pendente(s) totalizando ${valFormatted} prontas para baixa.`,
             time: 'Hoje',
-            type: 'warning',
+            type: 'commission',
             read: readNotifIds.includes(id),
             targetPath: '/comissoes',
           })
@@ -291,7 +332,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       setNotifications(generatedNotifs)
     } catch (err) {
-      console.error('Erro ao buscar notificações dinâmicas:', err)
+      console.error('Erro ao consultar notificações:', err)
     } finally {
       setLoadingNotifs(false)
     }
@@ -357,15 +398,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         parsedUser = JSON.parse(stored)
         setUser(parsedUser)
       } catch (e) {
-        console.error('Erro ao ler usuário:', e)
+        console.error('Erro ao ler utilizador:', e)
       }
     }
 
-    // 🛡️ Guarda de Rota no Cliente: Bloqueia acesso direto a URLs não autorizadas
+    // 🛡️ Guarda de Rotas no Cliente com RBAC
     if (parsedUser) {
       const currentRole: UserRole = parsedUser.role || 'SECRETARY'
       if (currentRole === 'DENTIST') {
-        if (pathname === '/financeiro' || pathname === '/configuracoes') {
+        if (pathname === '/financeiro' || pathname === '/configuracoes' || pathname === '/gestao-de-titulos') {
           router.replace('/consultorio')
         }
       } else if (currentRole === 'SECRETARY') {
@@ -403,7 +444,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }, [router, pathname, fetchClinicCustomization, loadDynamicNotifications])
 
-  // Busca global
+  // Pesquisa Global com suporte a Pacientes, Procedimentos, Planos e Fornecedores
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([])
@@ -416,10 +457,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         setIsSearching(true)
         setIsSearchOpen(true)
 
-        const [patientsRes, proceduresRes, plansRes] = await Promise.all([
+        const [patientsRes, proceduresRes, plansRes, suppliersRes] = await Promise.all([
           api.get(`/patients?name=${encodeURIComponent(searchQuery)}&limit=3`).catch(() => ({ data: [] })),
           api.get(`/procedures?name=${encodeURIComponent(searchQuery)}&limit=3`).catch(() => ({ data: [] })),
           api.get(`/treatment-plans?limit=20`).catch(() => ({ data: [] })),
+          api.get(`/suppliers?limit=10`).catch(() => ({ data: [] })),
         ])
 
         const patientItems: SearchResultItem[] = (patientsRes.data?.data || patientsRes.data || []).map((p: any) => ({
@@ -454,7 +496,19 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             link: `/tratamentos`,
           }))
 
-        setSearchResults([...patientItems, ...procedureItems, ...planItems])
+        const supplierList = Array.isArray(suppliersRes.data) ? suppliersRes.data : suppliersRes.data?.data || []
+        const supplierItems: SearchResultItem[] = supplierList
+          .filter((s: any) => s.name && s.name.toLowerCase().includes(queryLower))
+          .slice(0, 2)
+          .map((s: any) => ({
+            id: s.id,
+            type: 'SUPPLIER' as const,
+            title: s.name,
+            subtitle: `Fornecedor Dental ${s.cnpj ? `• CNPJ: ${s.cnpj}` : ''}`,
+            link: `/gestao-de-titulos`,
+          }))
+
+        setSearchResults([...patientItems, ...procedureItems, ...planItems, ...supplierItems])
       } catch (err) {
         console.error('Erro na pesquisa global:', err)
       } finally {
@@ -502,7 +556,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   })
   const todayFormatted = today.charAt(0).toUpperCase() + today.slice(1)
 
-  // Resolução correta do título da tela
+  // Resolução rigorosa do título da tela
   const pageTitle = ROUTE_PAGE_TITLES[pathname] ?? 'OdontoFlow'
 
   const initials = user?.name
@@ -528,7 +582,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         '--app-font': clinicVisual.fontFamily,
       } as React.CSSProperties}
     >
-      {/* ─── Sidebar ─── */}
+      {/* ─── Menu Lateral (Sidebar) ─── */}
       <aside className={`${styles.sidebar} ${isCollapsed ? styles.sidebarCollapsed : ''}`}>
         <div className={styles.sidebarLogo}>
           <div className={styles.logoIcon}>
@@ -536,11 +590,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               // eslint-disable-next-line @next/next/no-img-element
               <img 
                 src={clinicVisual.logoUrl} 
-                alt="Logo da Clínica" 
+                alt="Logótipo da Clínica" 
                 className={styles.customClinicLogo}
               />
             ) : (
-              <Image src={Logo} alt="Logo" width={24} height={24} />
+              <Image src={Logo} alt="Logótipo" width={24} height={24} />
             )}
           </div>
           {!isCollapsed && (
@@ -600,12 +654,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           {!isCollapsed && <span>Recolher menu</span>}
         </button>
 
-        {/* Footer com Perfil do Usuário */}
+        {/* Perfil do Utilizador no Rodapé do Menu */}
         <div className={styles.sidebarFooter}>
           <div className={styles.avatar}>{initials}</div>
           {!isCollapsed && (
             <div className={styles.userInfo}>
-              <div className={styles.userName}>{user?.name ?? 'Usuário'}</div>
+              <div className={styles.userName}>{user?.name ?? 'Utilizador'}</div>
               <div className={styles.userRoleBadge}>
                 {userRole === 'ADMIN' ? 'Administrador' : userRole === 'DENTIST' ? 'Cirurgião-Dentista' : 'Recepção / Secretária'}
               </div>
@@ -636,7 +690,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <div className={styles.headerRight}>
             <span className={styles.headerDate}>{todayFormatted}</span>
             
-            {/* Campo de Busca Global */}
+            {/* Campo de Pesquisa Global */}
             <div className={styles.searchWrapper} ref={searchRef}>
               <div className={styles.headerSearch}>
                 {isSearching ? (
@@ -663,12 +717,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 )}
               </div>
 
-              {/* Dropdown de Resultados */}
+              {/* Resultados da Pesquisa */}
               {isSearchOpen && (
                 <div className={styles.searchDropdown}>
                   {searchResults.length === 0 ? (
                     <div className={styles.emptySearch}>
-                      <span>{isSearching ? 'Buscando registros...' : 'Nenhum resultado encontrado.'}</span>
+                      <span>{isSearching ? 'A procurar registos...' : 'Nenhum resultado encontrado.'}</span>
                     </div>
                   ) : (
                     <div className={styles.searchList}>
@@ -683,11 +737,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                               ? styles.searchItemIconPatient 
                               : item.type === 'PLAN' 
                               ? styles.searchItemIconPlan 
+                              : item.type === 'SUPPLIER'
+                              ? styles.searchItemIconSupplier
                               : styles.searchItemIconProc
                           }>
                             {item.type === 'PATIENT' && <User size={15} />}
                             {item.type === 'PROCEDURE' && <Stethoscope size={15} />}
                             {item.type === 'PLAN' && <ClipboardList size={15} />}
+                            {item.type === 'SUPPLIER' && <Truck size={15} />}
                           </div>
                           <div className={styles.searchItemInfo}>
                             <span className={styles.searchItemTitle}>{item.title}</span>
@@ -741,11 +798,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     {loadingNotifs && notifications.length === 0 ? (
                       <div className={styles.emptyNotif}>
                         <Loader2 size={16} className={styles.searchSpinner} />
-                        <span>Carregando notificações...</span>
+                        <span>A carregar notificações...</span>
                       </div>
                     ) : notifications.length === 0 ? (
                       <div className={styles.emptyNotif}>
-                        <span>Nenhuma notificação recente no momento.</span>
+                        <span>Nenhuma notificação recente de momento.</span>
                       </div>
                     ) : (
                       notifications.map((n) => (
@@ -759,7 +816,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                             {n.type === 'warning' && <AlertTriangle size={14} />}
                             {n.type === 'info' && <Info size={14} />}
                             {n.type === 'success' && <CheckCircle2 size={14} />}
-                            {n.type === 'commission' && <Coins size={14} />} {/* <-- Ícone exclusivo */}
+                            {n.type === 'commission' && <Coins size={14} />}
                           </div>
                           <div className={styles.notifContent}>
                             <div className={styles.notifTop}>
