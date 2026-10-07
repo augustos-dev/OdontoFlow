@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { 
   Building2, 
   Users, 
@@ -24,7 +24,8 @@ import {
   Sparkles,
   Info,
   ShieldAlert,
-  Power
+  Power,
+  RefreshCw
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './configuracoes.module.css'
@@ -90,15 +91,28 @@ const FONT_PRESETS = ['Inter', 'Roboto', 'Poppins', 'Montserrat']
 const MODULE_LABELS: Record<SystemModule, string> = {
   DASHBOARD: 'Visão Geral / Dashboard',
   AGENDA: 'Agenda & Consultas',
-  PATIENTS: 'Pacientes & Cadastros',
-  RECORDS: 'Prontuário & Odontograma',
+  PATIENTS: 'Pacientes & Prontuários',
+  RECORDS: 'Odontograma & Evoluções',
   STOCK: 'Estoque & Insumos',
-  FINANCIAL: 'Financeiro & Caixa',
+  FINANCIAL: 'Financeiro, DRE & Títulos',
   PROCEDURES: 'Catálogo de Procedimentos',
-  SUPPLIERS: 'Fornecedores & Dentais',
+  SUPPLIERS: 'Fornecedores Dentais',
   SETTINGS: 'Configurações do Sistema',
   REPORTS: 'Relatórios Executivos'
 }
+
+const DEFAULT_MODULES: SystemModule[] = [
+  'DASHBOARD',
+  'AGENDA',
+  'PATIENTS',
+  'RECORDS',
+  'STOCK',
+  'FINANCIAL',
+  'PROCEDURES',
+  'SUPPLIERS',
+  'SETTINGS',
+  'REPORTS'
+]
 
 export default function ConfiguracoesPage() {
   const [activeTab, setActiveTab] = useState<'usuarios' | 'permissoes' | 'clinica' | 'seguranca'>('usuarios')
@@ -145,7 +159,7 @@ export default function ConfiguracoesPage() {
     mfaRequired: false,
   })
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       const [meRes, usersRes, clinicsRes] = await Promise.all([
@@ -154,8 +168,8 @@ export default function ConfiguracoesPage() {
         api.get('/clinics').catch(() => ({ data: [] }))
       ])
 
-      if (meRes?.data?.id) {
-        setCurrentUserId(meRes.data.id)
+      if (meRes?.data?.user?.id || meRes?.data?.id) {
+        setCurrentUserId(meRes.data.user?.id || meRes.data.id)
       }
 
       const userList = Array.isArray(usersRes.data) ? usersRes.data : usersRes.data?.data || []
@@ -168,7 +182,8 @@ export default function ConfiguracoesPage() {
       if (currentClinic?.id) {
         const customRes = await api.get(`/clinics/${currentClinic.id}/customization`).catch(() => null)
         if (customRes?.data) {
-          setCustomization(customRes.data)
+          const loadedCustom = customRes.data?.data || customRes.data
+          setCustomization(loadedCustom)
         }
       }
     } catch (err) {
@@ -176,41 +191,53 @@ export default function ConfiguracoesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  async function loadPermissions(role: 'DENTIST' | 'SECRETARY') {
-  try {
-    setLoadingPermissions(true)
-    const res = await api.get(`/users/permissions/${role}`)
-    const rawList: RolePermission[] = Array.isArray(res.data) ? res.data : res.data?.data || []
+  const loadPermissions = useCallback(async (role: 'DENTIST' | 'SECRETARY') => {
+    try {
+      setLoadingPermissions(true)
+      const res = await api.get(`/users/permissions/${role}`)
+      const rawList: RolePermission[] = Array.isArray(res.data) ? res.data : res.data?.data || []
 
-    // Deduplica os módulos caso o banco tenha retornado registros repetidos
-    const uniqueMap = new Map<SystemModule, RolePermission>()
-    rawList.forEach((perm) => {
-      if (!uniqueMap.has(perm.module)) {
-        uniqueMap.set(perm.module, perm)
-      }
-    })
+      const uniqueMap = new Map<SystemModule, RolePermission>()
+      rawList.forEach((perm) => {
+        if (!uniqueMap.has(perm.module)) {
+          uniqueMap.set(perm.module, perm)
+        }
+      })
 
-    setRolePermissions(Array.from(uniqueMap.values()))
-  } catch (err) {
-    console.error('Erro ao carregar permissões:', err)
-  } finally {
-    setLoadingPermissions(false)
-  }
-}
+      // Garante que todos os módulos padrão existam na tabela mesmo se não vierem do banco
+      DEFAULT_MODULES.forEach((mod) => {
+        if (!uniqueMap.has(mod)) {
+          uniqueMap.set(mod, {
+            module: mod,
+            canRead: role === 'DENTIST' ? true : mod !== 'FINANCIAL' && mod !== 'SETTINGS',
+            canCreate: role === 'DENTIST' ? true : mod !== 'FINANCIAL' && mod !== 'SETTINGS',
+            canUpdate: role === 'DENTIST' ? true : mod !== 'FINANCIAL' && mod !== 'SETTINGS',
+            canDelete: false,
+          })
+        }
+      })
+
+      setRolePermissions(Array.from(uniqueMap.values()))
+    } catch (err) {
+      console.error('Erro ao carregar permissões:', err)
+    } finally {
+      setLoadingPermissions(false)
+    }
+  }, [])
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [loadData])
 
   useEffect(() => {
     if (activeTab === 'permissoes') {
       loadPermissions(selectedRoleForPermissions)
     }
-  }, [activeTab, selectedRoleForPermissions])
+  }, [activeTab, selectedRoleForPermissions, loadPermissions])
 
-  // Salvar Clínica e Identidade Visual
+  // Salvar Clínica e Identidade Visual (White-Label Imediato)
   async function handleSaveClinicAndTheme(e: React.FormEvent) {
     e.preventDefault()
     if (!clinic?.id) return
@@ -237,7 +264,23 @@ export default function ConfiguracoesPage() {
         })
       ])
 
-      setMessage({ type: 'success', text: 'Dados cadastrais e identidade visual atualizados com sucesso!' })
+      // 🎨 Aplica no DOM em tempo de execução
+      if (typeof document !== 'undefined') {
+        const root = document.documentElement
+        if (customization.primaryColor) root.style.setProperty('--primary-color', customization.primaryColor)
+        if (customization.accentColor) root.style.setProperty('--primary-accent', customization.accentColor)
+        if (customization.fontFamily) {
+          root.style.setProperty('--app-font', customization.fontFamily)
+          document.body.style.fontFamily = `"${customization.fontFamily}", sans-serif`
+        }
+      }
+
+      // Notifica o Layout imediatamente via CustomEvent
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('clinic_customization_updated'))
+      }
+
+      setMessage({ type: 'success', text: 'Dados da clínica e identidade visual (White-Label) aplicados com sucesso!' })
     } catch (err: any) {
       setMessage({ type: 'error', text: err.response?.data?.message || 'Erro ao salvar alterações da clínica.' })
     } finally {
@@ -256,9 +299,17 @@ export default function ConfiguracoesPage() {
         clinicId: clinic?.id,
         permissions: rolePermissions
       })
-      setMessage({ type: 'success', text: `Permissões de acesso para ${selectedRoleForPermissions === 'DENTIST' ? 'Dentistas' : 'Secretárias'} atualizadas!` })
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('permissions_updated'))
+      }
+
+      setMessage({ 
+        type: 'success', 
+        text: `Matriz RBAC de ${selectedRoleForPermissions === 'DENTIST' ? 'Dentistas' : 'Secretárias'} atualizada com sucesso!` 
+      })
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Erro ao atualizar permissões.' })
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Erro ao atualizar permissões RBAC.' })
     } finally {
       setSaving(false)
     }
@@ -413,6 +464,29 @@ export default function ConfiguracoesPage() {
 
   return (
     <div className={styles.page}>
+      
+      {/* ─── Topo de Módulo ─── */}
+      <div className={styles.topBarRow}>
+        <div className={styles.badgeSection}>
+          <span className={styles.moduleBadge}>PAINEL ADMINISTRATIVO</span>
+          <span className={styles.moduleDesc}>
+            Gestão de equipe, papéis e permissões (RBAC), White-Label e conformidade do sistema
+          </span>
+        </div>
+
+        <div className={styles.topActions}>
+          <button
+            type="button"
+            onClick={loadData}
+            className={styles.btnSecondaryAction}
+            title="Atualizar dados"
+          >
+            <RefreshCw size={14} className={loading ? styles.spinner : ''} />
+            <span>Atualizar</span>
+          </button>
+        </div>
+      </div>
+
       <div className={styles.pageHeader}>
         <div>
           <h1 className={styles.pageTitle}>Configurações do Sistema</h1>
@@ -486,115 +560,115 @@ export default function ConfiguracoesPage() {
               <span>Carregando equipe...</span>
             </div>
           ) : (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>NOME</th>
-                  <th>E-MAIL</th>
-                  <th>CARGO / NÍVEL</th>
-                  <th>REGISTRO (CRO)</th>
-                  <th>STATUS</th>
-                  <th style={{ textAlign: 'right' }}>AÇÕES</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => {
-                  const locked = isUserLocked(u)
-                  const isSelf = u.id === currentUserId
+            <div className={styles.tableResponsive}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>NOME</th>
+                    <th>E-MAIL</th>
+                    <th>CARGO / NÍVEL</th>
+                    <th>REGISTRO (CRO)</th>
+                    <th>STATUS</th>
+                    <th style={{ textAlign: 'right' }}>AÇÕES</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u) => {
+                    const locked = isUserLocked(u)
+                    const isSelf = u.id === currentUserId
 
-                  return (
-                    <tr key={u.id} className={styles.row}>
-                      <td className={styles.nameCell}>
-                        <div className={styles.userAvatar}>
-                          {u.name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <span className={styles.boldText}>
-                          {u.name} {isSelf && <small className={styles.selfBadge}>(Você)</small>}
-                        </span>
-                      </td>
-                      <td>{u.email}</td>
-                      <td>
-                        <span className={`${styles.roleBadge} ${styles[u.role.toLowerCase()] || ''}`}>
-                          {u.role === 'ADMIN' ? 'Administrador' : u.role === 'DENTIST' ? 'Dentista' : 'Secretária'}
-                        </span>
-                      </td>
-                      <td>{u.cro || '—'}</td>
-                      <td>
-                        {locked ? (
-                          <span className={`${styles.statusBadge} ${styles.statusLocked}`} title={`Bloqueado até: ${new Date(u.lockedUntil!).toLocaleTimeString()}`}>
-                            <ShieldAlert size={12} />
-                            Bloqueado (Lockout)
+                    return (
+                      <tr key={u.id} className={styles.row}>
+                        <td className={styles.nameCell}>
+                          <div className={styles.userAvatar}>
+                            {u.name.slice(0, 2).toUpperCase()}
+                          </div>
+                          <span className={styles.boldText}>
+                            {u.name} {isSelf && <small className={styles.selfBadge}>(Você)</small>}
                           </span>
-                        ) : u.isActive ? (
-                          <span className={`${styles.statusBadge} ${styles.statusActive}`}>
-                            <span className={styles.dotActive} />
-                            Ativo
+                        </td>
+                        <td>{u.email}</td>
+                        <td>
+                          <span className={`${styles.roleBadge} ${styles[u.role.toLowerCase()] || ''}`}>
+                            {u.role === 'ADMIN' ? 'Administrador' : u.role === 'DENTIST' ? 'Dentista' : 'Secretária'}
                           </span>
-                        ) : (
-                          <span className={`${styles.statusBadge} ${styles.statusInactive}`}>
-                            Inativo
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div className={styles.actionButtonsGroup}>
-                          {/* Botão de desbloqueio rápido se estiver bloqueado */}
-                          {locked && (
+                        </td>
+                        <td>{u.cro || '—'}</td>
+                        <td>
+                          {locked ? (
+                            <span className={`${styles.statusBadge} ${styles.statusLocked}`} title={`Bloqueado até: ${new Date(u.lockedUntil!).toLocaleTimeString()}`}>
+                              <ShieldAlert size={12} />
+                              Bloqueado (Lockout)
+                            </span>
+                          ) : u.isActive ? (
+                            <span className={`${styles.statusBadge} ${styles.statusActive}`}>
+                              <span className={styles.dotActive} />
+                              Ativo
+                            </span>
+                          ) : (
+                            <span className={`${styles.statusBadge} ${styles.statusInactive}`}>
+                              Inativo
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div className={styles.actionButtonsGroup}>
+                            {locked && (
+                              <button
+                                type="button"
+                                onClick={() => handleUnlockUser(u)}
+                                className={`${styles.btnActionIcon} ${styles.btnActionUnlock}`}
+                                title="Desbloquear conta imediatamente"
+                              >
+                                <LockOpen size={15} />
+                              </button>
+                            )}
+
                             <button
                               type="button"
-                              onClick={() => handleUnlockUser(u)}
-                              className={`${styles.btnActionIcon} ${styles.btnActionUnlock}`}
-                              title="Desbloquear conta imediatamente"
+                              disabled={isSelf}
+                              onClick={() => handleToggleStatus(u)}
+                              className={`${styles.btnActionIcon} ${!u.isActive ? styles.btnActionActivate : ''}`}
+                              title={isSelf ? 'Não é possível desativar sua conta' : u.isActive ? 'Desativar acesso' : 'Ativar acesso'}
                             >
-                              <LockOpen size={15} />
+                              <Power size={15} />
                             </button>
-                          )}
 
-                          {/* Toggle de ativação inline */}
-                          <button
-                            type="button"
-                            disabled={isSelf}
-                            onClick={() => handleToggleStatus(u)}
-                            className={`${styles.btnActionIcon} ${!u.isActive ? styles.btnActionActivate : ''}`}
-                            title={isSelf ? 'Não é possível desativar sua conta' : u.isActive ? 'Desativar acesso' : 'Ativar acesso'}
-                          >
-                            <Power size={15} />
-                          </button>
+                            <button 
+                              type="button" 
+                              onClick={() => handleOpenEditModal(u)}
+                              className={styles.btnActionIcon}
+                              title="Editar dados"
+                            >
+                              <Edit size={15} />
+                            </button>
 
-                          <button 
-                            type="button" 
-                            onClick={() => handleOpenEditModal(u)}
-                            className={styles.btnActionIcon}
-                            title="Editar dados"
-                          >
-                            <Edit size={15} />
-                          </button>
+                            <button 
+                              type="button" 
+                              onClick={() => { setSelectedUser(u); setIsResetPasswordModalOpen(true) }}
+                              className={styles.btnActionIcon}
+                              title="Redefinir senha"
+                            >
+                              <KeyRound size={15} />
+                            </button>
 
-                          <button 
-                            type="button" 
-                            onClick={() => { setSelectedUser(u); setIsResetPasswordModalOpen(true) }}
-                            className={styles.btnActionIcon}
-                            title="Redefinir senha"
-                          >
-                            <KeyRound size={15} />
-                          </button>
-
-                          <button 
-                            type="button" 
-                            disabled={isSelf}
-                            onClick={() => handleDeleteUser(u.id, u.name)}
-                            className={`${styles.btnActionIcon} ${styles.btnActionDelete}`}
-                            title={isSelf ? 'Você não pode excluir sua própria conta' : 'Excluir acesso'}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                            <button 
+                              type="button" 
+                              disabled={isSelf}
+                              onClick={() => handleDeleteUser(u.id, u.name)}
+                              className={`${styles.btnActionIcon} ${styles.btnActionDelete}`}
+                              title={isSelf ? 'Você não pode excluir sua própria conta' : 'Excluir acesso'}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
@@ -637,58 +711,60 @@ export default function ConfiguracoesPage() {
             </div>
           ) : (
             <div className={styles.permissionsTableContainer}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>MÓDULO DO SISTEMA</th>
-                    <th style={{ textAlign: 'center' }}>VISUALIZAR</th>
-                    <th style={{ textAlign: 'center' }}>CRIAR / LANÇAR</th>
-                    <th style={{ textAlign: 'center' }}>EDITAR</th>
-                    <th style={{ textAlign: 'center' }}>EXCLUIR</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rolePermissions.map((perm) => (
-                    <tr key={perm.module} className={styles.row}>
-                      <td className={styles.boldText}>
-                        {MODULE_LABELS[perm.module] || perm.module}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <input
-                          type="checkbox"
-                          checked={perm.canRead}
-                          onChange={() => togglePermission(perm.module, 'canRead')}
-                          className={styles.checkbox}
-                        />
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <input
-                          type="checkbox"
-                          checked={perm.canCreate}
-                          onChange={() => togglePermission(perm.module, 'canCreate')}
-                          className={styles.checkbox}
-                        />
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <input
-                          type="checkbox"
-                          checked={perm.canUpdate}
-                          onChange={() => togglePermission(perm.module, 'canUpdate')}
-                          className={styles.checkbox}
-                        />
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <input
-                          type="checkbox"
-                          checked={perm.canDelete}
-                          onChange={() => togglePermission(perm.module, 'canDelete')}
-                          className={styles.checkbox}
-                        />
-                      </td>
+              <div className={styles.tableResponsive}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>MÓDULO DO SISTEMA</th>
+                      <th style={{ textAlign: 'center' }}>VISUALIZAR</th>
+                      <th style={{ textAlign: 'center' }}>CRIAR / LANÇAR</th>
+                      <th style={{ textAlign: 'center' }}>EDITAR</th>
+                      <th style={{ textAlign: 'center' }}>EXCLUIR</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {rolePermissions.map((perm) => (
+                      <tr key={perm.module} className={styles.row}>
+                        <td className={styles.boldText}>
+                          {MODULE_LABELS[perm.module] || perm.module}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={perm.canRead}
+                            onChange={() => togglePermission(perm.module, 'canRead')}
+                            className={styles.checkbox}
+                          />
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={perm.canCreate}
+                            onChange={() => togglePermission(perm.module, 'canCreate')}
+                            className={styles.checkbox}
+                          />
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={perm.canUpdate}
+                            onChange={() => togglePermission(perm.module, 'canUpdate')}
+                            className={styles.checkbox}
+                          />
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={perm.canDelete}
+                            onChange={() => togglePermission(perm.module, 'canDelete')}
+                            className={styles.checkbox}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               <div className={styles.rbacFooter}>
                 <button
@@ -1144,6 +1220,7 @@ export default function ConfiguracoesPage() {
           </div>
         </div>
       )}
+
     </div>
   )
 }

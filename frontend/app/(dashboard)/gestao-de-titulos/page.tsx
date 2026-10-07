@@ -23,8 +23,7 @@ import {
   Eye,
   X,
   Truck,
-  Plus,
-  Coins
+  Plus
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -114,19 +113,20 @@ function CustomFinancialTooltip({ active, payload, label }: any) {
   )
 }
 
-export default function ContasPagarReceberPage() {
+export default function GestaoDeTitulosPage() {
   const [titles, setTitles] = useState<FinancialTitleItem[]>([])
   const [suppliers, setSuppliers] = useState<SupplierItem[]>([])
   const [userRole, setUserRole] = useState<'ADMIN' | 'DENTIST' | 'SECRETARY'>('ADMIN')
   const [currentUserId, setCurrentUserId] = useState<string>('')
   const [loading, setLoading] = useState(true)
+  const [themePrimary, setThemePrimary] = useState('#0284c7')
 
   // Abas e Filtros
   const [activeTab, setActiveTab] = useState<'ALL' | 'RECEIVABLE' | 'PAYABLE' | 'CONVENIO' | 'FORNECEDOR'>('ALL')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'OVERDUE' | 'PAID'>('PENDING')
   const [searchTerm, setSearchTerm] = useState('')
 
-  // Seleção Múltipla para Liquidação em Lote
+  // Seleção Múltipla
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   // Paginação
@@ -149,7 +149,7 @@ export default function ContasPagarReceberPage() {
   const [submittingSettle, setSubmittingSettle] = useState(false)
   const [settleError, setSettleError] = useState('')
 
-  // Formulário de Nova Despesa (Contas a Pagar Operacional)
+  // Formulário de Nova Despesa
   const [newSupplierId, setNewSupplierId] = useState('')
   const [newPayableDesc, setNewPayableDesc] = useState('')
   const [newPayableAmount, setNewPayableAmount] = useState<number | ''>('')
@@ -160,9 +160,18 @@ export default function ContasPagarReceberPage() {
   const [isRecurring, setIsRecurring] = useState(false)
   const [creatingPayable, setCreatingPayable] = useState(false)
 
+  const syncWhiteLabel = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      const computed = getComputedStyle(document.documentElement)
+      const primary = computed.getPropertyValue('--primary-color').trim()
+      if (primary) setThemePrimary(primary)
+    }
+  }, [])
+
   const loadFinancialTitles = useCallback(async () => {
     try {
       setLoading(true)
+      syncWhiteLabel()
 
       // Identifica Usuário e Role
       try {
@@ -176,7 +185,7 @@ export default function ContasPagarReceberPage() {
 
       let list: FinancialTitleItem[] = []
 
-      // Carrega Planos, Transações e Fornecedores
+      // Consultas paralelas: Planos, Transações e Fornecedores
       const [plansRes, transRes, suppliersRes] = await Promise.allSettled([
         api.get('/treatment-plans?limit=100'),
         api.get('/transactions?limit=150'),
@@ -211,7 +220,7 @@ export default function ContasPagarReceberPage() {
         ? (Array.isArray(transRes.value.data) ? transRes.value.data : transRes.value.data?.data || [])
         : []
 
-      // 1. Mapeamento de Planos de Tratamento (Somente Planos requerem controle de parcelamento)
+      // 1. Contas a Receber (Apenas Planos de Tratamento com parcelamento pendente)
       plans.forEach((pl: any) => {
         const patientName = resolveEntityName(pl.patient, 'Paciente Geral')
         const planTitle = resolveText(pl.title, 'Plano Odontológico')
@@ -255,10 +264,9 @@ export default function ContasPagarReceberPage() {
         }
       })
 
-      // 2. Mapeamento de Contas a Pagar (Despesas não conciliadas e contas agendadas)
+      // 2. Contas a Pagar (Despesas não conciliadas e programadas)
       transactions.forEach((tr: any) => {
         if (tr.type === 'DESPESA') {
-          // Despesas que foram registradas com vencimento futuro ou não-conciliadas
           const isPending = !tr.reconciled && (!tr.paidAt || new Date(tr.date) > new Date())
           const isOverdue = isPending && new Date(tr.date) < new Date()
 
@@ -308,11 +316,22 @@ export default function ContasPagarReceberPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [syncWhiteLabel])
 
   useEffect(() => {
     loadFinancialTitles()
-  }, [loadFinancialTitles])
+
+    const handleThemeUpdate = () => syncWhiteLabel()
+    const handlePermissionsUpdate = () => loadFinancialTitles()
+
+    window.addEventListener('clinic_customization_updated', handleThemeUpdate)
+    window.addEventListener('permissions_updated', handlePermissionsUpdate)
+
+    return () => {
+      window.removeEventListener('clinic_customization_updated', handleThemeUpdate)
+      window.removeEventListener('permissions_updated', handlePermissionsUpdate)
+    }
+  }, [loadFinancialTitles, syncWhiteLabel])
 
   function formatCurrency(val: number) {
     return (val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -323,10 +342,9 @@ export default function ContasPagarReceberPage() {
     return new Date(dt).toLocaleDateString('pt-BR')
   }
 
-  // Filtragem com suporte a RBAC
+  // Filtragem com RBAC
   const filteredList = useMemo(() => {
     return titles.filter((item) => {
-      // Regra RBAC: Dentista só visualiza títulos de sua própria produção clínica
       if (userRole === 'DENTIST' && item.direction === 'RECEIVABLE') {
         if (item.dentistId && item.dentistId !== currentUserId) return false
       }
@@ -360,7 +378,7 @@ export default function ContasPagarReceberPage() {
     })
   }, [titles, activeTab, statusFilter, searchTerm, userRole, currentUserId])
 
-  // KPIs Dinâmicos de Acordo com a Aba Ativa
+  // KPIs Dinâmicos
   const dynamicKpis = useMemo(() => {
     let card1Title = 'TOTAL A RECEBER (PLANOS)'
     let card1Val = 0
@@ -528,7 +546,7 @@ export default function ContasPagarReceberPage() {
     }
   }, [titles, activeTab, userRole, currentUserId])
 
-  // Gráfico Recharts Adaptável e Balanceado
+  // Gráfico Recharts Adaptável
   const dynamicChartConfig = useMemo(() => {
     const scopeTitles = titles.filter((item) => {
       if (userRole === 'DENTIST' && item.dentistId && item.dentistId !== currentUserId) return false
@@ -605,6 +623,7 @@ export default function ContasPagarReceberPage() {
   }, [filteredList, currentPage, pageSize])
 
   function handleOpenSettleSingle(item: FinancialTitleItem) {
+    if (userRole === 'DENTIST') return
     setSelectedTitle(item)
     setBatchToSettle([item])
     setSettleDiscount(0)
@@ -616,6 +635,7 @@ export default function ContasPagarReceberPage() {
   }
 
   function handleOpenSettleBatch() {
+    if (userRole === 'DENTIST') return
     const items = titles.filter((t) => selectedIds.includes(t.id) && t.status !== 'PAID')
     if (items.length === 0) return
 
@@ -635,12 +655,14 @@ export default function ContasPagarReceberPage() {
   }
 
   function toggleSelectItem(id: string) {
+    if (userRole === 'DENTIST') return
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     )
   }
 
   function toggleSelectAllVisible() {
+    if (userRole === 'DENTIST') return
     const visiblePendingIds = paginatedList.filter((t) => t.status !== 'PAID').map((t) => t.id)
     const allSelected = visiblePendingIds.every((id) => selectedIds.includes(id))
 
@@ -651,10 +673,10 @@ export default function ContasPagarReceberPage() {
     }
   }
 
-  // Baixa Financeira Unificada
+  // Baixa / Liquidação
   async function handleConfirmSettle(e: React.FormEvent) {
     e.preventDefault()
-    if (batchToSettle.length === 0) return
+    if (batchToSettle.length === 0 || userRole === 'DENTIST') return
 
     setSubmittingSettle(true)
     setSettleError('')
@@ -703,10 +725,10 @@ export default function ContasPagarReceberPage() {
     }
   }
 
-  // Cadastro de Nova Despesa Operacional / Fornecedor
+  // Lançamento de Conta a Pagar
   async function handleCreatePayable(e: React.FormEvent) {
     e.preventDefault()
-    if (!newPayableDesc || !newPayableAmount) return
+    if (!newPayableDesc || !newPayableAmount || userRole === 'DENTIST') return
 
     setCreatingPayable(true)
     try {
@@ -839,7 +861,7 @@ export default function ContasPagarReceberPage() {
         </div>
       </div>
 
-      {/* ─── Gráfico Recharts Adaptável e Inteligente ─── */}
+      {/* ─── Gráfico Recharts com Cor do White-Label ─── */}
       <div className={styles.chartCard}>
         <div className={styles.chartHeader}>
           <div>
@@ -867,7 +889,7 @@ export default function ContasPagarReceberPage() {
                 {activeTab === 'RECEIVABLE' && (
                   <>
                     <Bar dataKey="recebido" name="Recebido / Baixado" fill="#10b981" radius={[4, 4, 0, 0]} barSize={22} />
-                    <Bar dataKey="aVencer" name="A Vencer" fill="#0284c7" radius={[4, 4, 0, 0]} barSize={22} />
+                    <Bar dataKey="aVencer" name="A Vencer" fill={themePrimary} radius={[4, 4, 0, 0]} barSize={22} />
                     <Bar dataKey="atrasado" name="Inadimplente (Atrasado)" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={22} />
                   </>
                 )}
@@ -875,7 +897,7 @@ export default function ContasPagarReceberPage() {
                 {(activeTab === 'PAYABLE' || activeTab === 'FORNECEDOR') && (
                   <>
                     <Bar dataKey="pago" name="Pago / Liquidado" fill="#10b981" radius={[4, 4, 0, 0]} barSize={22} />
-                    <Bar dataKey="aPagar" name="A Pagar" fill="#0284c7" radius={[4, 4, 0, 0]} barSize={22} />
+                    <Bar dataKey="aPagar" name="A Pagar" fill={themePrimary} radius={[4, 4, 0, 0]} barSize={22} />
                     <Bar dataKey="vencido" name="Vencido / Em Atraso" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={22} />
                   </>
                 )}
@@ -891,7 +913,7 @@ export default function ContasPagarReceberPage() {
                 {activeTab === 'ALL' && (
                   <>
                     <Bar dataKey="realizado" name="Total Realizado (Baixado)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={22} />
-                    <Bar dataKey="entradas" name="Entradas Previstas (Receber)" fill="#0284c7" radius={[4, 4, 0, 0]} barSize={22} />
+                    <Bar dataKey="entradas" name="Entradas Previstas (Receber)" fill={themePrimary} radius={[4, 4, 0, 0]} barSize={22} />
                     <Bar dataKey="saidas" name="Saídas Previstas (Pagar)" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={22} />
                   </>
                 )}

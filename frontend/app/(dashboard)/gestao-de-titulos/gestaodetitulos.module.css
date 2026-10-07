@@ -8,6 +8,7 @@
   font-family: var(--app-font, inherit);
 }
 
+/* ─── Topo de Módulo (White-Label) ─── */
 .topBarRow {
   background: #ffffff;
   border-radius: 12px;
@@ -29,9 +30,9 @@
 }
 
 .moduleBadge {
-  background-color: #f0f9ff;
-  border: 1px solid #bae6fd;
-  color: #0284c7;
+  background-color: rgba(2, 132, 199, 0.08);
+  border: 1px solid rgba(2, 132, 199, 0.25);
+  color: var(--primary-color, #0284c7);
   font-size: 0.72rem;
   font-weight: 700;
   padding: 4px 10px;
@@ -71,6 +72,26 @@
   background-color: #047857;
 }
 
+.btnNewPayable {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #ef4444;
+  color: #ffffff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px 0 rgba(239, 68, 68, 0.2);
+}
+
+.btnNewPayable:hover {
+  background-color: #dc2626;
+}
+
 .btnSecondaryAction {
   display: inline-flex;
   align-items: center;
@@ -91,7 +112,7 @@
   border-color: #94a3b8;
 }
 
-/* KPIs */
+/* ─── KPIs ─── */
 .kpiGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -132,8 +153,8 @@
 }
 
 .blueIcon {
-  background: #f0f9ff;
-  color: #0284c7;
+  background: rgba(2, 132, 199, 0.1);
+  color: var(--primary-color, #0284c7);
 }
 
 .redIcon {
@@ -144,6 +165,11 @@
 .greenIcon {
   background: #ecfdf5;
   color: #10b981;
+}
+
+.purpleIcon {
+  background: #faf5ff;
+  color: #8b5cf6;
 }
 
 .yellowIcon {
@@ -175,7 +201,7 @@
   color: #d97706;
 }
 
-/* Gráfico Recharts */
+/* ─── Gráfico Recharts ─── */
 .chartCard {
   background: #ffffff;
   border-radius: 12px;
@@ -280,13 +306,14 @@
   color: #ffffff;
 }
 
-/* Abas */
+/* ─── Navegação de Abas ─── */
 .tabsNav {
   display: flex;
   align-items: center;
   gap: 8px;
   border-bottom: 1px solid #e2e8f0;
   padding-bottom: 2px;
+  overflow-x: auto;
 }
 
 .tabBtn {
@@ -302,14 +329,15 @@
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .tabBtnActive {
-  color: #0284c7;
-  border-bottom-color: #0284c7;
+  color: var(--primary-color, #0284c7);
+  border-bottom-color: var(--primary-color, #0284c7);
 }
 
-/* Barra de Filtros */
+/* ─── Barra de Filtros ─── */
 .filterBar {
   background: #ffffff;
   border-radius: 12px 12px 0 0;
@@ -353,7 +381,7 @@
 }
 
 .searchWrap {
-  min-width: 280px;
+  min-width: 260px;
   position: relative;
   display: flex;
   align-items: center;
@@ -375,7 +403,8 @@
 }
 
 .searchInput:focus {
-  border-color: #0284c7;
+  border-color: var(--primary-color, #0284c7);
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.12);
 }
 
 .statusButtonGroup {
@@ -402,7 +431,7 @@
 }
 
 .statusToggleActive {
-  background: #0284c7;
+  background: var(--primary-color, #0284c7);
   color: #ffffff;
 }
 
@@ -411,7 +440,7 @@
   color: #ffffff;
 }
 
-/* Tabela */
+/* ─── Tabela ─── */
 .tableCard {
   background: #ffffff;
   border-radius: 0 0 12px 12px;
@@ -451,7 +480,7 @@
 }
 
 .tableRowSelected {
-  background-color: #f0fdf4 !important;
+  background-color: rgba(2, 132, 199, 0.04) !important;
 }
 
 .table td {
@@ -463,7 +492,7 @@
 .checkbox {
   width: 15px;
   height: 15px;
-  accent-color: #0284c7;
+  accent-color: var(--primary-color, #0284c7);
   cursor: pointer;
 }
 
@@ -499,8 +528,8 @@
 }
 
 .statusPending {
-  background: #f0f9ff;
-  color: #0284c7;
+  background: #fefce8;
+  color: #d97706;
 }
 
 .statusOverdue {
@@ -601,7 +630,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background-color: #0284c7;
+  background-color: var(--primary-color, #0284c7);
   color: #ffffff;
   border: none;
   padding: 5px 10px;
@@ -638,6 +667,10 @@
   color: #10b981;
 }
 
+.disabledAction {
+  color: #cbd5e1;
+}
+
 .emptyTable {
   padding: 48px 16px;
   display: flex;
@@ -648,7 +681,7 @@
   color: #94a3b8;
 }
 
-/* Paginação */
+/* ─── Paginação ─── */
 .paginationFooter {
   padding: 14px 20px;
   border-top: 1px solid #f1f5f9;
@@ -699,8 +732,8 @@
 }
 
 .pageBtnActive {
-  background-color: #0284c7;
-  border-color: #0284c7;
+  background-color: var(--primary-color, #0284c7);
+  border-color: var(--primary-color, #0284c7);
   color: #ffffff !important;
 }
 
@@ -709,7 +742,7 @@
   cursor: not-allowed;
 }
 
-/* Modais */
+/* ─── Modais (White-Label) ─── */
 .overlay {
   position: fixed;
   inset: 0;
@@ -894,12 +927,40 @@
 .input:focus,
 .select:focus,
 .textarea:focus {
-  border-color: #0284c7;
+  border-color: var(--primary-color, #0284c7);
   box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
 }
 
 .textarea {
   resize: none;
+}
+
+.recurringBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background-color: #f8fafc;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-top: 4px;
+}
+
+.recurringLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.recurringLabel strong {
+  font-size: 0.82rem;
+  color: #0f172a;
+}
+
+.recurringLabel span {
+  font-size: 0.72rem;
+  color: #64748b;
 }
 
 .errorBox {
@@ -946,7 +1007,7 @@
   font-size: 0.85rem;
   font-weight: 600;
   color: #ffffff;
-  background-color: #0284c7;
+  background-color: var(--primary-color, #0284c7);
   border: none;
   cursor: pointer;
   display: flex;
@@ -1056,58 +1117,4 @@
   .inputRow {
     grid-template-columns: 1fr;
   }
-}
-/* Botão Nova Conta a Pagar */
-.btnNewPayable {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background-color: #ef4444;
-  color: #ffffff;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  box-shadow: 0 1px 2px 0 rgba(239, 68, 68, 0.2);
-}
-
-.btnNewPayable:hover {
-  background-color: #dc2626;
-}
-
-/* Caixa de Dívida Recorrente */
-.recurringBox {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  background-color: #f8fafc;
-  padding: 12px 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  margin-top: 4px;
-}
-
-.recurringLabel {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  cursor: pointer;
-}
-
-.recurringLabel strong {
-  font-size: 0.82rem;
-  color: #0f172a;
-}
-
-.recurringLabel span {
-  font-size: 0.72rem;
-  color: #64748b;
-}
-
-.disabledAction {
-  color: #cbd5e1;
-  font-weight: bold;
 }
