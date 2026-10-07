@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import {
   DollarSign,
   PackageMinus,
@@ -10,13 +10,11 @@ import {
   BarChart3,
   Stethoscope,
   RefreshCw,
+  Zap,
+  ChevronsLeft,
   ChevronLeft,
   ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Zap,
-  CheckSquare,
-  Square
+  ChevronsRight
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -35,7 +33,7 @@ import styles from './comissoes.module.css'
 interface UserProfile {
   id: string
   name: string
-  role: 'ADMIN' | 'DENTIST' | 'RECEPCIONISTA'
+  role: 'ADMIN' | 'DENTIST' | 'SECRETARY'
 }
 
 interface DentistOption {
@@ -85,17 +83,19 @@ export default function ComissoesPage() {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [commissions, setCommissions] = useState<CommissionItem[]>([])
   const [dentists, setDentists] = useState<DentistOption[]>([])
+  const [proceduresMap, setProceduresMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+
+  // Cor primária do White-Label lida diretamente das CSS variables
+  const [themePrimary, setThemePrimary] = useState('#0284c7')
 
   // Filtros
   const [selectedDentistId, setSelectedDentistId] = useState<string>('ALL')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'PAID' | 'CANCELED'>('ALL')
   const [searchTerm, setSearchTerm] = useState('')
-
-  // Filtro Gráfico
   const [chartDentistFilter, setChartDentistFilter] = useState<string>('ALL')
 
-  // Seleção Múltipla para Liquidação em Massa
+  // Seleção em lote
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
 
   // Paginação
@@ -108,67 +108,20 @@ export default function ComissoesPage() {
   const [batchList, setBatchList] = useState<CommissionItem[]>([])
   const [batchDentistName, setBatchDentistName] = useState('')
 
-  useEffect(() => {
-    async function loadInitialData() {
-      try {
-        setLoading(true)
-
-        let currentUser: UserProfile | null = null
-        try {
-          const { data: profile } = await api.get('/auth/me')
-          currentUser = profile?.user || profile
-          setUser(currentUser)
-        } catch {
-          currentUser = { id: '', name: 'Vicente Augusto', role: 'ADMIN' }
-          setUser(currentUser)
-        }
-
-        const [usersRes, proceduresRes] = await Promise.allSettled([
-          api.get('/users'),
-          api.get('/procedures'),
-        ])
-
-        const dentistsList: DentistOption[] = []
-        if (usersRes.status === 'fulfilled') {
-          const rawUsers = Array.isArray(usersRes.value.data)
-            ? usersRes.value.data
-            : usersRes.value.data?.data || []
-
-          rawUsers
-            .filter((u: any) => u.role === 'DENTIST' || u.role === 'ADMIN')
-            .forEach((u: any) => {
-              dentistsList.push({ id: u.id, name: u.name })
-            })
-          setDentists(dentistsList)
-        }
-
-        const procMap: Record<string, string> = {}
-        if (proceduresRes.status === 'fulfilled') {
-          const rawProcs = Array.isArray(proceduresRes.value.data)
-            ? proceduresRes.value.data
-            : proceduresRes.value.data?.data || []
-          rawProcs.forEach((p: any) => {
-            procMap[p.id] = p.name
-          })
-        }
-
-        const initialDentist = currentUser?.role === 'DENTIST' ? currentUser.id : undefined
-        if (initialDentist) setSelectedDentistId(initialDentist)
-
-        await loadCommissions(initialDentist, procMap, dentistsList)
-      } finally {
-        setLoading(false)
-      }
+  // Sincroniza White-Label do :root
+  const syncWhiteLabel = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      const computed = getComputedStyle(document.documentElement)
+      const primary = computed.getPropertyValue('--primary-color').trim()
+      if (primary) setThemePrimary(primary)
     }
-
-    loadInitialData()
   }, [])
 
-  async function loadCommissions(
+  const loadCommissions = useCallback(async (
     dentistId?: string,
-    procLookup: Record<string, string> = {},
+    procLookup = proceduresMap,
     dentistLookup = dentists
-  ) {
+  ) => {
     try {
       const params: Record<string, string> = {}
       if (dentistId && dentistId !== 'ALL') params.dentistId = dentistId
@@ -200,7 +153,83 @@ export default function ComissoesPage() {
     } catch (err) {
       console.error('Erro ao buscar comissões:', err)
     }
-  }
+  }, [proceduresMap, dentists])
+
+  const loadInitialData = useCallback(async () => {
+    try {
+      setLoading(true)
+      syncWhiteLabel()
+
+      // 1. Perfil e RBAC
+      let currentUser: UserProfile | null = null
+      try {
+        const { data: meRes } = await api.get('/auth/me')
+        currentUser = meRes?.user || meRes
+        setUser(currentUser)
+      } catch {
+        const fallbackUser: UserProfile = { id: '', name: 'Usuário', role: 'ADMIN' }
+        setUser(fallbackUser)
+        currentUser = fallbackUser
+      }
+
+      // 2. Dentistas e Catálogo de Procedimentos
+      const [usersRes, proceduresRes] = await Promise.allSettled([
+        api.get('/users'),
+        api.get('/procedures'),
+      ])
+
+      const dentistsList: DentistOption[] = []
+      if (usersRes.status === 'fulfilled') {
+        const rawUsers = Array.isArray(usersRes.value.data)
+          ? usersRes.value.data
+          : usersRes.value.data?.data || []
+
+        rawUsers
+          .filter((u: any) => u.role === 'DENTIST' || u.role === 'ADMIN')
+          .forEach((u: any) => {
+            dentistsList.push({ id: u.id, name: u.name })
+          })
+        setDentists(dentistsList)
+      }
+
+      const procMap: Record<string, string> = {}
+      if (proceduresRes.status === 'fulfilled') {
+        const rawProcs = Array.isArray(proceduresRes.value.data)
+          ? proceduresRes.value.data
+          : proceduresRes.value.data?.data || []
+        rawProcs.forEach((p: any) => {
+          procMap[p.id] = p.name
+        })
+        setProceduresMap(procMap)
+      }
+
+      // RBAC: Trava filtro se for DENTIST
+      const initialDentist = currentUser?.role === 'DENTIST' ? currentUser.id : undefined
+      if (initialDentist) {
+        setSelectedDentistId(initialDentist)
+        setChartDentistFilter(initialDentist)
+      }
+
+      await loadCommissions(initialDentist, procMap, dentistsList)
+    } finally {
+      setLoading(false)
+    }
+  }, [syncWhiteLabel, loadCommissions])
+
+  useEffect(() => {
+    loadInitialData()
+
+    const handleThemeUpdate = () => syncWhiteLabel()
+    const handlePermissionsUpdate = () => loadInitialData()
+
+    window.addEventListener('clinic_customization_updated', handleThemeUpdate)
+    window.addEventListener('permissions_updated', handlePermissionsUpdate)
+
+    return () => {
+      window.removeEventListener('clinic_customization_updated', handleThemeUpdate)
+      window.removeEventListener('permissions_updated', handlePermissionsUpdate)
+    }
+  }, [loadInitialData, syncWhiteLabel])
 
   function formatCurrency(val: number) {
     return (val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -211,11 +240,13 @@ export default function ComissoesPage() {
     return new Date(dt).toLocaleDateString('pt-BR')
   }
 
+  const isDentistRole = user?.role === 'DENTIST'
+
   // Filtragem da tabela
   const filteredCommissions = useMemo(() => {
     return commissions.filter((c) => {
       const matchesDentist =
-        selectedDentistId === 'ALL' || c.dentistId === selectedDentistId
+        isDentistRole ? c.dentistId === user?.id : selectedDentistId === 'ALL' || c.dentistId === selectedDentistId
       const matchesStatus =
         statusFilter === 'ALL' || c.status === statusFilter
       const matchesSearch =
@@ -225,9 +256,8 @@ export default function ComissoesPage() {
 
       return matchesDentist && matchesStatus && matchesSearch
     })
-  }, [commissions, selectedDentistId, statusFilter, searchTerm])
+  }, [commissions, isDentistRole, user?.id, selectedDentistId, statusFilter, searchTerm])
 
-  // Lançamentos pendentes do dentista atualmente filtrado (para botão de liquidação geral)
   const pendingForSelectedDentist = useMemo(() => {
     if (selectedDentistId === 'ALL') return []
     return commissions.filter((c) => c.dentistId === selectedDentistId && c.status === 'PENDING')
@@ -262,7 +292,7 @@ export default function ComissoesPage() {
     return { totalBruto, totalInsumos, liquidado, pendente }
   }, [filteredCommissions])
 
-  // Gráfico Recharts
+  // Gráfico Recharts Dinâmico
   const chartData = useMemo(() => {
     const targetList =
       chartDentistFilter === 'ALL'
@@ -287,17 +317,16 @@ export default function ComissoesPage() {
     return Array.from(map.values())
   }, [filteredCommissions, chartDentistFilter])
 
-  // Abertura Modal Unitário
   function handleOpenLiquidate(c: CommissionItem) {
+    if (isDentistRole) return
     setSelectedCommission(c)
     setBatchList([])
     setBatchDentistName('')
     setIsModalOpen(true)
   }
 
-  // Abertura Modal em Lote (Todos os pendentes do dentista filtrado)
   function handleOpenLiquidateAllForDentist() {
-    if (pendingForSelectedDentist.length === 0) return
+    if (isDentistRole || pendingForSelectedDentist.length === 0) return
     const dName = dentists.find(d => d.id === selectedDentistId)?.name || 'Cirurgião-Dentista'
     setSelectedCommission(null)
     setBatchList(pendingForSelectedDentist)
@@ -305,8 +334,8 @@ export default function ComissoesPage() {
     setIsModalOpen(true)
   }
 
-  // Abertura Modal Selecionados via Checkbox
   function handleOpenLiquidateSelected() {
+    if (isDentistRole) return
     const selectedItems = commissions.filter(c => selectedItemIds.includes(c.id) && c.status === 'PENDING')
     if (selectedItems.length === 0) return
     const firstDentistName = selectedItems[0]?.dentistName || 'Profissional'
@@ -316,14 +345,15 @@ export default function ComissoesPage() {
     setIsModalOpen(true)
   }
 
-  // Toggle de Checkboxes
   function toggleSelectItem(id: string) {
+    if (isDentistRole) return
     setSelectedItemIds(prev =>
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     )
   }
 
   function toggleSelectAllVisible() {
+    if (isDentistRole) return
     const visiblePendingIds = paginatedCommissions
       .filter(c => c.status === 'PENDING')
       .map(c => c.id)
@@ -336,32 +366,32 @@ export default function ComissoesPage() {
     }
   }
 
-  const isDentistRole = user?.role === 'DENTIST'
   const selectedDentistName = dentists.find(d => d.id === selectedDentistId)?.name
 
   return (
     <div className={styles.page}>
       
-      {/* ─── Breadcrumb e Ações Superiores ─── */}
+      {/* ─── Topo de Módulo ─── */}
       <div className={styles.topBarRow}>
         <div className={styles.badgeSection}>
           <span className={styles.moduleBadge}>MÓDULO DE REPASSES</span>
           <span className={styles.moduleDesc}>
-            Auditoria de produção clínica, controle de insumos descontados e fechamento de comissões
+            {isDentistRole 
+              ? 'Acompanhamento da sua produtividade clínica individual e comissões acumuladas'
+              : 'Auditoria de produção clínica, controle de insumos debitados e fechamento de comissões'}
           </span>
         </div>
 
         <div className={styles.topActions}>
-          {/* Botão de Fechamento Geral do Dentista Filtrado */}
           {!isDentistRole && selectedDentistId !== 'ALL' && pendingForSelectedDentist.length > 0 && (
             <button
               type="button"
               onClick={handleOpenLiquidateAllForDentist}
               className={styles.btnLiquidateAll}
-              title={`Liquidar todos os ${pendingForSelectedDentist.length} repasses pendentes de ${selectedDentistName}`}
+              title={`Liquidar repasses pendentes de ${selectedDentistName}`}
             >
               <Zap size={14} />
-              <span>Liquidar Total de {selectedDentistName?.split(' ')[0]} ({formatCurrency(pendingAmountForSelectedDentist)})</span>
+              <span>Liquidar Total ({formatCurrency(pendingAmountForSelectedDentist)})</span>
             </button>
           )}
 
@@ -370,13 +400,13 @@ export default function ComissoesPage() {
             onClick={() => loadCommissions(selectedDentistId)}
             className={styles.btnSecondaryAction}
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={14} className={loading ? styles.spinner : ''} />
             <span>Atualizar</span>
           </button>
         </div>
       </div>
 
-      {/* ─── Cards de KPI Executivo ─── */}
+      {/* ─── KPIs Executivos ─── */}
       <div className={styles.kpiGrid}>
         <div className={styles.kpiCard}>
           <div className={styles.kpiCardHeader}>
@@ -386,7 +416,7 @@ export default function ComissoesPage() {
             </div>
           </div>
           <div className={styles.kpiAmount}>{formatCurrency(kpis.totalBruto)}</div>
-          <span className={styles.kpiFooter}>Receita bruta gerada em procedimentos</span>
+          <span className={styles.kpiFooter}>Receita bruta gerada em atendimentos</span>
         </div>
 
         <div className={styles.kpiCard}>
@@ -429,13 +459,13 @@ export default function ComissoesPage() {
         </div>
       </div>
 
-      {/* ─── Gráfico Recharts Dark Tooltip ─── */}
+      {/* ─── Gráfico Recharts com Cor do White-Label ─── */}
       <div className={styles.chartCard}>
         <div className={styles.chartHeader}>
           <div>
             <h3 className={styles.chartTitle}>Comparativo de Eficiência: Receita Bruta x Repasse x Insumos</h3>
             <p className={styles.chartSubtitle}>
-              Mapeamento de faturamento gerado vs. consumo real de materiais odontológicos por profissional.
+              Mapeamento de faturamento gerado vs. consumo real de materiais por profissional.
             </p>
           </div>
 
@@ -482,7 +512,7 @@ export default function ComissoesPage() {
                 />
                 <Tooltip content={<CustomCommissionsTooltip />} cursor={{ fill: 'rgba(241, 245, 249, 0.4)' }} />
                 <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} iconType="circle" />
-                <Bar dataKey="bruto" name="Receita" fill="#0284c7" radius={[4, 4, 0, 0]} barSize={24} />
+                <Bar dataKey="bruto" name="Receita" fill={themePrimary} radius={[4, 4, 0, 0]} barSize={24} />
                 <Bar dataKey="insumos" name="Despesa (Insumos)" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={24} />
                 <Bar dataKey="comissao" name="Comissão Líquida" fill="#10b981" radius={[4, 4, 0, 0]} barSize={24} />
               </BarChart>
@@ -499,13 +529,12 @@ export default function ComissoesPage() {
         </button>
       </div>
 
-      {/* ─── Barra de Filtros Integrada com Ação em Massa ─── */}
+      {/* ─── Filtros Integrados ─── */}
       <div className={styles.filterBar}>
         <div className={styles.filterTitleRow}>
           <h3 className={styles.tableSectionTitle}>Extrato de Comissões e Procedimentos</h3>
           <span className={styles.badgeTotalCount}>{totalItems} lançamentos</span>
 
-          {/* Banner de Ação em Lote quando há checkboxes marcados */}
           {selectedItemIds.length > 0 && !isDentistRole && (
             <div className={styles.batchActionBar}>
               <span>{selectedItemIds.length} selecionado(s)</span>
@@ -580,7 +609,7 @@ export default function ComissoesPage() {
         </div>
       </div>
 
-      {/* ─── Tabela com Seleção Múltipla ─── */}
+      {/* ─── Tabela Operacional ─── */}
       <div className={styles.tableCard}>
         {filteredCommissions.length === 0 ? (
           <div className={styles.emptyTable}>
@@ -776,12 +805,13 @@ export default function ComissoesPage() {
         </div>
       </div>
 
-      {/* ─── Modal de Liquidação (Individual ou em Lote) ─── */}
+      {/* Modal de Liquidação com cor primária injetada */}
       <ModalLiquidacao
         isOpen={isModalOpen}
         commission={selectedCommission}
         commissionsList={batchList}
         batchDentistName={batchDentistName}
+        primaryColor={themePrimary}
         onClose={() => {
           setIsModalOpen(false)
           setSelectedCommission(null)
