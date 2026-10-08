@@ -22,13 +22,14 @@ import {
   Loader2,
   Check,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  Copy
 } from 'lucide-react'
-import api from '@/lib/api'
+import api from '../../lib/api'
 import styles from './landing.module.css'
 
 interface PlanTier {
-  id: 'basico' | 'premium' | 'enterprise'
+  id: 'BASIC' | 'PREMIUM' | 'ENTERPRISE'
   badge?: string
   target: string
   name: string
@@ -42,7 +43,7 @@ interface PlanTier {
 
 const PLANS: PlanTier[] = [
   {
-    id: 'basico',
+    id: 'BASIC',
     target: 'CONSULTÓRIO INDIVIDUAL',
     name: 'Básico',
     description: 'Agenda clínica, prontuário digital com odontograma e gestão de estoque manual.',
@@ -59,7 +60,7 @@ const PLANS: PlanTier[] = [
     ctaText: 'Testar 7 dias grátis'
   },
   {
-    id: 'premium',
+    id: 'PREMIUM',
     badge: 'MAIS ESCOLHIDO',
     target: 'CLÍNICAS & EQUIPES',
     name: 'Premium',
@@ -78,7 +79,7 @@ const PLANS: PlanTier[] = [
     ctaText: 'Testar 7 dias grátis'
   },
   {
-    id: 'enterprise',
+    id: 'ENTERPRISE',
     badge: 'ALTA ESCALA',
     target: 'REDES & POLICLÍNICAS',
     name: 'Enterprise',
@@ -117,11 +118,11 @@ const FAQS = [
 
 export default function LandingPage() {
   const router = useRouter()
-  const [billingCycle, setBillingCycle] = useState<'mensal' | 'anual'>('anual')
-  const [selectedPlanId, setSelectedPlanId] = useState<'basico' | 'premium' | 'enterprise'>('premium')
+  const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'YEARLY'>('YEARLY')
+  const [selectedPlanId, setSelectedPlanId] = useState<'BASIC' | 'PREMIUM' | 'ENTERPRISE'>('PREMIUM')
   const [openFaq, setOpenFaq] = useState<number | null>(null)
 
-  // Controle de Onboarding & Checkout
+  // Controle do Modal de Onboarding
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [checkoutStep, setCheckoutStep] = useState<1 | 2>(1)
 
@@ -135,7 +136,6 @@ export default function LandingPage() {
   const [adminName, setAdminName] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
-  const [adminCro, setAdminCro] = useState('')
 
   // Estados de Submissão
   const [submitting, setSubmitting] = useState(false)
@@ -145,15 +145,17 @@ export default function LandingPage() {
     clinicTitle: string
     token?: string
   } | null>(null)
+  const [copiedLink, setCopiedLink] = useState(false)
 
   const activePlan = PLANS.find((p) => p.id === selectedPlanId) || PLANS[1]
-  const displayedPrice = billingCycle === 'anual' ? activePlan.annualPrice : activePlan.monthlyPrice
+  const displayedPrice = billingCycle === 'YEARLY' ? activePlan.annualPrice : activePlan.monthlyPrice
 
-  function handleOpenCheckoutModal(planId?: 'basico' | 'premium' | 'enterprise') {
+  function handleOpenCheckoutModal(planId?: 'BASIC' | 'PREMIUM' | 'ENTERPRISE') {
     if (planId) setSelectedPlanId(planId)
     setCheckoutStep(1)
     setErrorMessage('')
     setCreatedClinicData(null)
+    setCopiedLink(false)
     setIsCheckoutOpen(true)
   }
 
@@ -163,36 +165,39 @@ export default function LandingPage() {
     setCheckoutStep(2)
   }
 
-  // 🚀 Registo do Tenant e Criação da Clínica na API
+  // 🚀 Disparo Integrado ao Swagger POST /auth/register
   async function handleFinalizeOnboarding(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
     setErrorMessage('')
 
     try {
-      const tenantSlug = subdomain.trim().toLowerCase().replace(/[^a-z0-9]/g, '') || 'clinica'
+      const cleanSlug = subdomain
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9-]/g, '') || 'clinica'
 
+      // Payload exatamente como especificado na documentação OpenAPI
       const registerPayload = {
-        name: adminName.trim(),
+        tenantName: clinicName.trim(),
+        slug: cleanSlug,
+        plan: selectedPlanId,
+        billingCycle,
+        phone: whatsapp.trim() || undefined,
+        cnpjOrCpf: documentNumber.trim() || undefined,
+        adminName: adminName.trim(),
         email: adminEmail.trim().toLowerCase(),
         password: adminPassword,
-        role: 'ADMIN',
-        phone: whatsapp.trim() || undefined,
-        cro: adminCro.trim() || undefined,
-        tenantId: tenantSlug,
-        clinicId: `${tenantSlug}-matriz`,
       }
 
-      // 1. POST /auth/register
-      const registerRes = await api.post('/auth/register', registerPayload)
-      const data = registerRes.data?.data || registerRes.data
+      const response = await api.post('/auth/register', registerPayload)
+      const data = response.data?.data || response.data
 
-      const token = data?.token || data?.accessToken
-      const user = data?.user || {
-        name: adminName,
-        email: adminEmail,
-        role: 'ADMIN',
-      }
+      const token = data?.token
+      const user = data?.user
+      const tenant = data?.tenant
 
       // Persiste sessão para login imediato
       if (token) {
@@ -200,25 +205,12 @@ export default function LandingPage() {
         localStorage.setItem('@odontoflow:token', token)
       }
       if (user) {
-        localStorage.setItem('odontoflow_user', JSON.stringify(user))
-        localStorage.setItem('@odontoflow:user', JSON.stringify(user))
+        localStorage.setItem('odontoflow_user', JSON.stringify({ ...user, tenantId: tenant?.id }))
+        localStorage.setItem('@odontoflow:user', JSON.stringify({ ...user, tenantId: tenant?.id }))
       }
 
-      // 2. Tenta configurar o nome e telefone da clínica via PUT /clinics se houver ID
-      const createdClinicId = data?.clinic?.id || data?.clinicId || `${tenantSlug}-matriz`
-      if (createdClinicId && token) {
-        await api.put(`/clinics/${createdClinicId}`, {
-          name: clinicName.trim(),
-          phone: whatsapp.trim() || undefined,
-          cnpj: documentNumber.trim() || undefined,
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => {})
-      }
-
-      // Constrói o link usável
       const originHost = typeof window !== 'undefined' ? window.location.origin : 'https://app.odontoflow.com.br'
-      const generatedLink = `${originHost}/?clinic=${tenantSlug}`
+      const generatedLink = `${originHost}/?clinic=${cleanSlug}`
 
       setCreatedClinicData({
         subdomainUrl: generatedLink,
@@ -226,8 +218,8 @@ export default function LandingPage() {
         token,
       })
     } catch (err: any) {
-      console.error('Erro no registo de clínica:', err)
-      const errorResponse = err.response?.data?.message || err.message || 'Falha ao registar clínica. Tente novamente.'
+      console.error('Erro no registro do tenant:', err)
+      const errorResponse = err.response?.data?.message || err.message || 'Falha ao registrar clínica. Tente novamente.'
       setErrorMessage(Array.isArray(errorResponse) ? errorResponse.join(', ') : errorResponse)
     } finally {
       setSubmitting(false)
@@ -239,10 +231,17 @@ export default function LandingPage() {
     router.push('/')
   }
 
+  function handleCopy() {
+    if (!createdClinicData?.subdomainUrl) return
+    navigator.clipboard.writeText(createdClinicData.subdomainUrl)
+    setCopiedLink(true)
+    setTimeout(() => setCopiedLink(false), 2000)
+  }
+
   return (
     <div className={styles.landingContainer}>
       
-      {/* ─── 1. NAVBAR SUPERIOR ─── */}
+      {/* ─── 1. NAVBAR ─── */}
       <header className={styles.navbar}>
         <div className={styles.navInner}>
           <div className={styles.navBrand}>
@@ -265,7 +264,7 @@ export default function LandingPage() {
             </Link>
             <button
               type="button"
-              onClick={() => handleOpenCheckoutModal('premium')}
+              onClick={() => handleOpenCheckoutModal('PREMIUM')}
               className={styles.btnNavTestar}
             >
               Testar grátis
@@ -290,7 +289,7 @@ export default function LandingPage() {
             </h1>
 
             <p className={styles.heroDescription}>
-              Administrar um consultório ou clínica não precisa ser um processo burocrático. O OdontoFlow integra prontuário ágil, dedução automática de insumos e DRE analítico em tempo real.
+              Administrar um consultório ou clínica não necessita de ser um processo burocrático. O OdontoFlow integra prontuário ágil, dedução automática de insumos e DRE analítico em tempo real.
             </p>
 
             <div className={styles.heroButtonsRow}>
@@ -305,7 +304,7 @@ export default function LandingPage() {
 
               <button
                 type="button"
-                onClick={() => handleOpenCheckoutModal('premium')}
+                onClick={() => handleOpenCheckoutModal('PREMIUM')}
                 className={styles.btnComecarGraca}
               >
                 Começar de graça
@@ -378,7 +377,7 @@ export default function LandingPage() {
         <div className={styles.tickerTrack}>
           <span>“ A melhor plataforma odontológica que já utilizamos. ”</span>
           <span>“ A nossa recepção nunca mais atrasou a fila de espera. ”</span>
-          <span>“ Facilitou demais a rotina do meu consultório! ”</span>
+          <span>“ Facilitou imenso a rotina do meu consultório! ”</span>
           <span>“ A dedução automática de resinas e anestésicos poupa horas de trabalho. ”</span>
           <span>“ Prontuário muito interativo e intuitivo. ”</span>
           <span>“ O suporte é rápido e eficiente. ”</span>
@@ -443,7 +442,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 5. TECNOLOGIA PARA POTENCIAR A SUA CLÍNICA (6 CARDS) ─── */}
+      {/* ─── 5. TECNOLOGIA PARA POTENCIAR A SUA CLÍNICA ─── */}
       <section className={styles.featuresSection} id="recursos">
         <div className={styles.sectionHeadingCenter}>
           <h2 className={styles.featuresHeading}>Tecnologia para simplificar e potenciar a sua clínica</h2>
@@ -620,15 +619,15 @@ export default function LandingPage() {
           <div className={styles.togglePillContainer}>
             <button
               type="button"
-              className={`${styles.togglePillBtn} ${billingCycle === 'mensal' ? styles.togglePillActive : ''}`}
-              onClick={() => setBillingCycle('mensal')}
+              className={`${styles.togglePillBtn} ${billingCycle === 'MONTHLY' ? styles.togglePillActive : ''}`}
+              onClick={() => setBillingCycle('MONTHLY')}
             >
               Mensal
             </button>
             <button
               type="button"
-              className={`${styles.togglePillBtn} ${billingCycle === 'anual' ? styles.togglePillActiveBlue : ''}`}
-              onClick={() => setBillingCycle('anual')}
+              className={`${styles.togglePillBtn} ${billingCycle === 'YEARLY' ? styles.togglePillActiveBlue : ''}`}
+              onClick={() => setBillingCycle('YEARLY')}
             >
               <span>Anual</span>
               <span className={styles.discountBadgeSmall}>10% OFF</span>
@@ -639,16 +638,16 @@ export default function LandingPage() {
 
         <div className={styles.plansGrid}>
           {PLANS.map((plan) => {
-            const price = billingCycle === 'anual' ? plan.annualPrice : plan.monthlyPrice
+            const price = billingCycle === 'YEARLY' ? plan.annualPrice : plan.monthlyPrice
 
             return (
               <div
                 key={plan.id}
-                className={`${styles.planCard} ${plan.id === 'premium' ? styles.planCardHighlighted : ''}`}
+                className={`${styles.planCard} ${plan.id === 'PREMIUM' ? styles.planCardHighlighted : ''}`}
               >
                 {plan.badge && (
-                  <div className={plan.id === 'premium' ? styles.badgeMaisEscolhido : styles.badgeAltaEscala}>
-                    {plan.id === 'enterprise' && <ShieldCheck size={12} />}
+                  <div className={plan.id === 'PREMIUM' ? styles.badgeMaisEscolhido : styles.badgeAltaEscala}>
+                    {plan.id === 'ENTERPRISE' && <ShieldCheck size={12} />}
                     <span>{plan.badge}</span>
                   </div>
                 )}
@@ -678,7 +677,7 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => handleOpenCheckoutModal(plan.id)}
-                  className={plan.id === 'premium' ? styles.btnCardBlue : styles.btnCardWhite}
+                  className={plan.id === 'PREMIUM' ? styles.btnCardBlue : styles.btnCardWhite}
                 >
                   {plan.ctaText}
                 </button>
@@ -767,7 +766,7 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* ─── 11. MODAL DE ONBOARDING & REGISTO INTEGRADO (SWAGGER /auth/register) ─── */}
+      {/* ─── 11. MODAL DE ONBOARDING & CHECKOUT (SWAGGER ATIVO) ─── */}
       {isCheckoutOpen && (
         <div className={styles.checkoutOverlay} onClick={() => setIsCheckoutOpen(false)}>
           <div className={styles.checkoutModalBox} onClick={(e) => e.stopPropagation()}>
@@ -790,7 +789,7 @@ export default function LandingPage() {
 
             <div className={styles.checkoutBodyGrid}>
               
-              {/* Coluna Esquerda: Formulário de Cadastro */}
+              {/* Coluna Esquerda: Formulário Multistep */}
               <div className={styles.checkoutLeftCard}>
                 
                 <div className={styles.stepperRow}>
@@ -836,7 +835,7 @@ export default function LandingPage() {
                                       .toLowerCase()
                                       .normalize('NFD')
                                       .replace(/[\u0300-\u036f]/g, '')
-                                      .replace(/[^a-z0-9]/g, '')
+                                      .replace(/[^a-z0-9-]/g, '')
                                   )
                                 }
                               }}
@@ -854,7 +853,7 @@ export default function LandingPage() {
                               required
                               placeholder="suaclinica"
                               value={subdomain}
-                              onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
+                              onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                               className={styles.subdomainInputPart}
                             />
                           </div>
@@ -909,29 +908,16 @@ export default function LandingPage() {
                           </div>
                         </div>
 
-                        <div className={styles.fieldsTwoCols}>
-                          <div className={styles.fieldGroup}>
-                            <label>E-mail Corporativo de Login *</label>
-                            <input
-                              type="email"
-                              required
-                              placeholder="admin@suaclinica.com.br"
-                              value={adminEmail}
-                              onChange={(e) => setAdminEmail(e.target.value)}
-                              className={styles.modalInputPlain}
-                            />
-                          </div>
-
-                          <div className={styles.fieldGroup}>
-                            <label>Registro CRO (Opcional)</label>
-                            <input
-                              type="text"
-                              placeholder="Ex: CE-12345"
-                              value={adminCro}
-                              onChange={(e) => setAdminCro(e.target.value)}
-                              className={styles.modalInputPlain}
-                            />
-                          </div>
+                        <div className={styles.fieldGroup}>
+                          <label>E-mail Corporativo de Login *</label>
+                          <input
+                            type="email"
+                            required
+                            placeholder="admin@suaclinica.com.br"
+                            value={adminEmail}
+                            onChange={(e) => setAdminEmail(e.target.value)}
+                            className={styles.modalInputPlain}
+                          />
                         </div>
 
                         <div className={styles.fieldGroup}>
@@ -991,11 +977,12 @@ export default function LandingPage() {
                         <code>{createdClinicData.subdomainUrl}</code>
                         <button
                           type="button"
-                          onClick={() => navigator.clipboard.writeText(createdClinicData.subdomainUrl)}
+                          onClick={handleCopy}
                           className={styles.btnCopyLink}
                           title="Copiar link"
                         >
-                          Copiar
+                          {copiedLink ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                          <span>{copiedLink ? 'Copiado!' : 'Copiar'}</span>
                         </button>
                       </div>
                     </div>
@@ -1019,22 +1006,22 @@ export default function LandingPage() {
                   <div className={styles.planMiniPills}>
                     <button
                       type="button"
-                      className={`${styles.miniPill} ${selectedPlanId === 'basico' ? styles.miniPillActive : ''}`}
-                      onClick={() => setSelectedPlanId('basico')}
+                      className={`${styles.miniPill} ${selectedPlanId === 'BASIC' ? styles.miniPillActive : ''}`}
+                      onClick={() => setSelectedPlanId('BASIC')}
                     >
                       Básico
                     </button>
                     <button
                       type="button"
-                      className={`${styles.miniPill} ${selectedPlanId === 'premium' ? styles.miniPillActive : ''}`}
-                      onClick={() => setSelectedPlanId('premium')}
+                      className={`${styles.miniPill} ${selectedPlanId === 'PREMIUM' ? styles.miniPillActive : ''}`}
+                      onClick={() => setSelectedPlanId('PREMIUM')}
                     >
                       <ShieldCheck size={12} /> Pro
                     </button>
                     <button
                       type="button"
-                      className={`${styles.miniPill} ${selectedPlanId === 'enterprise' ? styles.miniPillActive : ''}`}
-                      onClick={() => setSelectedPlanId('enterprise')}
+                      className={`${styles.miniPill} ${selectedPlanId === 'ENTERPRISE' ? styles.miniPillActive : ''}`}
+                      onClick={() => setSelectedPlanId('ENTERPRISE')}
                     >
                       Enterprise
                     </button>
@@ -1047,7 +1034,7 @@ export default function LandingPage() {
                       {activePlan.name === 'Premium' ? 'Clínica Pro' : activePlan.name}
                     </h3>
                     <span className={styles.planTargetSub}>
-                      {activePlan.id === 'premium' ? 'Mais Escolhido • Até 5 Dentistas' : activePlan.target}
+                      {activePlan.id === 'PREMIUM' ? 'Mais Escolhido • Até 5 Dentistas' : activePlan.target}
                     </span>
                   </div>
 
@@ -1060,15 +1047,15 @@ export default function LandingPage() {
                 <div className={styles.modalToggleBilling}>
                   <button
                     type="button"
-                    className={`${styles.modalToggleBtn} ${billingCycle === 'mensal' ? styles.modalToggleBtnActive : ''}`}
-                    onClick={() => setBillingCycle('mensal')}
+                    className={`${styles.modalToggleBtn} ${billingCycle === 'MONTHLY' ? styles.modalToggleBtnActive : ''}`}
+                    onClick={() => setBillingCycle('MONTHLY')}
                   >
                     Mensal
                   </button>
                   <button
                     type="button"
-                    className={`${styles.modalToggleBtn} ${billingCycle === 'anual' ? styles.modalToggleBtnActiveBlue : ''}`}
-                    onClick={() => setBillingCycle('anual')}
+                    className={`${styles.modalToggleBtn} ${billingCycle === 'YEARLY' ? styles.modalToggleBtnActiveBlue : ''}`}
+                    onClick={() => setBillingCycle('YEARLY')}
                   >
                     Anual (10% OFF)
                   </button>
