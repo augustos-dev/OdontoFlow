@@ -10,25 +10,26 @@ import {
 } from '../controllers/transactionController'
 import { authenticate, authorize } from '../middlewares/authMiddlewares'
 import { can } from '../middlewares/rbac.middleware'
+import { requireFeature } from '../middlewares/planMiddleware'
 
 const transactionRoute = Router()
 
-// Todas as rotas de transações exigem autenticação
 transactionRoute.use(authenticate)
 
-// Relatórios / DRE (Rota estática antes das rotas dinâmicas com /:id)
-transactionRoute.get('/report', can('FINANCIAL', 'READ'), getFinancialReportController)
+// Relatório DRE analítico disponível a partir do plano PREMIUM
+transactionRoute.get(
+  '/report',
+  requireFeature('ADVANCED_FINANCIAL'),
+  can('FINANCIAL', 'READ'),
+  getFinancialReportController
+)
 
-// Leitura
 transactionRoute.get('/', can('FINANCIAL', 'READ'), listTransactionsController)
 transactionRoute.get('/:id', can('FINANCIAL', 'READ'), getTransactionByIdController)
 
-// Escrita / Conciliação
 transactionRoute.post('/', can('FINANCIAL', 'CREATE'), createTransactionController)
 transactionRoute.put('/:id', can('FINANCIAL', 'UPDATE'), updateTransactionController)
 transactionRoute.patch('/:id/reconcile', can('FINANCIAL', 'UPDATE'), reconcileTransactionController)
-
-// Exclusão (Apenas ADMIN)
 transactionRoute.delete('/:id', authorize('ADMIN'), deleteTransactionController)
 
 export default transactionRoute

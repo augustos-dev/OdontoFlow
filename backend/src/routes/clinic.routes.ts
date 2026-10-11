@@ -10,13 +10,20 @@ import {
   updateClinicCustomizationController,
 } from '../controllers/clinicController'
 import { authenticate, authorize } from '../middlewares/authMiddlewares'
+import { requireFeature } from '../middlewares/planMiddleware'
 
 const router = Router()
 
 router.use(authenticate)
 
+// Customização de logotipo e cores (White-Label) a partir de PREMIUM
 router.get('/:id/customization', getClinicCustomizationController)
-router.put('/:id/customization', authorize('ADMIN'), updateClinicCustomizationController)
+router.put(
+  '/:id/customization',
+  requireFeature('WHITE_LABEL'),
+  authorize('ADMIN'),
+  updateClinicCustomizationController
+)
 
 router.get('/', listClinicsController)
 router.get('/:id', getClinicByIdController)
