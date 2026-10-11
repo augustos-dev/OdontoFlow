@@ -4,23 +4,22 @@ import {
   linkTranscriptionToEvolutionController,
 } from '../controllers/clinicalAiController'
 import { authenticate, authorize } from '../middlewares/authMiddlewares'
+import { requireFeature } from '../middlewares/planMiddleware'
 import { audioUpload } from '../middlewares/audioUpload.middleware'
 
 const clinicalAiRouter = Router()
 
-// Todas as operações de IA clínica exigem autenticação via Token JWT
+// Transcrição de IA e análise clínica disponível a partir do plano PREMIUM
 clinicalAiRouter.use(authenticate)
+clinicalAiRouter.use(requireFeature('AI_TRANSCRIPTION'))
 
-// ─── 1. TRANSCRIÇÃO & PROCESSAMENTO DE VOZ (ADMIN, DENTIST) ──────────────────
-// Registra o áudio capturado no mocho, gera transcrição e payload clínico estruturado
-clinicalAiRouter.post('/transcribe',
+clinicalAiRouter.post(
+  '/transcribe',
   authorize('ADMIN', 'DENTIST'),
   audioUpload.single('audio'),
   createTranscriptionController
 )
 
-// ─── 2. VÍNCULO COM PRONTUÁRIO & EVOLUÇÃO (ADMIN, DENTIST) ──────────────────
-// Associa a transcrição processada à evolução clínica respeitando a janela CFO (24h)
 clinicalAiRouter.patch(
   '/evolutions/:evolutionId/link',
   authorize('ADMIN', 'DENTIST'),

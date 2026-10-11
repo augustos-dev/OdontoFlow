@@ -6,22 +6,16 @@ import {
 } from '../controllers/commissionController'
 import { authenticate, authorize } from '../middlewares/authMiddlewares'
 import { can } from '../middlewares/rbac.middleware'
+import { requireFeature } from '../middlewares/planMiddleware'
 
 const commissionRouter = Router()
 
-// Todas as rotas financeiras de repasse exigem autenticação via Token JWT
 commissionRouter.use(authenticate)
+// Módulo de repasses e comissões exige plano PREMIUM ou superior
+commissionRouter.use(requireFeature('COMMISSIONS'))
 
-// ─── 1. ROTAS DE LEITURA (ADMIN, DENTIST) ────────────────────────────────────
-// Listagem de repasses (Administrador visualiza todos; dentista visualiza os seus)
 commissionRouter.get('/', can('COMMISSIONS', 'READ'), listCommissionsController)
-
-// ─── 2. CÁLCULO E LANÇAMENTO DE COMISSÃO (ADMIN) ─────────────────────────────
-// Cálculo com base no valor líquido real (descontando insumos fracionados do procedimento)
 commissionRouter.post('/', authorize('ADMIN'), createCommissionController)
-
-// ─── 3. LIQUIDAÇÃO / PAGAMENTO DE REPASSE (ADMIN) ────────────────────────────
-// Transição de status para liquidado (PAID), forma de pagamento e anexo de comprovante
 commissionRouter.patch('/:id/pay', authorize('ADMIN'), payCommissionController)
 
 export default commissionRouter
