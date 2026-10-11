@@ -15,6 +15,7 @@ import api from '@/lib/api'
 import styles from './agenda.module.css'
 import DetalhesAgendamentoModal from '@/app/components/DetalhesAgendamentoModal'
 import { useModal } from '@/app/components/ModalContext'
+import { usePlanAccess } from '@/src/hooks/usePlanAccess'
 
 interface Appointment {
   id: string
@@ -235,23 +236,27 @@ export default function AgendaPage() {
       height: `${height}px`,
     }
   }
+const { canMultiRooms, isBasic } = usePlanAccess()
 
-  function handleRoomsCountChange(newCount: number) {
-    if (newCount > 1 && userPlan === 'BASIC') {
-      setBlockedPlanFeature('Visualização simultânea de 2 ou mais salas disponível a partir do Plano Premium.')
-      setShowUpgradeModal(true)
-      return
-    }
-
-    if (newCount > 2 && userPlan !== 'ENTERPRISE') {
-      setBlockedPlanFeature('Visualização simultânea de 3, 4 ou mais cadeiras é exclusiva do Plano Enterprise.')
-      setShowUpgradeModal(true)
-      return
-    }
-
-    setRoomsCount(newCount)
-    setSelectedSingleRoom('ALL')
+ function handleRoomsCountChange(newCount: number) {
+  // 1. Bloqueia 2 salas se o plano for estritamente Básico (exige Premium ou superior)
+  if (newCount > 1 && isBasic) {
+    setBlockedPlanFeature('Visualização simultânea de 2 ou mais salas disponível a partir do Plano Premium.')
+    setShowUpgradeModal(true)
+    return
   }
+
+  // 2. Bloqueia 3 ou mais salas se NÃO tiver o benefício Multi-Salas (exclusivo Enterprise)
+  if (newCount > 2 && !canMultiRooms) {
+    setBlockedPlanFeature('Visualização simultânea de 3, 4 ou mais cadeiras é exclusiva do Plano Enterprise.')
+    setShowUpgradeModal(true)
+    return
+  }
+
+  // ✅ Se for Enterprise, passa direto por ambas as travas sem abrir modal
+  setRoomsCount(newCount)
+  setSelectedSingleRoom('ALL')
+}
 
   const visibleRooms = selectedSingleRoom !== 'ALL'
     ? [selectedSingleRoom]
