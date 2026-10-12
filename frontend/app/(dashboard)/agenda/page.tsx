@@ -100,7 +100,7 @@ export default function AgendaPage() {
   const [blockedPlanFeature, setBlockedPlanFeature] = useState('')
 
   // Configuração de Salas
-  const [roomsCount, setRoomsCount] = useState<number>(2)
+  // const [roomsCount, setRoomsCount] = useState<number>(2)
   const [selectedSingleRoom, setSelectedSingleRoom] = useState<string>('ALL')
 
   // Drag & Drop
@@ -237,6 +237,16 @@ export default function AgendaPage() {
     }
   }
 const { canMultiRooms, isBasic } = usePlanAccess()
+
+const [roomsCount, setRoomsCount] = useState<number>(() => {
+  return isBasic ? 1 : 2
+})
+
+useEffect(() => {
+  if (isBasic && roomsCount > 1) {
+    setRoomsCount(1)
+  }
+}, [isBasic])
 
  function handleRoomsCountChange(newCount: number) {
   // 1. Bloqueia 2 salas se o plano for estritamente Básico (exige Premium ou superior)

@@ -29,13 +29,17 @@ import {
   Activity,
   Coins,
   ArrowDownLeft,
-  Truck
+  Truck,
+  Lock,
+  Sparkles
 } from 'lucide-react'
 import styles from './layout.module.css'
 import { ModalProvider, useModal } from '@/app/components/ModalContext'
 import Logo from '../../public/logo.svg'
 import Image from 'next/image'
 import api from '@/lib/api'
+import { usePlanAccess } from '../../src/hooks/usePlanAccess'
+import { TenantPlan } from '@/lib/planAccess'
 
 type UserRole = 'ADMIN' | 'DENTIST' | 'SECRETARY'
 
@@ -44,6 +48,8 @@ interface NavItem {
   label: string
   icon: any
   roles?: UserRole[]
+  minPlan?: TenantPlan       // 🔒 Nível mínimo de assinatura exigido
+  badgeText?: string         // 🏷️ Texto descritivo da tag (ex: 'PRO', 'ENTERPRISE')
 }
 
 interface NavGroup {
@@ -52,47 +58,48 @@ interface NavGroup {
   items: NavItem[]
 }
 
-// 🛡️ Matriz de Navegação com RBAC por Perfis (com a nova rota /gestao-de-titulos)
+// 🛡️ Matriz de Navegação com RBAC por Perfis e Proteção de Planos
 const NAV_GROUPS: NavGroup[] = [
   {
     label: 'VISÃO GERAL',
     roles: ['ADMIN', 'SECRETARY'],
     items: [
-      { href: '/', label: 'Dashboard Geral', icon: LayoutDashboard, roles: ['ADMIN', 'SECRETARY'] },
+      { href: '/', label: 'Dashboard Geral', icon: LayoutDashboard, roles: ['ADMIN', 'SECRETARY'], minPlan: 'BASIC' },
     ],
   },
   {
     label: 'ATENDIMENTO CLÍNICO',
     roles: ['ADMIN', 'DENTIST'],
     items: [
-      { href: '/consultorio', label: 'Meu Consultório', icon: Activity, roles: ['DENTIST', 'ADMIN'] },
+      { href: '/consultorio', label: 'Meu Consultório', icon: Activity, roles: ['DENTIST', 'ADMIN'], minPlan: 'BASIC' },
     ],
   },
   {
     label: 'OPERAÇÃO CLÍNICA',
     roles: ['ADMIN', 'DENTIST', 'SECRETARY'],
     items: [
-      { href: '/agenda', label: 'Agenda Integrada', icon: Calendar, roles: ['ADMIN', 'DENTIST', 'SECRETARY'] },
-      { href: '/pacientes', label: 'Pacientes & Prontuários', icon: Users, roles: ['ADMIN', 'DENTIST', 'SECRETARY'] },
-      { href: '/tratamentos', label: 'Planos & Orçamentos', icon: ClipboardList, roles: ['ADMIN', 'DENTIST', 'SECRETARY'] },
-      { href: '/procedimentos', label: 'Tabela de Procedimentos', icon: Stethoscope, roles: ['ADMIN', 'DENTIST'] },
+      { href: '/agenda', label: 'Agenda Integrada', icon: Calendar, roles: ['ADMIN', 'DENTIST', 'SECRETARY'], minPlan: 'BASIC' },
+      { href: '/pacientes', label: 'Pacientes & Prontuários', icon: Users, roles: ['ADMIN', 'DENTIST', 'SECRETARY'], minPlan: 'BASIC' },
+      { href: '/tratamentos', label: 'Planos & Orçamentos', icon: ClipboardList, roles: ['ADMIN', 'DENTIST', 'SECRETARY'], minPlan: 'BASIC' },
+      { href: '/procedimentos', label: 'Tabela de Procedimentos', icon: Stethoscope, roles: ['ADMIN', 'DENTIST'], minPlan: 'BASIC' },
     ],
   },
   {
     label: 'GESTÃO & ESTOQUE',
     roles: ['ADMIN', 'DENTIST', 'SECRETARY'],
     items: [
-      { href: '/estoque', label: 'Estoque & Insumos', icon: Package, roles: ['ADMIN', 'SECRETARY'] },
-      { href: '/financeiro', label: 'Financeiro & DRE', icon: CreditCard, roles: ['ADMIN'] },
-      { href: '/gestao-de-titulos', label: 'Gestão de Títulos', icon: ArrowDownLeft, roles: ['ADMIN', 'SECRETARY'] },
-      { href: '/comissoes', label: 'Comissões & Repasses', icon: Coins, roles: ['ADMIN', 'DENTIST'] },
+      { href: '/estoque', label: 'Estoque & Insumos', icon: Package, roles: ['ADMIN', 'SECRETARY'], minPlan: 'BASIC' },
+      // 🔒 Módulos Financeiros Avançados: Exigem plano PREMIUM ou superior
+      { href: '/financeiro', label: 'Financeiro & DRE', icon: CreditCard, roles: ['ADMIN'], minPlan: 'PREMIUM', badgeText: 'PRO' },
+      { href: '/gestao-de-titulos', label: 'Gestão de Títulos', icon: ArrowDownLeft, roles: ['ADMIN', 'SECRETARY'], minPlan: 'PREMIUM', badgeText: 'PRO' },
+      { href: '/comissoes', label: 'Comissões & Repasses', icon: Coins, roles: ['ADMIN', 'DENTIST'], minPlan: 'PREMIUM', badgeText: 'PRO' },
     ],
   },
   {
     label: 'SISTEMA',
     roles: ['ADMIN'],
     items: [
-      { href: '/configuracoes', label: 'Configurações & Visual', icon: Settings, roles: ['ADMIN'] },
+      { href: '/configuracoes', label: 'Configurações & Visual', icon: Settings, roles: ['ADMIN'], minPlan: 'BASIC' },
     ],
   },
 ]
@@ -145,6 +152,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const { openNovoAgendamento } = useModal()
 
+  // 🛡️ Hook centralizado de planos
+  const { plan: userPlan, hasMinPlan } = usePlanAccess()
+
+  // Estado do Modal de Bloqueio de Plano
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [upgradeMessage, setUpgradeMessage] = useState('')
+
   // Estado da Clínica (White-Label)
   const [clinicVisual, setClinicVisual] = useState<ClinicVisualState>({
     name: 'Clínica OdontoFlow',
@@ -183,7 +197,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Consulta Notificações em Tempo Real (Estoque, Consultas, Financeiro, Gestão de Títulos e Repasses)
+  // Consulta Notificações em Tempo Real
   const loadDynamicNotifications = useCallback(async () => {
     try {
       setLoadingNotifs(true)
@@ -243,8 +257,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         })
       }
 
-      // 3. Faturamento Recebido (Apenas ADMIN)
-      if (transRes.status === 'fulfilled' && user?.role === 'ADMIN') {
+      // 3. Faturamento Recebido (Apenas ADMIN com plano compatível)
+      if (transRes.status === 'fulfilled' && user?.role === 'ADMIN' && hasMinPlan('PREMIUM')) {
         const rawTrans = transRes.value.data?.data || transRes.value.data || []
         const recentTrans = Array.isArray(rawTrans) ? rawTrans.slice(0, 2) : []
 
@@ -263,8 +277,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         })
       }
 
-      // 4. Gestão de Títulos (Contas a Pagar / Boletos Vencidos)
-      if (payablesRes.status === 'fulfilled' && (user?.role === 'ADMIN' || user?.role === 'SECRETARY')) {
+      // 4. Gestão de Títulos (Contas a Pagar / Boletos Vencidos - Exige Premium)
+      if (payablesRes.status === 'fulfilled' && (user?.role === 'ADMIN' || user?.role === 'SECRETARY') && hasMinPlan('PREMIUM')) {
         const rawDespesas = payablesRes.value.data?.data || payablesRes.value.data || []
         const despesas = Array.isArray(rawDespesas) ? rawDespesas : []
 
@@ -302,8 +316,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // 5. Repasses de Comissões Pendentes (ADMIN e DENTIST)
-      if (commRes.status === 'fulfilled' && (user?.role === 'ADMIN' || user?.role === 'DENTIST')) {
+      // 5. Repasses de Comissões Pendentes (Exige Premium)
+      if (commRes.status === 'fulfilled' && (user?.role === 'ADMIN' || user?.role === 'DENTIST') && hasMinPlan('PREMIUM')) {
         const rawComms = commRes.value.data?.data || commRes.value.data || []
         const list = Array.isArray(rawComms) ? rawComms : []
 
@@ -336,7 +350,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     } finally {
       setLoadingNotifs(false)
     }
-  }, [user?.role, user?.id])
+  }, [user?.role, user?.id, hasMinPlan])
 
   const applyThemeVariables = useCallback((theme: ClinicVisualState) => {
     if (typeof document === 'undefined') return
@@ -365,14 +379,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         logoUrl: current.logoUrl || null,
       }
 
-      const customRes = await api.get(`/clinics/${current.id}/customization`).catch(() => null)
-      if (customRes?.data) {
-        visual = {
-          name: customRes.data.clinicName || current.name,
-          primaryColor: customRes.data.primaryColor || visual.primaryColor,
-          accentColor: customRes.data.accentColor || visual.accentColor,
-          fontFamily: customRes.data.fontFamily || visual.fontFamily,
-          logoUrl: customRes.data.customLogoUrl || visual.logoUrl,
+      // Customização visual avançada a partir do plano PREMIUM
+      if (hasMinPlan('PREMIUM')) {
+        const customRes = await api.get(`/clinics/${current.id}/customization`).catch(() => null)
+        if (customRes?.data) {
+          visual = {
+            name: customRes.data.clinicName || current.name,
+            primaryColor: customRes.data.primaryColor || visual.primaryColor,
+            accentColor: customRes.data.accentColor || visual.accentColor,
+            fontFamily: customRes.data.fontFamily || visual.fontFamily,
+            logoUrl: customRes.data.customLogoUrl || visual.logoUrl,
+          }
         }
       }
 
@@ -381,7 +398,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('Falha ao sincronizar tema da clínica:', err)
     }
-  }, [applyThemeVariables])
+  }, [applyThemeVariables, hasMinPlan])
 
   useEffect(() => {
     const token = localStorage.getItem('odontoflow_token') || localStorage.getItem('@odontoflow:token')
@@ -402,17 +419,32 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // 🛡️ Guarda de Rotas no Cliente com RBAC
+    // 🛡️ Guarda Dupla de Rotas no Cliente: RBAC por Perfil + Trava de Planos
     if (parsedUser) {
       const currentRole: UserRole = parsedUser.role || 'SECRETARY'
+
+      // 1. Validação por Cargo (RBAC)
       if (currentRole === 'DENTIST') {
         if (pathname === '/financeiro' || pathname === '/configuracoes' || pathname === '/gestao-de-titulos') {
           router.replace('/consultorio')
+          return
         }
       } else if (currentRole === 'SECRETARY') {
         if (pathname === '/financeiro' || pathname === '/configuracoes' || pathname === '/consultorio' || pathname === '/comissoes') {
           router.replace('/agenda')
+          return
         }
+      }
+
+      // 2. Validação por Plano de Assinatura
+      const isTryingRestrictedPlanRoute = 
+        pathname === '/financeiro' || 
+        pathname === '/gestao-de-titulos' || 
+        pathname === '/comissoes'
+
+      if (isTryingRestrictedPlanRoute && !hasMinPlan('PREMIUM')) {
+        router.replace('/agenda')
+        return
       }
     }
 
@@ -442,9 +474,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       window.removeEventListener('clinic_customization_updated', handleThemeUpdate)
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [router, pathname, fetchClinicCustomization, loadDynamicNotifications])
+  }, [router, pathname, fetchClinicCustomization, loadDynamicNotifications, hasMinPlan])
 
-  // Pesquisa Global com suporte a Pacientes, Procedimentos, Planos e Fornecedores
+  // Pesquisa Global
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([])
@@ -551,12 +583,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     localStorage.setItem('odontoflow_sidebar_collapsed', String(nextState))
   }
 
+  function handlePlanRestrictedClick(itemLabel: string, minPlan: TenantPlan) {
+    const planName = minPlan === 'ENTERPRISE' ? 'Plano Enterprise' : 'Plano Clínico Pro'
+    setUpgradeMessage(`O módulo "${itemLabel}" é exclusivo para assinantes do ${planName}. Faça o upgrade para desbloquear relatórios, conciliação e comissões automáticas.`)
+    setShowUpgradeModal(true)
+  }
+
   const today = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
   const todayFormatted = today.charAt(0).toUpperCase() + today.slice(1)
 
-  // Resolução rigorosa do título da tela
   const pageTitle = ROUTE_PAGE_TITLES[pathname] ?? 'OdontoFlow'
 
   const initials = user?.name
@@ -582,7 +619,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         '--app-font': clinicVisual.fontFamily,
       } as React.CSSProperties}
     >
-      {/* ─── Menu Lateral (Sidebar) ─── */}
+      {/* ─── Menu Lateral (Sidebar) com RBAC e Trava de Planos ─── */}
       <aside className={`${styles.sidebar} ${isCollapsed ? styles.sidebarCollapsed : ''}`}>
         <div className={styles.sidebarLogo}>
           <div className={styles.logoIcon}>
@@ -605,7 +642,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        {/* Links Filtrados com RBAC */}
+        {/* Links Filtrados com RBAC e Protegidos por Assinatura */}
         <nav className={styles.nav}>
           {NAV_GROUPS.map((group) => {
             if (group.roles && !group.roles.includes(userRole)) {
@@ -626,6 +663,30 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 {visibleItems.map((item) => {
                   const IconComponent = item.icon
                   const isActive = pathname === item.href
+                  const isPlanLocked = item.minPlan ? !hasMinPlan(item.minPlan) : false
+
+                  if (isPlanLocked) {
+                    return (
+                      <button
+                        key={item.href}
+                        type="button"
+                        onClick={() => handlePlanRestrictedClick(item.label, item.minPlan!)}
+                        className={`${styles.navItem} ${styles.navItemLocked}`}
+                        title={isCollapsed ? `${item.label} (${item.badgeText || 'Bloqueado'})` : undefined}
+                      >
+                        <IconComponent size={18} className={styles.navIcon} />
+                        {!isCollapsed && (
+                          <div className={styles.navItemLockedContent}>
+                            <span>{item.label}</span>
+                            <span className={styles.planLockBadge}>
+                              <Lock size={10} style={{ marginRight: 3 }} />
+                              {item.badgeText || 'PRO'}
+                            </span>
+                          </div>
+                        )}
+                      </button>
+                    )
+                  }
 
                   return (
                     <Link
@@ -654,14 +715,19 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           {!isCollapsed && <span>Recolher menu</span>}
         </button>
 
-        {/* Perfil do Utilizador no Rodapé do Menu */}
+        {/* Perfil do Utilizador e Indicador de Plano no Rodapé */}
         <div className={styles.sidebarFooter}>
           <div className={styles.avatar}>{initials}</div>
           {!isCollapsed && (
             <div className={styles.userInfo}>
               <div className={styles.userName}>{user?.name ?? 'Utilizador'}</div>
-              <div className={styles.userRoleBadge}>
-                {userRole === 'ADMIN' ? 'Administrador' : userRole === 'DENTIST' ? 'Cirurgião-Dentista' : 'Recepção / Secretária'}
+              <div className={styles.userMetaBadges}>
+                <span className={styles.userRoleBadge}>
+                  {userRole === 'ADMIN' ? 'Admin' : userRole === 'DENTIST' ? 'Dentista' : 'Recepção'}
+                </span>
+                <span className={`${styles.planPill} ${styles[`planPill_${userPlan.toLowerCase()}`]}`}>
+                  {userPlan === 'ENTERPRISE' ? 'Enterprise' : userPlan === 'PREMIUM' ? 'Pro' : 'Básico'}
+                </span>
               </div>
             </div>
           )}
@@ -683,6 +749,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <div className={styles.clinicName}>
               <span>{clinicVisual.name}</span>
               <span className={styles.roleHeaderPill}>{userRole}</span>
+              <span className={styles.planHeaderPill}>{userPlan}</span>
             </div>
             <h1 className={styles.pageTitle}>{pageTitle}</h1>
           </div>
@@ -843,6 +910,39 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
         <main className={styles.content}>{children}</main>
       </div>
+
+      {/* ─── Modal de Upgrade de Plano ─── */}
+      {showUpgradeModal && (
+        <div className={styles.upgradeModalOverlay}>
+          <div className={styles.upgradeModalCard}>
+            <div className={styles.upgradeModalIcon}>
+              <Sparkles size={28} />
+            </div>
+            <h3 className={styles.upgradeModalTitle}>Recurso Exclusivo</h3>
+            <p className={styles.upgradeModalText}>{upgradeMessage}</p>
+
+            <div className={styles.upgradeModalActions}>
+              <button 
+                type="button" 
+                onClick={() => setShowUpgradeModal(false)}
+                className={styles.upgradeModalBtnSecondary}
+              >
+                Voltar
+              </button>
+              <button 
+                type="button" 
+                onClick={() => {
+                  setShowUpgradeModal(false)
+                  router.push('/configuracoes?tab=assinatura')
+                }}
+                className={styles.upgradeModalBtnPrimary}
+              >
+                Ver Planos & Upgrade
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
