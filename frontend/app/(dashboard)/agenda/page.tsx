@@ -84,32 +84,31 @@ export default function AgendaPage() {
   const [loading, setLoading] = useState(true)
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
 
-  // Usuário autenticado
+  
   const [loggedUserName, setLoggedUserName] = useState<string>('')
 
-  // White-Label dinâmico
+  
   const [branding, setBranding] = useState<ClinicBranding>({
     clinicName: 'Clarium Clinic - Messejana',
     clinicAddress: 'Avenida Frei Cirilo, 3748, Messejana',
     primaryColor: '#0284c7',
   })
 
-  // Planos & Limites
+  
   const [userPlan, setUserPlan] = useState<UserPlan>('PREMIUM')
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [blockedPlanFeature, setBlockedPlanFeature] = useState('')
 
-  // Configuração de Salas
-  // const [roomsCount, setRoomsCount] = useState<number>(2)
+  
   const [selectedSingleRoom, setSelectedSingleRoom] = useState<string>('ALL')
 
-  // Drag & Drop
+  
   const [draggedAppt, setDraggedAppt] = useState<Appointment | null>(null)
   const [now, setNow] = useState<Date>(new Date())
   const [pendingMove, setPendingMove] = useState<{ appt: Appointment; newHour: string; newRoom: string } | null>(null)
   const [timeErrorAlert, setTimeErrorAlert] = useState<string | null>(null)
 
-  // Modal de Fila de Espera / Encaixe
+  
   const [isWaitingModalOpen, setIsWaitingModalOpen] = useState(false)
   const [patients, setPatients] = useState<PatientOption[]>([])
   const [dentists, setDentists] = useState<DentistOption[]>([])
@@ -249,21 +248,21 @@ useEffect(() => {
 }, [isBasic])
 
  function handleRoomsCountChange(newCount: number) {
-  // 1. Bloqueia 2 salas se o plano for estritamente Básico (exige Premium ou superior)
+  
   if (newCount > 1 && isBasic) {
     setBlockedPlanFeature('Visualização simultânea de 2 ou mais salas disponível a partir do Plano Premium.')
     setShowUpgradeModal(true)
     return
   }
 
-  // 2. Bloqueia 3 ou mais salas se NÃO tiver o benefício Multi-Salas (exclusivo Enterprise)
+  
   if (newCount > 2 && !canMultiRooms) {
     setBlockedPlanFeature('Visualização simultânea de 3, 4 ou mais cadeiras é exclusiva do Plano Enterprise.')
     setShowUpgradeModal(true)
     return
   }
 
-  // ✅ Se for Enterprise, passa direto por ambas as travas sem abrir modal
+  
   setRoomsCount(newCount)
   setSelectedSingleRoom('ALL')
 }
@@ -313,7 +312,7 @@ useEffect(() => {
     }
   }
 
-  // Drag & Drop
+
   function handleDragStart(e: React.DragEvent, appt: Appointment) {
     setDraggedAppt(appt)
     e.dataTransfer.effectAllowed = 'move'
@@ -483,7 +482,7 @@ useEffect(() => {
           </select>
         </div>
 
-        {/* Legendas de Status */}
+       
         <div className={styles.legend}>
           <span className={styles.legendItem}>
             <span className={styles.dotAgendado} /> Agendado
@@ -500,7 +499,7 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* ─── GRID CENTRAL + SIDEBAR ─── */}
+      
       <div className={styles.mainLayout}>
         <div className={styles.card}>
           <div className={styles.cardHeader}>
