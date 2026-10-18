@@ -1,24 +1,38 @@
+/* ─── DESIGN TOKENS & RESET ─── */
 .landingContainer {
-  background-color: #f8fafc;
-  color: #0f172a;
+  --primary: #0082c9;
+  --primary-hover: #006fae;
+  --primary-light: #f0f9ff;
+  --text-dark: #0f172a;
+  --text-muted: #475569;
+  --text-subtle: #94a3b8;
+  --border-color: #e2e8f0;
+  --bg-page: #ffffff;
+  --bg-section: #f8fafc;
+  --footer-dark: #0a111e;
+
+  width: 100%;
   min-height: 100vh;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-page);
+  color: var(--text-dark);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow-x: hidden;
 }
 
-/* ─── Navbar ─── */
+/* ─── 1. NAVBAR ─── */
 .navbar {
   position: sticky;
   top: 0;
   z-index: 100;
-  background-color: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid #e2e8f0;
-  padding: 14px 0;
+  height: 72px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .navInner {
-  max-width: 1240px;
+  max-width: 1200px;
+  height: 100%;
   margin: 0 auto;
   padding: 0 24px;
   display: flex;
@@ -32,49 +46,41 @@
   gap: 10px;
 }
 
-.logoCircle {
+.logoCircle,
+.logoCircleDark {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background-color: #0284c7;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.logoGlow {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background-color: #ffffff;
+  border-radius: 999px;
+background: #06B6D4;
 }
 
 .logoText {
-  color: #0F172A;
-font-family: Inter;
-font-size: 24px;
-font-style: normal;
-font-weight: 700;
-line-height: normal;
-letter-spacing: undefined;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-dark);
+  letter-spacing: -0.02em;
 }
 
 .navLinks {
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 32px;
 }
 
 .navLinks a {
-  color: #475569;
-  font-size: 0.9rem;
-  font-weight: 500;
   text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
   transition: color 0.15s ease;
 }
 
 .navLinks a:hover {
-  color: #0284c7;
+  color: var(--primary);
 }
 
 .navActions {
@@ -84,100 +90,107 @@ letter-spacing: undefined;
 }
 
 .btnNavEntrar {
-  color: #334155;
-  font-size: 0.88rem;
+  text-decoration: none;
+  font-size: 14px;
   font-weight: 600;
+  color: var(--text-dark);
   padding: 8px 18px;
   border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  text-decoration: none;
-  background: #ffffff;
-  transition: all 0.15s ease;
+  border: 1px solid var(--border-color);
+  transition: background 0.15s ease;
 }
 
 .btnNavEntrar:hover {
-  background-color: #f1f5f9;
+  background: #f1f5f9;
 }
 
 .btnNavTestar {
-  background-color: #0284c7;
+  border: none;
+  background: var(--primary);
   color: #ffffff;
-  font-size: 0.88rem;
+  font-size: 14px;
   font-weight: 600;
   padding: 9px 20px;
   border-radius: 8px;
-  border: none;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .btnNavTestar:hover {
-  background-color: #0369a1;
+  background: var(--primary-hover);
 }
 
-/* ─── Hero Section ─── */
+.btnMobileMenu {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--text-dark);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.mobileNavDropdown {
+  display: none;
+}
+
+/* ─── 2. HERO SECTION ─── */
 .heroSection {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 56px 24px 72px;
+  padding: 64px 24px 80px 24px;
+  background: #ffffff;
 }
 
 .heroGrid {
+  max-width: 1200px;
+  margin: 0 auto;
   display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  gap: 48px;
+  grid-template-columns: 1.1fr 1fr;
   align-items: center;
+  gap: 40px;
 }
 
 .heroTextCol {
-display: flex;
-width: 650px;
-flex-direction: column;
-align-items: flex-start;
-gap: 24px;
+  display: flex;
+  flex-direction: column;
 }
 
 .pillBadge {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background-color: #e0f2fe;
-  color: #0284c7;
-  font-size: 0.78rem;
-  font-weight: 700;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
   padding: 6px 14px;
-  border-radius: 20px;
-  margin-bottom: 20px;
+  border-radius: 9999px;
+  width: fit-content;
+  margin-bottom: 22px;
 }
 
 .pillBadgeIcon {
-  color: #0284c7;
+  color: var(--primary);
 }
 
 .heroHeading {
-  align-self: stretch;
-  font-family: Inter;
-  font-size: 52px;
-  font-style: normal;
-  font-weight: 700;
-  line-height: 1.18;
+  font-size: 44px;
+  line-height: 1.15;
+  font-weight: 800;
   letter-spacing: -0.03em;
-  color: #0f172a;
-  margin: 0 0 18px;
+  color: var(--text-dark);
+  margin: 0 0 18px 0;
 }
 
 .headingBlue {
-  color: #0284c7;
+  color: var(--primary);
 }
 
 .heroDescription {
-  align-self: stretch;
- color: #475569;
-font-family: Inter;
-font-size: 18px;
-font-style: normal;
-font-weight: 400;
-line-height: 160%; /* 28.8px */
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 500px;
+  margin: 0 0 28px 0;
 }
 
 .heroButtonsRow {
@@ -185,250 +198,193 @@ line-height: 160%; /* 28.8px */
   align-items: center;
   gap: 14px;
   margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.btnFalarEspecialista {
-  display: inline-flex;
-  align-items: center;
-  padding: 12px 22px;
-  border-radius: 8px;
-  font-size: 0.92rem;
-  font-weight: 600;
-  color: #334155;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  text-decoration: none;
-  transition: all 0.15s ease;
-}
-
-.btnFalarEspecialista:hover {
-  background-color: #f1f5f9;
 }
 
 .btnComecarGraca {
   display: inline-flex;
   align-items: center;
-  background-color: #0284c7;
-  color: #ffffff;
-  padding: 12px 26px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: normal;
+  gap: 8px;
   border: none;
+  background: var(--primary);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .btnComecarGraca:hover {
-  background-color: #0369a1;
+  background: var(--primary-hover);
+}
+
+.btnFalarEspecialista {
+  text-decoration: none;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  color: var(--text-dark);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px 22px;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.btnFalarEspecialista:hover {
+  background: #f8fafc;
 }
 
 .heroDisclaimer {
-  font-size: 0.82rem;
-  color: #64748b;
+  font-size: 12px;
+  color: var(--text-subtle);
 }
 
-/* ─── Hero Mockup ─── */
+/* ─── HERO MOCKUP INTERATIVO ─── */
 .heroMockupCol {
   width: 100%;
-  max-width: 580px;
-  position: relative;
   display: flex;
   justify-content: center;
-  align-items: center;
 }
 
-/* Moldura externa do Laptop / Janela */
 .laptopFrame {
   width: 100%;
+  max-width: 540px;
   background: #ffffff;
-  border-radius: 18px;
-  border: 1px solid #f6f8fa;
-  box-shadow: 0 25px 60px -15px rgba(2, 132, 199, 0.18), 0 10px 25px -5px rgba(15, 23, 42, 0.12);
+  border-radius: 16px;
+  border: 1px solid #111827;
+  box-shadow: 0 20px 45px -10px rgba(0, 130, 201, 0.15), 0 10px 20px -5px rgba(0, 0, 0, 0.08);
   overflow: hidden;
   position: relative;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-/* Barra superior escura */
 .laptopTopBar {
   background: #111827;
-  height: 44px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid #1f2937;
+  padding: 0 14px;
 }
 
 .laptopDots {
   display: flex;
-  align-items: center;
-  gap: 7px;
-  width: 60px;
+  gap: 6px;
 }
 
 .dot {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  display: inline-block;
 }
 
-.dotRed {
-  background: #ef4444;
-}
-
-.dotYellow {
-  background: #f59e0b;
-}
-
-.dotGreen {
-  background: #10b981;
-}
+.dotRed { background: #ef4444; }
+.dotYellow { background: #f59e0b; }
+.dotGreen { background: #10b981; }
 
 .laptopUrlBar {
   background: #1f2937;
   color: #9ca3af;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 5px 24px;
-  border-radius: 6px;
-  letter-spacing: 0.2px;
-}
-
-.laptopTopRight {
-  width: 60px;
-  display: flex;
-  justify-content: flex-end;
+  font-size: 10px;
+  padding: 3px 20px;
+  border-radius: 4px;
 }
 
 .topDotsIcon {
   color: #64748b;
 }
 
-/* Estrutura Interna */
 .laptopBody {
   display: flex;
-  min-height: 450px;
+  min-height: 360px;
   background: #ffffff;
 }
 
-/* Mini Sidebar Lateral Esquerda */
 .miniSidebar {
- display: flex;
-width: 48px;
-padding: 16px 0;
-flex-direction: column;
-align-items: center;
-gap: 22px;
-align-self: stretch;
-border-right: 1px solid #E2E8F0;
-background: #F8FAFC;
-
+  width: 46px;
+  border-right: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 0;
+  gap: 12px;
 }
 
 .miniIconItem {
-  color: #0284c7;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  color: var(--primary);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
 
 .miniIconActive {
-  background: #0284c7;
+  background: var(--primary);
   color: #ffffff;
-  box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3);
 }
 
-.miniIconItem:not(.miniIconActive) {
-  color: #0284c7;
-  opacity: 0.85;
-}
-
-.miniIconItem:hover:not(.miniIconActive) {
-  background: #f0f9ff;
-  opacity: 1;
-}
-
-/* Área de Conteúdo da Agenda */
 .agendaContent {
   flex: 1;
-  padding: 22px 24px 34px 24px;
+  padding: 18px 20px 30px 20px;
   position: relative;
-  background: #ffffff;
 }
 
-/* Topo do App */
 .mockupHeader {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .mockupHeaderLeft {
   display: flex;
   flex-direction: column;
-  gap: 3px;
 }
 
 .mockupTitle {
- color: #0F172A;
-font-family: Inter;
-font-size: 12px;
-font-style: normal;
-font-weight: 700;
-line-height: 150%; /* 18px */
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-dark);
 }
 
 .mockupSubtitle {
-color: #94A3B8;
-font-family: Inter;
-font-size: 9px;
-font-style: normal;
-font-weight: 400;
-line-height: 150%; /* 13.5px */
+  font-size: 10px;
+  color: var(--text-subtle);
 }
 
 .userAvatar {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: #d7f4ec;
-  color: #0ea5e9;
-  font-size: 11px;
+  background: #f0fdfa;
+  color: #0284c7;
+  font-size: 10px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  /* border: 1px solid #ccfbf1; */
+  border: 1px solid #ccfbf1;
 }
 
-/* Barra de Tags & Tabs */
 .subBar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .exitBadge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   background: #ecfdf5;
   color: #059669;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 5px 12px;
+  padding: 4px 10px;
   border-radius: 9999px;
   border: 1px solid #d1fae5;
 }
@@ -440,54 +396,46 @@ line-height: 150%; /* 13.5px */
 
 .viewTabs {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  font-size: 12px;
-  font-weight: 500;
+  gap: 12px;
+  font-size: 11px;
 }
 
 .tabActive {
-  color: #0284c7;
+  color: var(--primary);
   font-weight: 600;
-  cursor: pointer;
 }
 
 .tabInactive {
-  color: #94a3b8;
-  cursor: pointer;
+  color: var(--text-subtle);
 }
 
-/* Grade de Horários */
 .scheduleGrid {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .timeRow {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
+  gap: 10px;
 }
 
 .timeLabel {
-  width: 42px;
-  font-size: 11px;
-  font-weight: 500;
-  color: #94a3b8;
+  width: 36px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-subtle);
   padding-top: 6px;
   text-align: right;
 }
 
 .appointmentCard {
   flex: 1;
- border-radius: 8px;
-border: 1px solid #BAE0F5;
-background: #EFF9FE;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  background: #ffffff;
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+  padding: 10px 12px;
   box-shadow: 0 2px 6px rgba(186, 230, 253, 0.2);
 }
 
@@ -498,35 +446,29 @@ background: #EFF9FE;
 }
 
 .dentistName {
-  color: #0F172A;
-font-family: Inter;
-font-size: 11px;
-font-style: normal;
-font-weight: 600;
-line-height: 150%; /* 16.5px */
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dark);
 }
 
 .statusDotGreen {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #10b981;
 }
 
 .statusDotCyan {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #06b6d4;
 }
 
 .patientInfo {
- color: #475569;
-font-family: Inter;
-font-size: 10px;
-font-style: normal;
-font-weight: 400;
-line-height: 150%; /* 15px */
+  font-size: 10px;
+  color: var(--text-muted);
+  margin: 2px 0 6px 0;
 }
 
 .cardFooter {
@@ -536,35 +478,34 @@ line-height: 150%; /* 15px */
 }
 
 .roomDuration {
-  font-size: 10px;
-  color: #94a3b8;
+  font-size: 9px;
+  color: var(--text-subtle);
 }
 
 .pillConfirmed {
   background: #f0fdf4;
   color: #16a34a;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: 9999px;
   border: 1px solid #dcfce7;
 }
 
 .pillScheduled {
   background: #f1f5f9;
-  color: #64748b;
-  font-size: 10px;
+  color: var(--text-muted);
+  font-size: 9px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: 9999px;
   border: 1px solid #e2e8f0;
 }
 
-/* Linha atenuada do 11:00 */
 .timeRowDimmed {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
 }
 
 .dividerLine {
@@ -573,154 +514,148 @@ line-height: 150%; /* 15px */
   background: #f1f5f9;
 }
 
-/* Card Flutuante Inferior (Ficha Clínica) */
 .floatingFichaCard {
   position: absolute;
-  bottom: 12px;
-  left: 20px;
-  right: 20px;
+  bottom: 8px;
+  left: 14px;
+  right: 14px;
   background: #ffffff;
   border: 1px solid #bae6fd;
-  border-radius: 14px;
-  padding: 12px 18px;
+  border-radius: 12px;
+  padding: 8px 14px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  box-shadow: 0 12px 28px -6px rgba(2, 132, 199, 0.22);
-  z-index: 10;
+  gap: 12px;
+  box-shadow: 0 10px 24px -5px rgba(0, 130, 201, 0.22);
 }
 
 .floatingIconBox {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   background: #f0f9ff;
-  color: #0284c7;
+  color: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #e0f2fe;
 }
 
 .floatingTexts {
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
 .floatingTitle {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text-dark);
 }
 
 .floatingHighlight {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  color: #0284c7;
+  color: var(--primary);
 }
 
-/* ─── Ticker Infinito ─── */
+/* ─── 3. TICKER ─── */
 .tickerWrapper {
-  border-top: 1px solid #DCEFF8;
-border-bottom: 1px solid #DCEFF8;
-background: #EFF9FE;
-  padding: 14px 0;
-  overflow: hidden;
-  white-space: nowrap;
+  background: #f0f9ff;
+  border-top: 1px solid #e0f2fe;
+  border-bottom: 1px solid #e0f2fe;
+  padding: 14px 24px;
 }
 
 .tickerTrack {
-  display: inline-flex;
-  align-items: center;
-  font-family: Inter;
-  gap: 36px;
-  color: #475569;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 150%;
-  animation: scrollTicker 30s linear infinite;
-}
-
-@keyframes scrollTicker {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-
-/* ─── Prova Social ─── */
-.socialProofSection {
-  max-width: 1240px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 64px 24px;
-  text-align: center;
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 24px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--primary);
+}
+
+/* ─── 4. PROVA SOCIAL ─── */
+.socialProofSection {
+  padding: 72px 24px 64px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .sectionHeadingCenter {
   text-align: center;
-  margin-bottom: 36px;
+  margin-bottom: 40px;
+}
+
+.preBadgeCategory {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--primary);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: block;
 }
 
 .socialTitle,
 .featuresHeading,
-.robustTitle,
 .plansHeading,
 .faqTitle {
-  font-size: 2rem;
+  font-size: 32px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--text-dark);
   letter-spacing: -0.02em;
-  margin: 0 0 8px;
+  margin: 0 0 10px 0;
 }
 
 .socialSub,
-.featuresSubheading,
-.robustSub,
-.faqSub {
-  font-size: 0.95rem;
-  color: #64748b;
-  margin: 0;
+.featuresSubheading {
+  font-size: 15px;
+  color: var(--text-muted);
 }
 
 .statsCardsGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 18px;
-  margin-bottom: 24px;
+  gap: 20px;
+  margin-bottom: 28px;
 }
 
 .statCard {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 22px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
-.statLabel {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #0284c7;
+.statHeaderTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.iconBlue {
+  color: var(--primary);
 }
 
 .statScoreRow {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
 }
 
 .statBigNumber {
-  font-size: 2.2rem;
-  font-weight: 900;
-  color: #0f172a;
-}
-
-.statSmallFraction {
-  font-size: 1rem;
-  color: #94a3b8;
-  font-weight: 600;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-dark);
 }
 
 .statStars {
@@ -728,24 +663,31 @@ background: #EFF9FE;
   gap: 2px;
 }
 
+.statSmallFraction {
+  font-size: 14px;
+  color: var(--text-subtle);
+}
+
 .statFootNote {
-  font-size: 0.75rem;
-  color: #64748b;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .approvedFootText {
-  font-size: 0.85rem;
-  color: #475569;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
-/* ─── 6 Cards de Funcionalidades ─── */
+/* ─── 5. FEATURES ─── */
 .featuresSection {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 40px 24px 72px;
+  padding: 80px 24px;
+  background: #ffffff;
 }
 
 .featuresGrid {
+  max-width: 1200px;
+  margin: 0 auto;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
@@ -753,144 +695,128 @@ background: #EFF9FE;
 
 .featureBox {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 14px;
   padding: 28px 24px;
   display: flex;
   flex-direction: column;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
 .featureBox:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+  transform: translateY(-2px);
+  border-color: #bae6fd;
 }
 
 .featureIconWrap {
   width: 44px;
   height: 44px;
   border-radius: 10px;
+  background: #f0f9ff;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 
-.iconBgBlue { background-color: #f0f9ff; }
-.iconBgCyan { background-color: #ecfeff; }
-.iconBgGreen { background-color: #f0fdf4; }
-.iconBgPurple { background-color: #faf5ff; }
-.iconBgAmber { background-color: #fffbeb; }
-.iconBgEmerald { background-color: #ecfdf5; }
-
 .featureCategory {
-  font-size: 0.7rem;
+  font-size: 10px;
   font-weight: 700;
-  color: #0284c7;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
+  color: var(--primary);
   margin-bottom: 8px;
 }
 
 .featureTitle {
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.3;
-  margin: 0 0 10px;
-}
-
-.featureDesc {
-  font-size: 0.85rem;
-  color: #64748b;
-  line-height: 1.5;
-  margin: 0 0 20px;
-  flex: 1;
-}
-
-.featureLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: transparent;
-  border: none;
-  font-size: 0.85rem;
+  font-size: 16px;
   font-weight: 700;
-  color: #0284c7;
-  cursor: pointer;
-  padding: 0;
+  line-height: 1.4;
+  margin: 0;
+  color: var(--text-dark);
 }
 
-.featureLink:hover {
-  text-decoration: underline;
+.featureArrowCorner {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  color: var(--text-subtle);
+  font-size: 16px;
 }
 
-/* ─── Banner Azul com Tarefas ─── */
+/* ─── 6. BANNER AZUL ─── */
 .blueBannerSection {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 0 24px 72px;
+  padding: 40px 24px 70px 24px;
+  background: #ffffff;
 }
 
 .blueBannerCard {
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  max-width: 1200px;
+  margin: 0 auto;
+  background: linear-gradient(135deg, #0070aa 0%, var(--primary) 100%);
   border-radius: 18px;
   padding: 48px;
+  color: #ffffff;
   display: grid;
   grid-template-columns: 1.2fr 1fr;
-  gap: 40px;
   align-items: center;
-  color: #ffffff;
+  gap: 40px;
 }
 
 .blueBannerBadge {
-  font-size: 0.7rem;
+  font-size: 11px;
   font-weight: 700;
-  background: rgba(255, 255, 255, 0.2);
-  padding: 4px 10px;
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 4px 12px;
+  border-radius: 9999px;
   display: inline-block;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .blueBannerTitle {
-  font-size: 1.85rem;
-  font-weight: 900;
-  line-height: 1.25;
-  margin: 0 0 12px;
-}
-
-.blueBannerDesc {
-  font-size: 0.92rem;
-  line-height: 1.6;
-  opacity: 0.92;
-  margin: 0 0 24px;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 0 0 28px 0;
 }
 
 .btnBannerWhite {
-  background-color: #ffffff;
-  color: #0284c7;
-  font-size: 0.9rem;
+  border: none;
+  background: #ffffff;
+  color: var(--primary);
+  font-size: 14px;
   font-weight: 700;
   padding: 12px 24px;
   border-radius: 8px;
-  border: none;
   cursor: pointer;
 }
 
 .tasksPreviewCard {
-  background-color: #ffffff;
-  border-radius: 12px;
-  padding: 20px;
-  color: #0f172a;
-  box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.2);
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 24px;
+  color: var(--text-dark);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
 }
 
 .tasksPreviewHeader {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.taskTitleRow {
+  display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 14px;
-  font-size: 0.85rem;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.taskCountBadge {
+  font-size: 11px;
+  color: var(--text-subtle);
 }
 
 .tasksList {
@@ -906,32 +832,31 @@ background: #EFF9FE;
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 0.8rem;
-  color: #334155;
+  font-size: 13px;
 }
 
-.taskDone {
-  color: #94a3b8 !important;
+.taskDone s {
+  color: var(--text-subtle);
 }
 
-/* ─── Robustez ─── */
+/* ─── 7. ROBUSTEZ ─── */
 .robustnessSection {
-  max-width: 1240px;
+  padding: 20px 24px 70px 24px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 20px 24px 72px;
 }
 
 .robustGrid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  gap: 24px;
 }
 
 .robustCard {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 14px;
-  padding: 32px 24px;
+  padding: 36px 24px;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -939,50 +864,40 @@ background: #EFF9FE;
 }
 
 .robustNumber {
-  font-size: 2.4rem;
-  font-weight: 900;
-  color: #0284c7;
+  font-size: 38px;
+  font-weight: 800;
+  color: var(--primary);
+  letter-spacing: -0.02em;
 }
 
-.robustCard span {
-  font-size: 0.85rem;
-  color: #64748b;
+.robustLabel {
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
-/* ─── Planos ─── */
+/* ─── 8. TABELA DE PLANOS & CARROSSEL MOBILE ─── */
 .plansSection {
-  background-color: #ffffff;
-  border-top: 1px solid #e2e8f0;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 80px 24px;
-}
-
-.tabelaTransparentePill {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #0284c7;
-  letter-spacing: 0.05em;
-  display: block;
-  margin-bottom: 6px;
+  padding: 70px 24px;
+  background: #ffffff;
 }
 
 .togglePillContainer {
   display: inline-flex;
-  align-items: center;
-  background-color: #f1f5f9;
+  background: #f1f5f9;
   padding: 4px;
-  border-radius: 8px;
-  margin: 18px 0 8px;
+  border-radius: 9999px;
+  margin-top: 24px;
+  gap: 4px;
 }
 
 .togglePillBtn {
-  background: transparent;
   border: none;
-  padding: 8px 18px;
-  border-radius: 6px;
-  font-size: 0.82rem;
+  background: transparent;
+  padding: 8px 20px;
+  border-radius: 9999px;
+  font-size: 13px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -990,167 +905,156 @@ background: #EFF9FE;
 }
 
 .togglePillActive {
-  background: #ffffff;
-  color: #0f172a;
-}
-
-.togglePillActiveBlue {
-  background: #0284c7;
+  background: var(--primary);
   color: #ffffff;
 }
 
 .discountBadgeSmall {
-  background: #ecfdf5;
-  color: #059669;
-  font-size: 0.68rem;
-  font-weight: 700;
+  background: rgba(255, 255, 255, 0.25);
+  font-size: 10px;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 9999px;
 }
 
-.parcelamentoNotice {
-  display: block;
-  font-size: 0.78rem;
-  color: #94a3b8;
+.mobilePlanTabs {
+  display: none;
 }
 
 .plansGrid {
-  max-width: 1240px;
-  margin: 40px auto 0;
+  max-width: 1200px;
+  margin: 40px auto 20px auto;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
+  align-items: stretch;
 }
 
 .planCard {
   background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 14px;
-  padding: 32px 28px;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 36px 28px;
   display: flex;
   flex-direction: column;
   position: relative;
 }
 
 .planCardHighlighted {
-  border-color: #0284c7;
-  box-shadow: 0 10px 30px -10px rgba(2, 132, 199, 0.25);
+  border: 2px solid var(--primary);
+  box-shadow: 0 10px 30px -10px rgba(0, 130, 201, 0.2);
 }
 
-.badgeMaisEscolhido {
-  position: absolute;
-  top: -12px;
-  right: 28px;
-  background-color: #0284c7;
-  color: #ffffff;
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 6px;
-}
-
+.badgeMaisEscolhido,
 .badgeAltaEscala {
   position: absolute;
   top: -12px;
-  right: 28px;
-  background-color: #0f172a;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--primary);
   color: #ffffff;
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 9999px;
+}
+
+.badgeAltaEscala {
+  background: #0f172a;
 }
 
 .planTargetLabel {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #64748b;
-  letter-spacing: 0.04em;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-subtle);
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
 }
 
 .planCardName {
-  font-size: 1.5rem;
-  font-weight: 900;
-  color: #0f172a;
-  margin: 4px 0 6px;
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 6px 0;
 }
 
 .planCardDescription {
-  font-size: 0.8rem;
-  color: #64748b;
-  line-height: 1.4;
-  margin: 0 0 20px;
-  min-height: 38px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 20px 0;
 }
 
 .planPriceRow {
   display: flex;
   align-items: baseline;
-  gap: 4px;
-  margin-bottom: 24px;
+  gap: 3px;
 }
 
 .currencyReal {
-  font-size: 1.15rem;
+  font-size: 16px;
   font-weight: 700;
 }
 
 .planBigValue {
-  font-size: 2.6rem;
-  font-weight: 900;
-  line-height: 1;
+  font-size: 36px;
+  font-weight: 800;
 }
 
 .perMonthText {
-  font-size: 0.85rem;
-  color: #64748b;
+  font-size: 13px;
+  color: var(--text-subtle);
 }
 
-.featuresBox {
-  flex: 1;
-}
-
-.featuresHeadingSmall {
-  font-size: 0.72rem;
-  color: #64748b;
-  letter-spacing: 0.04em;
+.billingCycleNote {
+  font-size: 11px;
+  color: var(--text-subtle);
+  margin-bottom: 24px;
 }
 
 .planFeaturesList {
   list-style: none;
   padding: 0;
-  margin: 14px 0 28px;
+  margin: 0 0 32px 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  flex: 1;
 }
 
 .planFeaturesList li {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 0.82rem;
-  color: #334155;
-  line-height: 1.4;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
 }
 
-.checkIconGreen {
-  color: #0284c7;
+.checkIconBlue {
+  color: var(--primary);
   flex-shrink: 0;
 }
 
-.btnCardWhite {
-  width: 100%;
-  padding: 12px;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 0.88rem;
+.btnCardBlue {
+  border: none;
+  background: var(--primary);
+  color: #ffffff;
   font-weight: 700;
-  color: #334155;
+  font-size: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btnCardBlue:hover {
+  background: var(--primary-hover);
+}
+
+.btnCardWhite {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  color: var(--text-dark);
+  font-weight: 700;
+  font-size: 14px;
+  padding: 12px;
+  border-radius: 8px;
   cursor: pointer;
 }
 
@@ -1158,40 +1062,60 @@ background: #EFF9FE;
   background: #f8fafc;
 }
 
-.btnCardBlue {
-  width: 100%;
-  padding: 12px;
-  background: #0284c7;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.88rem;
+.btnCardWhiteLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  color: var(--text-dark);
   font-weight: 700;
-  color: #ffffff;
+  font-size: 14px;
+  padding: 12px;
+  border-radius: 8px;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.btnCardBlue:hover {
-  background: #0369a1;
+.btnCardWhiteLink:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
-/* ─── FAQ ─── */
+.mobileSliderDots {
+  display: none;
+}
+
+.plansFooterDisclaimer {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+/* ─── 9. FAQ ─── */
 .faqSection {
-  max-width: 860px;
+  padding: 70px 24px;
+  max-width: 800px;
   margin: 0 auto;
-  padding: 80px 24px;
 }
 
 .faqContainer {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin-bottom: 28px;
 }
 
 .faqCard {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
   overflow: hidden;
+}
+
+.faqCardOpen {
+  border-color: #bae6fd;
 }
 
 .faqButton {
@@ -1200,153 +1124,175 @@ background: #EFF9FE;
   background: transparent;
   border: none;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  text-align: left;
-  font-size: 0.92rem;
-  font-weight: 600;
-  color: #0f172a;
+  align-items: center;
   cursor: pointer;
-}
-
-.faqChevron {
-  color: #64748b;
-  transition: transform 0.2s ease;
-}
-
-.faqChevronRotate {
-  transform: rotate(180deg);
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dark);
 }
 
 .faqBody {
-  padding: 0 20px 18px;
-  font-size: 0.85rem;
-  color: #475569;
+  padding: 0 20px 18px 20px;
+  font-size: 13px;
   line-height: 1.6;
+  color: var(--text-muted);
 }
 
-/* ─── Rodapé ─── */
+.faqDirectContact {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.faqDirectContact a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* ─── 10. FOOTER ─── */
 .footerSection {
-  background-color: #ffffff;
-  border-top: 1px solid #e2e8f0;
-  padding: 60px 24px 24px;
+  background: var(--footer-dark);
+  color: #94a3b8;
+  padding: 64px 24px 30px 24px;
 }
 
 .footerTop {
-  max-width: 1240px;
-  margin: 0 auto;
+  max-width: 1200px;
+  margin: 0 auto 48px auto;
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr;
-  gap: 40px;
-  margin-bottom: 40px;
+  grid-template-columns: 1.3fr 2fr;
+  gap: 50px;
+}
+
+.footerBrandArea {
+  display: flex;
+  flex-direction: column;
+}
+
+.logoTextDark {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
 }
 
 .footerBrandDesc {
-  font-size: 0.85rem;
-  color: #64748b;
-  margin-top: 12px;
-  max-width: 320px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 14px 0 22px 0;
+  max-width: 300px;
+}
+
+.btnFooterCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: var(--primary);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 6px;
+  width: fit-content;
+  cursor: pointer;
+}
+
+.footerNavLinksGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 30px;
 }
 
 .footerNavCol {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  font-size: 0.85rem;
-}
-
-.footerNavCol strong {
-  font-size: 0.78rem;
-  color: #0f172a;
-  letter-spacing: 0.04em;
-  margin-bottom: 4px;
-}
-
-.footerNavCol a,
-.footerNavCol span {
-  color: #64748b;
-  text-decoration: none;
-}
-
-.footerNavCol a:hover {
-  color: #0284c7;
-}
-
-.footerBottomBar {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding-top: 20px;
-  border-top: 1px solid #f1f5f9;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.78rem;
-  color: #64748b;
-  flex-wrap: wrap;
   gap: 12px;
 }
 
-.footerBadgesRight {
+.footerNavCol strong {
+  font-size: 13px;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.footerNavCol a {
+  text-decoration: none;
+  font-size: 13px;
+  color: #94a3b8;
+  transition: color 0.15s ease;
+}
+
+.footerNavCol a:hover {
+  color: #ffffff;
+}
+
+.footerBadgesCol {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.badgeCertDark {
   display: flex;
   align-items: center;
-  gap: 14px;
-}
-
-.securityTag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background-color: #f1f5f9;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.72rem;
+  gap: 8px;
+  font-size: 12px;
   font-weight: 600;
-  color: #475569;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.greenDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: #10b981;
-}
-
-.footerMiniLink {
+.footerBottomBar {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   color: #64748b;
-  text-decoration: none;
 }
 
-/* ─── Modal de Onboarding & Checkout (Print Exato) ─── */
+.footerAuthor strong {
+  color: #94a3b8;
+}
+
+/* ─── 11. MODAL ONBOARDING ─── */
 .checkoutOverlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(15, 23, 42, 0.6);
+  background: rgba(15, 23, 42, 0.75);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 999;
   padding: 16px;
-  animation: fadeIn 0.2s ease;
 }
 
 .checkoutModalBox {
-  background-color: #f8fafc;
-  width: 100%;
-  max-width: 1080px;
+  background: #ffffff;
   border-radius: 16px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  border: 1px solid #e2e8f0;
+  max-width: 900px;
+  width: 100%;
   overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 
 .checkoutModalTopbar {
-  background: #ffffff;
-  padding: 14px 28px;
-  border-bottom: 1px solid #e2e8f0;
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .checkoutBrandLogo {
@@ -1359,37 +1305,32 @@ background: #EFF9FE;
   display: flex;
   align-items: center;
   gap: 16px;
-  font-size: 0.85rem;
-  color: #64748b;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 .linkIniciarSessao {
-  color: #0284c7;
-  font-weight: 700;
+  color: var(--primary);
+  font-weight: 600;
   text-decoration: none;
 }
 
 .closeCheckoutBtn {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--text-subtle);
   cursor: pointer;
-  padding: 4px;
 }
 
 .checkoutBodyGrid {
-  padding: 32px;
   display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: 32px;
-  align-items: start;
+  grid-template-columns: 1.2fr 0.9fr;
 }
 
 .checkoutLeftCard {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 28px;
+  padding: 32px 36px;
+  display: flex;
+  flex-direction: column;
 }
 
 .stepperRow {
@@ -1403,17 +1344,13 @@ background: #EFF9FE;
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.82rem;
+  font-size: 13px;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--text-subtle);
 }
 
 .stepItemActive {
-  color: #0284c7;
-}
-
-.stepItemDone {
-  color: #10b981;
+  color: var(--primary);
 }
 
 .stepNumberBadge {
@@ -1424,31 +1361,30 @@ background: #EFF9FE;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: 11px;
 }
 
 .stepItemActive .stepNumberBadge {
-  background: #0284c7;
+  background: var(--primary);
   color: #ffffff;
 }
 
 .stepDividerLine {
   flex: 1;
   height: 1px;
-  background-color: #e2e8f0;
+  background: var(--border-color);
 }
 
 .checkoutFormTitle {
-  font-size: 1.45rem;
+  font-size: 20px;
   font-weight: 800;
-  color: #0f172a;
-  margin: 0 0 4px;
+  margin: 0 0 4px 0;
 }
 
 .checkoutFormSubtitle {
-  font-size: 0.82rem;
-  color: #64748b;
-  margin: 0 0 20px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 20px 0;
 }
 
 .formFieldsBox {
@@ -1464,9 +1400,8 @@ background: #EFF9FE;
 }
 
 .fieldGroup label {
-  font-size: 0.78rem;
+  font-size: 12px;
   font-weight: 600;
-  color: #334155;
 }
 
 .inputIconWrap {
@@ -1477,61 +1412,53 @@ background: #EFF9FE;
 
 .fieldIconLeft {
   position: absolute;
-  left: 10px;
-  color: #94a3b8;
+  left: 12px;
+  color: var(--text-subtle);
 }
 
 .modalInput {
   width: 100%;
-  padding: 9px 12px 9px 34px;
+  padding: 10px 12px 10px 36px;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  font-size: 0.85rem;
-  outline: none;
+  font-size: 13px;
 }
 
 .modalInputPlain {
   width: 100%;
-  padding: 9px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  font-size: 0.85rem;
-  outline: none;
-}
-
-.modalInput:focus,
-.modalInputPlain:focus {
-  border-color: #0284c7;
+  font-size: 13px;
 }
 
 .subdomainPrefixWrap {
   display: flex;
   align-items: center;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
-  background-color: #f8fafc;
+  background: #f8fafc;
 }
 
 .subdomainDomainPart {
-  padding: 9px 12px;
-  font-size: 0.82rem;
-  color: #64748b;
-  border-right: 1px solid #e2e8f0;
+  font-size: 12px;
+  color: var(--text-subtle);
+  padding-left: 12px;
 }
 
 .subdomainInputPart {
   flex: 1;
   border: none;
-  padding: 9px 12px;
+  background: transparent;
+  padding: 10px 8px;
+  font-size: 13px;
   outline: none;
-  background: #ffffff;
-  font-size: 0.85rem;
 }
 
 .subdomainHelp {
-  font-size: 0.72rem;
-  color: #94a3b8;
+  font-size: 11px;
+  color: var(--text-subtle);
 }
 
 .fieldsTwoCols {
@@ -1540,95 +1467,174 @@ background: #EFF9FE;
   gap: 12px;
 }
 
-.btnContinueCheckout {
+.btnContinueCheckout,
+.btnFinishModal {
+  margin-top: 10px;
+  border: none;
+  background: var(--primary);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background-color: #0284c7;
-  color: #ffffff;
-  padding: 12px;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 0.9rem;
-  border: none;
-  cursor: pointer;
-  margin-top: 10px;
-}
-
-.btnContinueCheckout:hover {
-  background-color: #0369a1;
 }
 
 .buttonsRowModal {
   display: flex;
-  align-items: center;
   gap: 12px;
   margin-top: 10px;
 }
 
 .btnBackModal {
-  padding: 12px 18px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
+  flex: 1;
   background: #ffffff;
-  color: #475569;
+  border: 1px solid var(--border-color);
+  padding: 12px;
+  border-radius: 8px;
   font-weight: 600;
+  font-size: 13px;
   cursor: pointer;
 }
 
 .btnFinishModal {
-  flex: 1;
-  padding: 12px;
+  flex: 2;
+  margin-top: 0;
+}
+
+.errorAlertBox {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  font-size: 12px;
+  padding: 10px 14px;
   border-radius: 8px;
-  background-color: #0284c7;
-  color: #ffffff;
-  font-weight: 700;
-  border: none;
-  cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.successOnboardingBox {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+}
+
+.successBadgeCircle {
+  margin-bottom: 14px;
+}
+
+.successTitle {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0 0 6px 0;
+}
+
+.successDesc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 20px 0;
+}
+
+.generatedLinkCard {
+  width: 100%;
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px;
+  text-align: left;
+  margin-bottom: 24px;
+}
+
+.generatedLinkLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-subtle);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.generatedLinkRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
-/* Card Direito do Modal */
-.checkoutRightCard {
+.generatedLinkRow code {
+  font-size: 12px;
+  color: var(--primary);
+  word-break: break-all;
+}
+
+.btnCopyLink {
+  border: 1px solid var(--border-color);
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 24px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.btnAcessarAgora {
+  border: none;
+  background: var(--primary);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 12px 24px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+/* Coluna Direita do Checkout */
+.checkoutRightCard {
+  background: #f8fafc;
+  border-left: 1px solid var(--border-color);
+  padding: 32px 28px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 
 .planSelectorMiniRow {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
 }
 
 .miniLabelPlan {
-  font-size: 0.7rem;
+  font-size: 11px;
   font-weight: 700;
-  color: #0284c7;
-  letter-spacing: 0.04em;
+  color: var(--primary);
 }
 
 .planMiniPills {
   display: flex;
-  gap: 6px;
+  gap: 4px;
 }
 
 .miniPill {
-  background: #f1f5f9;
-  border: none;
+  border: 1px solid var(--border-color);
+  background: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
   padding: 4px 10px;
   border-radius: 6px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: #64748b;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1636,28 +1642,27 @@ background: #EFF9FE;
 }
 
 .miniPillActive {
-  background: #0284c7;
+  background: var(--primary);
   color: #ffffff;
+  border-color: var(--primary);
 }
 
 .selectedPlanHeader {
   display: flex;
-  align-items: flex-start;
   justify-content: space-between;
-  border-bottom: 1px solid #f1f5f9;
-  padding-bottom: 14px;
+  align-items: flex-start;
+  margin-bottom: 16px;
 }
 
 .planMainTitle {
-  font-size: 1.25rem;
+  font-size: 20px;
   font-weight: 800;
-  color: #0f172a;
   margin: 0;
 }
 
 .planTargetSub {
-  font-size: 0.75rem;
-  color: #64748b;
+  font-size: 11px;
+  color: var(--text-subtle);
 }
 
 .planPriceBigWrap {
@@ -1665,55 +1670,52 @@ background: #EFF9FE;
 }
 
 .bigPriceModal {
-  font-size: 1.6rem;
-  font-weight: 900;
-  color: #0f172a;
+  font-size: 22px;
+  font-weight: 800;
 }
 
 .bigPricePeriod {
-  font-size: 0.78rem;
-  color: #64748b;
+  font-size: 11px;
+  color: var(--text-subtle);
 }
 
 .modalToggleBilling {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  background-color: #f1f5f9;
+  display: flex;
+  background: #e2e8f0;
   padding: 3px;
   border-radius: 6px;
+  gap: 3px;
+  margin-bottom: 20px;
 }
 
 .modalToggleBtn {
-  background: transparent;
+  flex: 1;
   border: none;
-  padding: 6px;
-  font-size: 0.75rem;
+  background: transparent;
+  font-size: 11px;
   font-weight: 600;
-  color: #64748b;
-  cursor: pointer;
+  padding: 6px;
   border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
 }
 
 .modalToggleBtnActive {
   background: #ffffff;
-  color: #0f172a;
-}
-
-.modalToggleBtnActiveBlue {
-  background: #0284c7;
-  color: #ffffff;
+  color: var(--text-dark);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .modalFeaturesBox {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  flex: 1;
 }
 
 .modalFeaturesTitle {
-  font-size: 0.68rem;
-  color: #64748b;
-  letter-spacing: 0.04em;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 12px;
 }
 
 .modalFeaturesList {
@@ -1722,191 +1724,205 @@ background: #EFF9FE;
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .modalFeaturesList li {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.78rem;
-  color: #334155;
+  font-size: 12px;
 }
 
 .modalTrustFooter {
-  border-top: 1px solid #f1f5f9;
-  padding-top: 14px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 18px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .trustItem {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.75rem;
-  color: #475569;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
-.successOnboardingBox {
-  text-align: center;
-  padding: 32px 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.btnAcessarAgora {
-  background: #0284c7;
-  color: #ffffff;
-  padding: 10px 20px;
-  border-radius: 8px;
-  text-decoration: none;
-  font-weight: 700;
-  font-size: 0.85rem;
-}
-
-.spinner {
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
+/* ─── RESPONSIVIDADE (DESKTOP & MOBILE SINCRONIZADOS) ─── */
 @media (max-width: 1024px) {
-  .heroGrid,
-  .blueBannerCard,
+  .heroGrid {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .heroTextCol {
+    align-items: center;
+  }
+
+  .heroButtonsRow {
+    justify-content: center;
+  }
+
+  .featuresGrid,
+  .statsCardsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .blueBannerCard {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .blueBannerLeft {
+    align-items: center;
+  }
+
+  .plansGrid {
+    grid-template-columns: 1fr;
+    max-width: 440px;
+  }
+
+  .footerTop {
+    grid-template-columns: 1fr;
+  }
+
   .checkoutBodyGrid {
     grid-template-columns: 1fr;
   }
+
+  .checkoutRightCard {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .navLinks {
+    display: none;
+  }
+
+  .btnMobileMenu {
+    display: flex;
+  }
+
+  .btnNavEntrar {
+    display: none;
+  }
+
+  .mobileNavDropdown {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px 24px;
+    background: #ffffff;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .mobileNavDropdown a {
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-dark);
+  }
+
+  .btnMobileLogin {
+    display: inline-block;
+    padding: 10px;
+    text-align: center;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-weight: 700;
+    color: var(--primary) !important;
+  }
+
+  .heroHeadline {
+    font-size: 30px;
+  }
+
+  .heroButtonsRow {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btnComecarGraca,
+  .btnFalarEspecialista {
+    width: 100%;
+    justify-content: center;
+  }
+
   .featuresGrid,
-  .plansGrid,
   .statsCardsGrid,
   .robustGrid {
     grid-template-columns: 1fr;
   }
-  .floatingFichaCard {
-    position: static;
-    margin-top: 10px;
+
+  /* Carrossel de Planos no Mobile */
+  .mobilePlanTabs {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 18px;
+    width: 100%;
   }
-}
-.errorAlertBox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background-color: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #dc2626;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 0.82rem;
-  margin-bottom: 14px;
-}
 
-.successBadgeCircle {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background-color: #ecfdf5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 8px;
-}
+  .mobileTabBtn {
+    flex: 1;
+    border: 1px solid var(--border-color);
+    background: #ffffff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
 
-.successTitle {
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0;
-}
+  .mobileTabActive {
+    background: #f0f9ff;
+    color: var(--primary);
+    border-color: #bae6fd;
+    font-weight: 700;
+  }
 
-.successDesc {
-  font-size: 0.88rem;
-  color: #64748b;
-  line-height: 1.5;
-  margin: 0;
-}
+  .mobileHiddenCard {
+    display: none !important;
+  }
 
-.generatedLinkCard {
-  width: 100%;
-  background-color: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-align: left;
-}
+  .mobileVisibleCard {
+    display: flex !important;
+    width: 100%;
+  }
 
-.generatedLinkLabel {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #0284c7;
-  text-transform: uppercase;
-}
+  .mobileSliderDots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin: 16px 0 8px 0;
+  }
 
-.generatedLinkRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
+  .sliderDot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #cbd5e1;
+  }
 
-.generatedLinkRow code {
-  font-size: 0.82rem;
-  color: #0f172a;
-  background: #ffffff;
-  padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid #cbd5e1;
-  word-break: break-all;
-}
+  .sliderDotActive {
+    background: var(--primary);
+    width: 18px;
+    border-radius: 9999px;
+  }
 
-.btnCopyLink {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  color: #334155;
-  transition: all 0.15s ease;
-}
+  .footerNavLinksGrid {
+    grid-template-columns: 1fr;
+  }
 
-.btnCopyLink:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-}
+  .fieldsTwoCols {
+    grid-template-columns: 1fr;
+  }
 
-.btnAcessarAgora {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background-color: #0284c7;
-  color: #ffffff;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 0.92rem;
-  font-weight: 700;
-  text-decoration: none;
-  cursor: pointer;
-  border: none;
-  margin-top: 8px;
-  transition: background-color 0.15s ease;
-}
-
-.btnAcessarAgora:hover {
-  background-color: #0369a1;
+  .checkoutLeftCard {
+    padding: 24px 18px;
+  }
 }
