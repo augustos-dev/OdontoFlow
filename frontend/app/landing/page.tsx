@@ -6,14 +6,15 @@ import { useRouter } from 'next/navigation'
 import {
   Sparkles,
   Calendar,
-  Stethoscope,
-  Package,
+  Activity,
+  Box,
   Link as LinkIcon,
   FileText,
   TrendingUp,
   Star,
   CheckCircle2,
   ChevronDown,
+  ChevronUp,
   ArrowRight,
   ShieldCheck,
   Building2,
@@ -24,20 +25,19 @@ import {
   AlertCircle,
   ExternalLink,
   Copy,
-  Box,
   Zap,
-  Settings,
-  BarChart2,
-  ClipboardList,
+  MoreHorizontal,
   Users,
-  Activity,
-  MoreHorizontal
+  ClipboardList,
+  BarChart2,
+  Settings,
+  Lock,
+  Menu,
 } from 'lucide-react'
+import Image from 'next/image'
 import api from '../../lib/api'
 import styles from './landing.module.css'
 import Toothsymbol from '../../public/Toothsymbol.svg'
-import vector from '../../public/Vector.svg'
-import Image from 'next/image'
 
 interface PlanTier {
   id: 'BASIC' | 'PREMIUM' | 'ENTERPRISE'
@@ -47,91 +47,97 @@ interface PlanTier {
   description: string
   monthlyPrice: number
   annualPrice: number
-  featuresTitle: string
   features: string[]
   ctaText: string
+  isCustomConsultant?: boolean
 }
+
+const WHATSAPP_NUMBER = '5585999999999'
 
 const PLANS: PlanTier[] = [
   {
     id: 'BASIC',
-    target: 'CONSULTÓRIO INDIVIDUAL',
+    target: 'PARA COMEÇAR',
     name: 'Básico',
-    description: 'Agenda clínica, prontuário digital com odontograma e gestão de estoque manual.',
+    description: 'O essencial para seu consultório.',
     monthlyPrice: 149.9,
     annualPrice: 134.9,
-    featuresTitle: 'RECURSOS INCLUSOS:',
     features: [
       '1 Agenda / Dentista',
       'Prontuário com Odontograma',
-      'Link de pré-cadastro para o paciente',
-      'Controle de estoque manual',
-      'Orçamentos e documentos em PDF'
+      'Estoque manual',
+      'Orçamentos e documentos em PDF',
     ],
-    ctaText: 'Testar 7 dias grátis'
+    ctaText: 'Testar 7 dias grátis',
   },
   {
     id: 'PREMIUM',
     badge: 'MAIS ESCOLHIDO',
-    target: 'CLÍNICAS & EQUIPES',
+    target: 'MAIS COMPLETO',
     name: 'Premium',
-    description: 'Exit Inteligente de materiais, transcrição por IA e compliance legal CFO/LGPD.',
+    description: 'Mais automação para a sua rotina.',
     monthlyPrice: 229.9,
     annualPrice: 206.9,
-    featuresTitle: 'TUDO DO BÁSICO, MAIS:',
     features: [
-      'Até 5 Cirurgiões-Dentistas',
+      'Até 5 Dentistas',
       'Exit Inteligente (baixa fracionada auto)',
       'Transcrição de evolução clínica com IA',
+      'Comissões e repasses automáticos',
       'Trava de segurança jurídica CFO (24h)',
-      'Gestão de comissões por procedimento',
-      'White-Label com sua marca e cores'
+      'White-Label com sua marca e cores',
     ],
-    ctaText: 'Testar 7 dias grátis'
+    ctaText: 'Testar 7 dias grátis',
   },
   {
     id: 'ENTERPRISE',
     badge: 'ALTA ESCALA',
-    target: 'REDES & POLICLÍNICAS',
+    target: 'ALTA ESCALA',
     name: 'Enterprise',
-    description: 'Baixa dupla na recepção, governança de redes e relatórios executivos avançados.',
+    description: 'Gestão para operações e policlínicas.',
     monthlyPrice: 319.9,
     annualPrice: 287.9,
-    featuresTitle: 'TUDO DO PREMIUM, MAIS:',
     features: [
       'Dentistas e cadeiras ilimitadas',
       'Trava de idempotência recepção / sala',
       'DRE Executivo & Balancete contínuo',
-      'Suporte prioritário via WhatsApp'
+      'White-label completo',
+      'Suporte prioritário via WhatsApp',
     ],
-    ctaText: 'Falar com consultor'
-  }
+    ctaText: 'Falar com especialista',
+    isCustomConsultant: true,
+  },
 ]
 
 const FAQS = [
   {
-    q: 'Como funciona a dedução automática de estoque (Exit Inteligente)?',
-    a: 'Você cadastra a ficha técnica dos procedimentos (ex: 0.3g de resina e 1 tubete de anestésico). Assim que o dentista finaliza o atendimento clínico no sistema, a baixa fracionada é debitada do estoque e o custo proporcional é lançado no DRE em tempo real.'
+    q: 'Como funciona o teste de 7 dias?',
+    a: 'Escolha um plano e experimente o OdontoFlow por 7 dias sem restrições. Use esse período para conhecer a agenda, o prontuário e os recursos incluídos no plano antes de decidir.',
   },
   {
-    q: 'Como funciona a conformidade com o CFO e a LGPD?',
-    a: 'O OdontoFlow segue à risca a resolução do CFO com trava jurídica de edição de prontuário em até 24 horas. Além disso, cada acesso, assinatura digital de paciente ou alteração possui carimbo de tempo (timestamp), IP registrado e criptografia de ponta a ponta.'
+    q: 'Como funciona o Exit Inteligente de estoque?',
+    a: 'Você cadastra a ficha técnica dos procedimentos (ex: 0.3g de resina e 1 tubete de anestésico). Assim que o dentista finaliza o atendimento clínico no sistema, a baixa fracionada é debitada do estoque e o custo proporcional é lançado no DRE em tempo real.',
   },
   {
-    q: 'O que é o link de pré-cadastro para o paciente?',
-    a: 'É um magic link curto e seguro enviado pelo WhatsApp. O próprio paciente preenche seus dados cadastrais e a anamnese direto no celular antes da consulta, eliminando filas na recepção e papéis acumulados.'
+    q: 'Posso usar o sistema com mais de um dentista?',
+    a: 'Sim! O plano Básico é focado em consultórios individuais (1 dentista ativo), o plano Premium comporta até 5 dentistas e o plano Enterprise oferece cadeiras e profissionais ilimitados.',
   },
   {
-    q: 'Como o OdontoFlow calcula as comissões dos profissionais?',
-    a: 'O sistema audita a receita gerada em cada procedimento, desconta os custos de insumos utilizados caso parametrizado, aplica a porcentagem do dentista e gera o extrato de repasses pronto para liquidação unitária ou em lote.'
-  }
+    q: 'Consigo acessar pelo celular?',
+    a: 'Sim, a plataforma é totalmente responsiva e acessível pelo navegador de qualquer smartphone ou tablet, contando com conformidade com o CFO e criptografia ativa.',
+  },
+  {
+    q: 'Existe fidelidade contratual?',
+    a: 'Não há fidelidade nem multas contratuais no plano mensal. Você tem total flexibilidade para cancelar ou alterar o plano quando desejar.',
+  },
 ]
 
 export default function LandingPage() {
   const router = useRouter()
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'YEARLY'>('YEARLY')
   const [selectedPlanId, setSelectedPlanId] = useState<'BASIC' | 'PREMIUM' | 'ENTERPRISE'>('PREMIUM')
-  const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const [mobilePlanTab, setMobilePlanTab] = useState<'BASIC' | 'PREMIUM' | 'ENTERPRISE'>('PREMIUM')
+  const [openFaq, setOpenFaq] = useState<number | null>(0)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   // Controle do Modal de Onboarding
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
@@ -168,6 +174,7 @@ export default function LandingPage() {
     setCreatedClinicData(null)
     setCopiedLink(false)
     setIsCheckoutOpen(true)
+    setIsMobileMenuOpen(false)
   }
 
   function handleProceedToStep2(e: React.FormEvent) {
@@ -176,21 +183,20 @@ export default function LandingPage() {
     setCheckoutStep(2)
   }
 
-  // 🚀 Disparo Integrado ao Swagger POST /auth/register
   async function handleFinalizeOnboarding(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
     setErrorMessage('')
 
     try {
-      const cleanSlug = subdomain
-        .trim()
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9-]/g, '') || 'clinica'
+      const cleanSlug =
+        subdomain
+          .trim()
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9-]/g, '') || 'clinica'
 
-      // Payload exatamente como especificado na documentação OpenAPI
       const registerPayload = {
         tenantName: clinicName.trim(),
         slug: cleanSlug,
@@ -210,7 +216,6 @@ export default function LandingPage() {
       const user = data?.user
       const tenant = data?.tenant
 
-      // Persiste sessão para login imediato
       if (token) {
         localStorage.setItem('odontoflow_token', token)
         localStorage.setItem('@odontoflow:token', token)
@@ -220,7 +225,7 @@ export default function LandingPage() {
         localStorage.setItem('@odontoflow:user', JSON.stringify({ ...user, tenantId: tenant?.id }))
       }
 
-      const originHost = typeof window !== 'undefined' ? window.location.origin : 'https://app.odontoflow.com.br'
+      const originHost = typeof window !== 'undefined' ? window.location.origin : 'https://odontoflow.omniatechlabs.com.br'
       const generatedLink = `${originHost}/?clinic=${cleanSlug}`
 
       setCreatedClinicData({
@@ -251,19 +256,12 @@ export default function LandingPage() {
 
   return (
     <div className={styles.landingContainer}>
-      
       {/* ─── 1. NAVBAR ─── */}
       <header className={styles.navbar}>
         <div className={styles.navInner}>
           <div className={styles.navBrand}>
             <div className={styles.logoCircle}>
-              <Image 
-                src={Toothsymbol}
-                alt="OdontoFlow"
-                width={20}
-                height={22}
-                flex-shrink={0}
-              />
+              <Image src={Toothsymbol} alt="OdontoFlow" width={22} height={22} priority />
             </div>
             <span className={styles.logoText}>OdontoFlow</span>
           </div>
@@ -284,16 +282,36 @@ export default function LandingPage() {
               onClick={() => handleOpenCheckoutModal('PREMIUM')}
               className={styles.btnNavTestar}
             >
-              Testar grátis
+              Testar
+            </button>
+            <button
+              type="button"
+              className={styles.btnMobileMenu}
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Menu"
+            >
+              {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Drawer */}
+        {isMobileMenuOpen && (
+          <div className={styles.mobileNavDropdown}>
+            <a href="#recursos" onClick={() => setIsMobileMenuOpen(false)}>Recursos</a>
+            <a href="#depoimentos" onClick={() => setIsMobileMenuOpen(false)}>Depoimentos</a>
+            <a href="#planos" onClick={() => setIsMobileMenuOpen(false)}>Planos</a>
+            <a href="#duvidas" onClick={() => setIsMobileMenuOpen(false)}>Dúvidas</a>
+            <Link href="/login" className={styles.btnMobileLogin} onClick={() => setIsMobileMenuOpen(false)}>
+              Entrar no sistema
+            </Link>
+          </div>
+        )}
       </header>
 
       {/* ─── 2. HERO SECTION ─── */}
       <section className={styles.heroSection}>
         <div className={styles.heroGrid}>
-          
           <div className={styles.heroTextCol}>
             <div className={styles.pillBadge}>
               <Sparkles size={14} className={styles.pillBadgeIcon} />
@@ -306,26 +324,28 @@ export default function LandingPage() {
             </h1>
 
             <p className={styles.heroDescription}>
-              Administrar um consultório ou clínica não necessita de ser um processo burocrático. O OdontoFlow integra prontuário ágil, dedução automática de insumos e DRE analítico em tempo real.
+              Administrar um consultório ou clínica não necessita de ser um processo burocrático. O OdontoFlow integra
+              prontuário ágil, dedução automática de insumos e DRE analítico em tempo real.
             </p>
 
             <div className={styles.heroButtonsRow}>
+              <button
+                type="button"
+                onClick={() => handleOpenCheckoutModal('PREMIUM')}
+                className={styles.btnComecarGraca}
+              >
+                <span>Começar de graça</span>
+                <ArrowRight size={16} />
+              </button>
+
               <a
-                href="https://wa.me/5585999999999?text=Ol%C3%A1!%20Gostaria%20de%20falar%20com%20um%20especialista%20do%20OdontoFlow."
+                href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Olá! Gostaria de falar com um especialista do OdontoFlow.')}`}
                 target="_blank"
                 rel="noreferrer"
                 className={styles.btnFalarEspecialista}
               >
                 Falar com especialista
               </a>
-
-              <button
-                type="button"
-                onClick={() => handleOpenCheckoutModal('PREMIUM')}
-                className={styles.btnComecarGraca}
-              >
-                Começar de graça
-              </button>
             </div>
 
             <div className={styles.heroDisclaimer}>
@@ -333,312 +353,255 @@ export default function LandingPage() {
             </div>
           </div>
 
+          {/* MOCKUP VISUAL INTERATIVO */}
           <div className={styles.heroMockupCol}>
-      <div className={styles.laptopFrame}>
-        {/* Barra superior de janela Mac/Browser */}
-        <div className={styles.laptopTopBar}>
-          <div className={styles.laptopDots}>
-            <span className={`${styles.dot} ${styles.dotRed}`} />
-            <span className={`${styles.dot} ${styles.dotYellow}`} />
-            <span className={`${styles.dot} ${styles.dotGreen}`} />
-          </div>
-          <div className={styles.laptopUrlBar}>app.odontoflow.com.br/agenda</div>
-          <div className={styles.laptopTopRight}>
-            <MoreHorizontal size={14} className={styles.topDotsIcon} />
-          </div>
-        </div>
-
-        {/* Corpo principal dividido em Sidebar e Área de Conteúdo */}
-        <div className={styles.laptopBody}>
-          {/* Mini Sidebar Lateral */}
-          <aside className={styles.miniSidebar}>
-            <div className={`${styles.miniIconItem} ${styles.miniIconActive}`}>
-              <Activity size={18} strokeWidth={2.5} />
-            </div>
-            <div className={styles.miniIconItem}>
-              <Calendar size={18} />
-            </div>
-            <div className={styles.miniIconItem}>
-              <Users size={18} />
-            </div>
-            <div className={styles.miniIconItem}>
-              <ClipboardList size={18} />
-            </div>
-            <div className={styles.miniIconItem}>
-              <Package size={18} />
-            </div>
-            <div className={styles.miniIconItem}>
-              <BarChart2 size={18} />
-            </div>
-            <div className={styles.miniIconItem}>
-              <Settings size={18} />
-            </div>
-          </aside>
-
-          {/* Área da Agenda */}
-          <main className={styles.agendaContent}>
-            {/* Cabeçalho da Agenda */}
-            <div className={styles.mockupHeader}>
-              <div className={styles.mockupHeaderLeft}>
-                <h3 className={styles.mockupTitle}>Agenda Geral • Consultório 01</h3>
-                <span className={styles.mockupSubtitle}>Quarta-feira, 14 de outubro</span>
-              </div>
-              <div className={styles.userAvatar}>NR</div>
-            </div>
-
-            {/* Sub-barra: Badge Exit Inteligente + Tabs Dia/Semana */}
-            <div className={styles.subBar}>
-              <div className={styles.exitBadge}>
-                <Zap size={13} className={styles.zapIcon} />
-                <span>Exit Inteligente Ativo</span>
-              </div>
-              <div className={styles.viewTabs}>
-                <span className={styles.tabActive}>Dia</span>
-                <span className={styles.tabInactive}>Semana</span>
-              </div>
-            </div>
-
-            {/* Linhas de Horário e Cards de Agendamento */}
-            <div className={styles.scheduleGrid}>
-              {/* Horário 09:00 */}
-              <div className={styles.timeRow}>
-                <div className={styles.timeLabel}>09:00</div>
-                <div className={styles.appointmentCard}>
-                  <div className={styles.cardHeader}>
-                    <strong className={styles.dentistName}>Dra. Nathalia Rosa</strong>
-                    <span className={styles.statusDotGreen} />
-                  </div>
-                  <div className={styles.patientInfo}>Mariana Costa · Restauração</div>
-                  <div className={styles.cardFooter}>
-                    <span className={styles.roomDuration}>45 min · Cadeira 01</span>
-                    <span className={styles.pillConfirmed}>Confirmada</span>
-                  </div>
+            <div className={styles.laptopFrame}>
+              <div className={styles.laptopTopBar}>
+                <div className={styles.laptopDots}>
+                  <span className={`${styles.dot} ${styles.dotRed}`} />
+                  <span className={`${styles.dot} ${styles.dotYellow}`} />
+                  <span className={`${styles.dot} ${styles.dotGreen}`} />
+                </div>
+                <div className={styles.laptopUrlBar}>app.odontoflow.com.br/agenda</div>
+                <div className={styles.laptopTopRight}>
+                  <MoreHorizontal size={14} className={styles.topDotsIcon} />
                 </div>
               </div>
 
-              {/* Horário 10:00 */}
-              <div className={styles.timeRow}>
-                <div className={styles.timeLabel}>10:00</div>
-                <div className={styles.appointmentCard}>
-                  <div className={styles.cardHeader}>
-                    <strong className={styles.dentistName}>Dr. Leonardo Martins</strong>
-                    <span className={styles.statusDotCyan} />
+              <div className={styles.laptopBody}>
+                <aside className={styles.miniSidebar}>
+                  <div className={`${styles.miniIconItem} ${styles.miniIconActive}`}>
+                    <Activity size={17} strokeWidth={2.4} />
                   </div>
-                  <div className={styles.patientInfo}>Pedro Almeida · Avaliação clínica</div>
-                  <div className={styles.cardFooter}>
-                    <span className={styles.roomDuration}>45 min · Cadeira 01</span>
-                    <span className={styles.pillScheduled}>Agendada</span>
-                  </div>
-                </div>
-              </div>
+                  <div className={styles.miniIconItem}><Calendar size={17} /></div>
+                  <div className={styles.miniIconItem}><Users size={17} /></div>
+                  <div className={styles.miniIconItem}><ClipboardList size={17} /></div>
+                  <div className={styles.miniIconItem}><Box size={17} /></div>
+                  <div className={styles.miniIconItem}><BarChart2 size={17} /></div>
+                  <div className={styles.miniIconItem}><Settings size={17} /></div>
+                </aside>
 
-              {/* Horário 11:00 (Apenas a linha de corte inferior) */}
-              <div className={styles.timeRowDimmed}>
-                <div className={styles.timeLabel}>11:00</div>
-                <div className={styles.dividerLine} />
+                <main className={styles.agendaContent}>
+                  <div className={styles.mockupHeader}>
+                    <div className={styles.mockupHeaderLeft}>
+                      <h3 className={styles.mockupTitle}>Agenda Geral • Consultório 01</h3>
+                      <span className={styles.mockupSubtitle}>Quarta-feira, 14 de outubro</span>
+                    </div>
+                    <div className={styles.userAvatar}>NR</div>
+                  </div>
+
+                  <div className={styles.subBar}>
+                    <div className={styles.exitBadge}>
+                      <Zap size={13} className={styles.zapIcon} />
+                      <span>Exit Inteligente Ativo</span>
+                    </div>
+                    <div className={styles.viewTabs}>
+                      <span className={styles.tabActive}>Dia</span>
+                      <span className={styles.tabInactive}>Semana</span>
+                    </div>
+                  </div>
+
+                  <div className={styles.scheduleGrid}>
+                    <div className={styles.timeRow}>
+                      <div className={styles.timeLabel}>09:00</div>
+                      <div className={styles.appointmentCard}>
+                        <div className={styles.cardHeader}>
+                          <strong className={styles.dentistName}>Dra. Nathalia Rosa</strong>
+                          <span className={styles.statusDotGreen} />
+                        </div>
+                        <div className={styles.patientInfo}>Mariana Costa · Restauração</div>
+                        <div className={styles.cardFooter}>
+                          <span className={styles.roomDuration}>45 min · Cadeira 01</span>
+                          <span className={styles.pillConfirmed}>Confirmada</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={styles.timeRow}>
+                      <div className={styles.timeLabel}>10:00</div>
+                      <div className={styles.appointmentCard}>
+                        <div className={styles.cardHeader}>
+                          <strong className={styles.dentistName}>Dr. Leonardo Martins</strong>
+                          <span className={styles.statusDotCyan} />
+                        </div>
+                        <div className={styles.patientInfo}>Pedro Almeida · Avaliação clínica</div>
+                        <div className={styles.cardFooter}>
+                          <span className={styles.roomDuration}>45 min · Cadeira 01</span>
+                          <span className={styles.pillScheduled}>Agendada</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={styles.timeRowDimmed}>
+                      <div className={styles.timeLabel}>11:00</div>
+                      <div className={styles.dividerLine} />
+                    </div>
+                  </div>
+
+                  <div className={styles.floatingFichaCard}>
+                    <div className={styles.floatingIconBox}>
+                      <Box size={20} strokeWidth={2.2} />
+                    </div>
+                    <div className={styles.floatingTexts}>
+                      <span className={styles.floatingTitle}>Resumo da Ficha Clínica:</span>
+                      <span className={styles.floatingHighlight}>Resina Composta (0.3g) - R$ 9,00</span>
+                    </div>
+                  </div>
+                </main>
               </div>
             </div>
-
-            {/* Card Flutuante de Resumo Clínico */}
-            <div className={styles.floatingFichaCard}>
-              <div className={styles.floatingIconBox}>
-                <Box size={20} strokeWidth={2.2} />
-              </div>
-              <div className={styles.floatingTexts}>
-                <span className={styles.floatingTitle}>Resumo da Ficha Clínica:</span>
-                <span className={styles.floatingHighlight}>Resina Composta (0.3g) - R$ 9,00</span>
-              </div>
-            </div>
-          </main>
-        </div>
-      </div>
-    </div>
-
+          </div>
         </div>
       </section>
 
-      {/* ─── 3. TICKER DEPOIMENTOS INFINITO ─── */}
+      {/* ─── 3. TICKER DEPOIMENTOS EM PROGRAMA PILOTO ─── */}
       <div className={styles.tickerWrapper} id="depoimentos">
         <div className={styles.tickerTrack}>
-          <span>“ A melhor plataforma odontológica que já utilizamos. ”</span>
-          <span>“ A nossa recepção nunca mais atrasou a fila de espera. ”</span>
-          <span>“ Facilitou imenso a rotina do meu consultório! ”</span>
-          <span>“ A dedução automática de resinas e anestésicos poupa horas de trabalho. ”</span>
-          <span>“ Prontuário muito interativo e intuitivo. ”</span>
-          <span>“ O suporte é rápido e eficiente. ”</span>
-          <span>“ A melhor plataforma odontológica que já utilizamos. ”</span>
+          <span>★★★★★ “ Facilitou a rotina clínica e a conferência de procedimentos. ”</span>
+          <span>★★★★★ “ A baixa de materiais na evolução poupa conferência manual no fim do dia. ”</span>
+          <span>★★★★★ “ Prontuário visual claro e suporte técnico ágil pelo WhatsApp. ”</span>
         </div>
       </div>
 
-      {/* ─── 4. PROVA SOCIAL ─── */}
+      {/* ─── 4. PROVA SOCIAL (PROGRAMA BETA & VALIDAÇÃO) ─── */}
       <section className={styles.socialProofSection}>
         <div className={styles.sectionHeadingCenter}>
-          <h2 className={styles.socialTitle}>Quem usa, recomenda</h2>
-          <p className={styles.socialSub}>Satisfação comprovada por clínicas e cirurgiões-dentistas.</p>
+          <span className={styles.preBadgeCategory}>DESENVOLVIDO COM QUEM VIVE O CONSULTÓRIO</span>
+          <h2 className={styles.socialTitle}>Construído lado a lado com cirurgiões-dentistas</h2>
+          <p className={styles.socialSub}>Métricas de validação do nosso programa piloto com clínicas parceiras.</p>
         </div>
 
         <div className={styles.statsCardsGrid}>
           <div className={styles.statCard}>
-            <span className={styles.statLabel}>Google Reviews</span>
+            <div className={styles.statHeaderTop}>
+              <Star size={16} className={styles.iconBlue} />
+              <span className={styles.statLabel}>Avaliação Beta</span>
+            </div>
             <div className={styles.statScoreRow}>
               <strong className={styles.statBigNumber}>5.0</strong>
               <div className={styles.statStars}>
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} size={15} fill="#f59e0b" color="#f59e0b" />
+                  <Star key={i} size={14} fill="#f59e0b" color="#f59e0b" />
                 ))}
               </div>
             </div>
-            <span className={styles.statFootNote}>+300 avaliações de profissionais</span>
+            <span className={styles.statFootNote}>Feedback unânime dos dentistas piloto</span>
           </div>
 
           <div className={styles.statCard}>
-            <span className={styles.statLabel}>ReclameAQUI</span>
+            <div className={styles.statHeaderTop}>
+              <CheckCircle2 size={16} className={styles.iconBlue} />
+              <span className={styles.statLabel}>Resolutividade</span>
+            </div>
             <div className={styles.statScoreRow}>
               <strong className={styles.statBigNumber}>100%</strong>
             </div>
-            <span className={styles.statFootNote}>Índice de resolutividade exemplar</span>
+            <span className={styles.statFootNote}>Chamados atendidos em até 15 minutos</span>
           </div>
 
           <div className={styles.statCard}>
-            <span className={styles.statLabel}>App Mobile</span>
-            <div className={styles.statScoreRow}>
-              <strong className={styles.statBigNumber}>4.9</strong>
-              <div className={styles.statStars}>
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} size={15} fill="#f59e0b" color="#f59e0b" />
-                ))}
-              </div>
+            <div className={styles.statHeaderTop}>
+              <Activity size={16} className={styles.iconBlue} />
+              <span className={styles.statLabel}>Aderência Operacional</span>
             </div>
-            <span className={styles.statFootNote}>Experiência no consultório e recepção</span>
-          </div>
-
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>NPS Clínico</span>
             <div className={styles.statScoreRow}>
               <strong className={styles.statBigNumber}>9.8</strong>
               <span className={styles.statSmallFraction}>/10</span>
             </div>
-            <span className={styles.statFootNote}>Grau de satisfação dos usuários</span>
+            <span className={styles.statFootNote}>Facilidade de uso na recepção e mocho</span>
+          </div>
+
+          <div className={styles.statCard}>
+            <div className={styles.statHeaderTop}>
+              <ShieldCheck size={16} className={styles.iconBlue} />
+              <span className={styles.statLabel}>Precisão de Estoque</span>
+            </div>
+            <div className={styles.statScoreRow}>
+              <strong className={styles.statBigNumber}>99.8%</strong>
+            </div>
+            <span className={styles.statFootNote}>Exatidão na baixa fracionada de insumos</span>
           </div>
         </div>
 
         <div className={styles.approvedFootText}>
-          <span>Aprovado por mais de <strong>1.500 consultórios</strong> em todo o país 💙</span>
+          <span>Plataforma em fase de homologação contínua com consultórios parceiros 💙</span>
         </div>
       </section>
 
       {/* ─── 5. TECNOLOGIA PARA POTENCIAR A SUA CLÍNICA ─── */}
       <section className={styles.featuresSection} id="recursos">
         <div className={styles.sectionHeadingCenter}>
+          <span className={styles.preBadgeCategory}>MENOS BUROCRACIA, MAIS ODONTOLOGIA</span>
           <h2 className={styles.featuresHeading}>Tecnologia para simplificar e potenciar a sua clínica</h2>
           <p className={styles.featuresSubheading}>Ferramentas concebidas para apoiar o dentista e acelerar o fluxo na recepção.</p>
         </div>
 
         <div className={styles.featuresGrid}>
           <div className={styles.featureBox}>
-            <div className={`${styles.featureIconWrap} ${styles.iconBgBlue}`}>
-              <Calendar size={22} color="#0284c7" />
+            <div className={styles.featureIconWrap}>
+              <Calendar size={22} color="#0082c9" />
             </div>
             <span className={styles.featureCategory}>AGENDA & FILA CLÍNICA</span>
             <h3 className={styles.featureTitle}>Reduza faltas e organize as suas cadeiras</h3>
-            <p className={styles.featureDesc}>
-              Centralize a rotina da clínica em uma única tela: confirmações ágeis, estado da consulta em tempo real e fila de espera sem atritos.
-            </p>
-            <button type="button" onClick={() => handleOpenCheckoutModal()} className={styles.featureLink}>
-              <span>Começar agora</span>
-              <ArrowRight size={14} />
-            </button>
+            <span className={styles.featureArrowCorner}>↗</span>
           </div>
 
           <div className={styles.featureBox}>
-            <div className={`${styles.featureIconWrap} ${styles.iconBgCyan}`}>
-              <Stethoscope size={22} color="#06b6d4" />
+            <div className={styles.featureIconWrap}>
+              <Activity size={22} color="#0082c9" />
             </div>
             <span className={styles.featureCategory}>PRONTUÁRIO & ODONTOGRAMA</span>
             <h3 className={styles.featureTitle}>Paciente acessível a partir de qualquer lugar</h3>
-            <p className={styles.featureDesc}>
-              Odontograma interativo, histórico clínico blindado contra adulterações (CFO 24h) e arquivo seguro de radiografias.
-            </p>
-            <button type="button" onClick={() => handleOpenCheckoutModal()} className={styles.featureLink}>
-              <span>Começar agora</span>
-              <ArrowRight size={14} />
-            </button>
+            <span className={styles.featureArrowCorner}>↗</span>
           </div>
 
           <div className={styles.featureBox}>
-            <div className={`${styles.featureIconWrap} ${styles.iconBgGreen}`}>
-              <Package size={22} color="#10b981" />
+            <div className={styles.featureIconWrap}>
+              <Box size={22} color="#0082c9" />
             </div>
             <span className={styles.featureCategory}>EXIT INTELIGENTE DE ESTOQUE</span>
             <h3 className={styles.featureTitle}>Elimine a contagem manual de seringas</h3>
-            <p className={styles.featureDesc}>
-              O único sistema que fraciona gramas, mililitros e doses diretamente na evolução clínica. Lucratividade precisa por procedimento.
-            </p>
-            <button type="button" onClick={() => handleOpenCheckoutModal()} className={styles.featureLink}>
-              <span>Começar agora</span>
-              <ArrowRight size={14} />
-            </button>
+            <span className={styles.featureArrowCorner}>↗</span>
           </div>
 
           <div className={styles.featureBox}>
-            <div className={`${styles.featureIconWrap} ${styles.iconBgPurple}`}>
-              <LinkIcon size={22} color="#8b5cf6" />
+            <div className={styles.featureIconWrap}>
+              <LinkIcon size={22} color="#0082c9" />
             </div>
             <span className={styles.featureCategory}>ANAMNESE & PRÉ-CADASTRO</span>
             <h3 className={styles.featureTitle}>Poupe tempo antes de a consulta iniciar</h3>
-            <p className={styles.featureDesc}>
-              Envie o link seguro para o paciente preencher os dados e a anamnese diretamente no celular via WhatsApp.
-            </p>
-            <button type="button" onClick={() => handleOpenCheckoutModal()} className={styles.featureLink}>
-              <span>Começar agora</span>
-              <ArrowRight size={14} />
-            </button>
+            <span className={styles.featureArrowCorner}>↗</span>
           </div>
 
           <div className={styles.featureBox}>
-            <div className={`${styles.featureIconWrap} ${styles.iconBgAmber}`}>
-              <FileText size={22} color="#f59e0b" />
+            <div className={styles.featureIconWrap}>
+              <FileText size={22} color="#0082c9" />
             </div>
             <span className={styles.featureCategory}>RECEITUÁRIO & DOCUMENTOS</span>
             <h3 className={styles.featureTitle}>Menos papel, maior segurança jurídica</h3>
-            <p className={styles.featureDesc}>
-              Emissão ágil de atestados, termos de consentimento e receitas digitais formatadas com a identidade visual da sua clínica.
-            </p>
-            <button type="button" onClick={() => handleOpenCheckoutModal()} className={styles.featureLink}>
-              <span>Começar agora</span>
-              <ArrowRight size={14} />
-            </button>
+            <span className={styles.featureArrowCorner}>↗</span>
           </div>
 
           <div className={styles.featureBox}>
-            <div className={`${styles.featureIconWrap} ${styles.iconBgEmerald}`}>
-              <TrendingUp size={22} color="#059669" />
+            <div className={styles.featureIconWrap}>
+              <TrendingUp size={22} color="#0082c9" />
             </div>
             <span className={styles.featureCategory}>GESTÃO FINANCEIRA & DRE</span>
             <h3 className={styles.featureTitle}>Controle de margens e comissões sem imprevistos</h3>
-            <p className={styles.featureDesc}>
-              Margem real por procedimento através da dedução direta dos insumos consumidos. Gestão de repasses a dentistas e fluxo de caixa.
-            </p>
-            <button type="button" onClick={() => handleOpenCheckoutModal()} className={styles.featureLink}>
-              <span>Começar agora</span>
-              <ArrowRight size={14} />
-            </button>
+            <span className={styles.featureArrowCorner}>↗</span>
           </div>
         </div>
       </section>
 
-      {/* ─── 6. BANNER AZUL COM TAREFAS ─── */}
+      {/* ─── 6. BANNER AZUL DE TAREFAS ─── */}
       <section className={styles.blueBannerSection}>
         <div className={styles.blueBannerCard}>
           <div className={styles.blueBannerLeft}>
-            <span className={styles.blueBannerBadge}>EXCLUSIVO DO ODONTOFLOW</span>
+            <span className={styles.blueBannerBadge}>Exclusivo OdontoFlow</span>
             <h2 className={styles.blueBannerTitle}>Organize as tarefas clínicas sem depender da memória</h2>
-            <p className={styles.blueBannerDesc}>
-              Evite sobrecargas na equipe. Com a gestão de pendências associada ao prontuário, acompanhe pedidos de próteses, compras de material e retornos com clareza operacional.
-            </p>
             <button
               type="button"
-              onClick={() => handleOpenCheckoutModal()}
+              onClick={() => handleOpenCheckoutModal('PREMIUM')}
               className={styles.btnBannerWhite}
             >
               Testar funcionalidade agora
@@ -648,21 +611,24 @@ export default function LandingPage() {
           <div className={styles.blueBannerRight}>
             <div className={styles.tasksPreviewCard}>
               <div className={styles.tasksPreviewHeader}>
-                <Sparkles size={14} color="#0284c7" />
-                <strong>Tarefas do Dia</strong>
+                <div className={styles.taskTitleRow}>
+                  <Sparkles size={15} color="#0082c9" />
+                  <strong>Tarefas do Dia</strong>
+                </div>
+                <span className={styles.taskCountBadge}>1 / 3</span>
               </div>
               <ul className={styles.tasksList}>
-                <li>
-                  <input type="checkbox" readOnly checked={false} />
-                  <span>Confirmar envio do molde da Coroa (Laboratório)</span>
-                </li>
-                <li>
-                  <input type="checkbox" readOnly checked={false} />
-                  <span>Validar cirurgia de siso com Dra. Amanda</span>
-                </li>
                 <li className={styles.taskDone}>
-                  <Check size={14} color="#10b981" />
-                  <s>Reposição de tubetes anestésicos (2 caixas)</s>
+                  <input type="checkbox" readOnly checked />
+                  <s>Enviar moldes de próteses ao laboratório</s>
+                </li>
+                <li>
+                  <input type="checkbox" readOnly checked={false} />
+                  <span>Conferir estoque de anestésicos</span>
+                </li>
+                <li>
+                  <input type="checkbox" readOnly checked={false} />
+                  <span>Solicitar reposição de anestésicos</span>
                 </li>
               </ul>
             </div>
@@ -670,35 +636,28 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 7. ROBUSTEZ ─── */}
+      {/* ─── 7. NÚMEROS DE ROBUSTEZ ─── */}
       <section className={styles.robustnessSection}>
-        <div className={styles.sectionHeadingCenter}>
-          <h2 className={styles.robustTitle}>Segurança e robustez comprovadas</h2>
-          <p className={styles.robustSub}>Arquitetura desenhada para apoiar consultórios e policlínicas em expansão.</p>
-        </div>
-
         <div className={styles.robustGrid}>
           <div className={styles.robustCard}>
             <strong className={styles.robustNumber}>+450.000</strong>
-            <span>Consultas realizadas</span>
+            <span className={styles.robustLabel}>Consultas realizadas</span>
           </div>
-
           <div className={styles.robustCard}>
             <strong className={styles.robustNumber}>+120.000</strong>
-            <span>Prontuários com validação CFO</span>
+            <span className={styles.robustLabel}>Prontuários com validação CFO</span>
           </div>
-
           <div className={styles.robustCard}>
             <strong className={styles.robustNumber}>99.8%</strong>
-            <span>Precisão no controle fracionado de estoque</span>
+            <span className={styles.robustLabel}>Precisão no controle de estoque</span>
           </div>
         </div>
       </section>
 
-      {/* ─── 8. TABELA DE PLANOS ─── */}
+      {/* ─── 8. TABELA DE PLANOS (DESKTOP E CARROSSEL MOBILE) ─── */}
       <section className={styles.plansSection} id="planos">
         <div className={styles.sectionHeadingCenter}>
-          <span className={styles.tabelaTransparentePill}>TABELA TRANSPARENTE</span>
+          <span className={styles.preBadgeCategory}>UM PLANO PARA CADA MOMENTO</span>
           <h2 className={styles.plansHeading}>Planos à medida da sua clínica</h2>
 
           <div className={styles.togglePillContainer}>
@@ -711,28 +670,56 @@ export default function LandingPage() {
             </button>
             <button
               type="button"
-              className={`${styles.togglePillBtn} ${billingCycle === 'YEARLY' ? styles.togglePillActiveBlue : ''}`}
+              className={`${styles.togglePillBtn} ${billingCycle === 'YEARLY' ? styles.togglePillActive : ''}`}
               onClick={() => setBillingCycle('YEARLY')}
             >
               <span>Anual</span>
               <span className={styles.discountBadgeSmall}>10% OFF</span>
             </button>
           </div>
-          <span className={styles.parcelamentoNotice}>Pagamento anual em até 12x sem juros no cartão</span>
+
+          {/* Abas de Navegação Rápida no Mobile */}
+          <div className={styles.mobilePlanTabs}>
+            <button
+              type="button"
+              className={`${styles.mobileTabBtn} ${mobilePlanTab === 'BASIC' ? styles.mobileTabActive : ''}`}
+              onClick={() => setMobilePlanTab('BASIC')}
+            >
+              Básico
+            </button>
+            <button
+              type="button"
+              className={`${styles.mobileTabBtn} ${mobilePlanTab === 'PREMIUM' ? styles.mobileTabActive : ''}`}
+              onClick={() => setMobilePlanTab('PREMIUM')}
+            >
+              Premium
+            </button>
+            <button
+              type="button"
+              className={`${styles.mobileTabBtn} ${mobilePlanTab === 'ENTERPRISE' ? styles.mobileTabActive : ''}`}
+              onClick={() => setMobilePlanTab('ENTERPRISE')}
+            >
+              Enterprise
+            </button>
+          </div>
         </div>
 
         <div className={styles.plansGrid}>
           {PLANS.map((plan) => {
             const price = billingCycle === 'YEARLY' ? plan.annualPrice : plan.monthlyPrice
+            const isFeatured = plan.id === 'PREMIUM'
+            const isEnterprise = plan.id === 'ENTERPRISE'
+            const isVisibleOnMobile = mobilePlanTab === plan.id
 
             return (
               <div
                 key={plan.id}
-                className={`${styles.planCard} ${plan.id === 'PREMIUM' ? styles.planCardHighlighted : ''}`}
+                className={`${styles.planCard} ${isFeatured ? styles.planCardHighlighted : ''} ${
+                  isVisibleOnMobile ? styles.mobileVisibleCard : styles.mobileHiddenCard
+                }`}
               >
                 {plan.badge && (
-                  <div className={plan.id === 'PREMIUM' ? styles.badgeMaisEscolhido : styles.badgeAltaEscala}>
-                    {plan.id === 'ENTERPRISE' && <ShieldCheck size={12} />}
+                  <div className={isFeatured ? styles.badgeMaisEscolhido : styles.badgeAltaEscala}>
                     <span>{plan.badge}</span>
                   </div>
                 )}
@@ -746,51 +733,78 @@ export default function LandingPage() {
                   <strong className={styles.planBigValue}>{price.toFixed(2).replace('.', ',')}</strong>
                   <span className={styles.perMonthText}>/mês</span>
                 </div>
+                <span className={styles.billingCycleNote}>
+                  Cobrança {billingCycle === 'YEARLY' ? 'anual' : 'mensal'}
+                </span>
 
-                <div className={styles.featuresBox}>
-                  <strong className={styles.featuresHeadingSmall}>{plan.featuresTitle}</strong>
-                  <ul className={styles.planFeaturesList}>
-                    {plan.features.map((feat, i) => (
-                      <li key={i}>
-                        <CheckCircle2 size={16} className={styles.checkIconGreen} />
-                        <span>{feat}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                <ul className={styles.planFeaturesList}>
+                  {plan.features.map((feat, i) => (
+                    <li key={i}>
+                      <Check size={16} className={styles.checkIconBlue} />
+                      <span>{feat}</span>
+                    </li>
+                  ))}
+                </ul>
 
-                <button
-                  type="button"
-                  onClick={() => handleOpenCheckoutModal(plan.id)}
-                  className={plan.id === 'PREMIUM' ? styles.btnCardBlue : styles.btnCardWhite}
-                >
-                  {plan.ctaText}
-                </button>
+                {isEnterprise ? (
+                  <a
+                    href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+                      'Olá! Gostaria de falar com um consultor comercial sobre o Plano Enterprise do OdontoFlow.'
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={styles.btnCardWhiteLink}
+                  >
+                    <span>{plan.ctaText}</span>
+                    <ArrowRight size={14} style={{ marginLeft: 6 }} />
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCheckoutModal(plan.id)}
+                    className={isFeatured ? styles.btnCardBlue : styles.btnCardWhite}
+                  >
+                    {plan.ctaText}
+                  </button>
+                )}
               </div>
             )
           })}
         </div>
+
+        {/* Indicador de Deslize (Mobile Dots) */}
+        <div className={styles.mobileSliderDots}>
+          <span className={`${styles.sliderDot} ${mobilePlanTab === 'BASIC' ? styles.sliderDotActive : ''}`} />
+          <span className={`${styles.sliderDot} ${mobilePlanTab === 'PREMIUM' ? styles.sliderDotActive : ''}`} />
+          <span className={`${styles.sliderDot} ${mobilePlanTab === 'ENTERPRISE' ? styles.sliderDotActive : ''}`} />
+        </div>
+
+        <div className={styles.plansFooterDisclaimer}>
+          <span>Sem fidelidade contratual. Cancele quando quiser 💙</span>
+        </div>
       </section>
 
-      {/* ─── 9. FAQ ─── */}
+      {/* ─── 9. FAQ / PERGUNTAS FREQUENTES ─── */}
       <section className={styles.faqSection} id="duvidas">
         <div className={styles.sectionHeadingCenter}>
-          <h2 className={styles.faqTitle}>Perguntas frequentes</h2>
-          <p className={styles.faqSub}>Esclarecimentos sobre o ecossistema OdontoFlow.</p>
+          <span className={styles.preBadgeCategory}>DÚVIDAS FREQUENTES</span>
+          <h2 className={styles.faqTitle}>Tudo o que precisa saber para começar</h2>
         </div>
 
         <div className={styles.faqContainer}>
           {FAQS.map((faq, idx) => {
             const isOpen = openFaq === idx
             return (
-              <div key={idx} className={styles.faqCard}>
+              <div key={idx} className={`${styles.faqCard} ${isOpen ? styles.faqCardOpen : ''}`}>
                 <button
                   type="button"
                   onClick={() => setOpenFaq(isOpen ? null : idx)}
                   className={styles.faqButton}
                 >
                   <span>{faq.q}</span>
-                  <ChevronDown size={18} className={`${styles.faqChevron} ${isOpen ? styles.faqChevronRotate : ''}`} />
+                  <span className={styles.faqIconHolder}>
+                    {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </span>
                 </button>
                 {isOpen && (
                   <div className={styles.faqBody}>
@@ -801,6 +815,17 @@ export default function LandingPage() {
             )
           })}
         </div>
+
+        <div className={styles.faqDirectContact}>
+          Ainda tem alguma dúvida?{' '}
+          <a
+            href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Olá! Gostaria de tirar dúvidas com um especialista sobre o OdontoFlow.')}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Falar com especialista ↗
+          </a>
+        </div>
       </section>
 
       {/* ─── 10. FOOTER ─── */}
@@ -808,75 +833,101 @@ export default function LandingPage() {
         <div className={styles.footerTop}>
           <div className={styles.footerBrandArea}>
             <div className={styles.navBrand}>
-              <div className={styles.logoCircle}>
-                <div className={styles.logoGlow} />
+              <div className={styles.logoCircleDark}>
+                <Image src={Toothsymbol} alt="OdontoFlow" width={22} height={22} />
               </div>
-              <span className={styles.logoText}>OdontoFlow</span>
+              <span className={styles.logoTextDark}>OdontoFlow</span>
             </div>
             <p className={styles.footerBrandDesc}>
-              O ecossistema definitivo para a gestão de clínicas e consultórios odontológicos.
+              Tecnologia que cuida da gestão. Mais tempo para cuidar de pessoas.
             </p>
+            <button
+              type="button"
+              onClick={() => handleOpenCheckoutModal('PREMIUM')}
+              className={styles.btnFooterCta}
+            >
+              <span>Começar de graça</span>
+              <ArrowRight size={15} />
+            </button>
           </div>
 
-          <div className={styles.footerNavCol}>
-            <strong>NAVEGAÇÃO</strong>
-            <a href="#recursos">Recursos</a>
-            <a href="#depoimentos">Depoimentos</a>
-            <a href="#planos">Planos</a>
-            <a href="#duvidas">Dúvidas</a>
-          </div>
+          <div className={styles.footerNavLinksGrid}>
+            <div className={styles.footerNavCol}>
+              <strong>Plataforma</strong>
+              <a href="#recursos">Recursos</a>
+              <a href="#depoimentos">Depoimentos</a>
+              <a href="#planos">Planos</a>
+              <a href="#duvidas">Dúvidas</a>
+            </div>
 
-          <div className={styles.footerNavCol}>
-            <strong>LEGAL & SEGURANÇA</strong>
-            <span>Termos de Uso</span>
-            <span>Privacidade</span>
-            <span>Conformidade CFO / LGPD</span>
-            <span>Criptografia de Ponta a Ponta</span>
+            <div className={styles.footerNavCol}>
+              <strong>Institucional</strong>
+              <a
+                href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Olá! Gostaria de falar com um especialista do OdontoFlow.')}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Falar com especialista
+              </a>
+              <a href="#">Termos de uso</a>
+              <a href="#">Política de privacidade</a>
+            </div>
+
+            <div className={styles.footerBadgesCol}>
+              <div className={styles.badgeCertDark}>
+                <ShieldCheck size={16} color="#0082c9" />
+                <span>Validação CFO</span>
+              </div>
+              <div className={styles.badgeCertDark}>
+                <Lock size={16} color="#0082c9" />
+                <span>Conformidade LGPD</span>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className={styles.footerBottomBar}>
-          <div className={styles.footerCopyLeft}>
-            <span>© 2026 <strong>OdontoFlow</strong>. Todos os direitos reservados. • Uma solução desenvolvida por <strong>Omnia Tech</strong>.</span>
-          </div>
-
-          <div className={styles.footerBadgesRight}>
-            <span className={styles.securityTag}>
-              <span className={styles.greenDot} /> Conformidade CFO & LGPD
-            </span>
-            <span className={styles.securityTag}>
-              Criptografia Ativa
-            </span>
-          </div>
+          <span>
+            © 2026 <strong>OdontoFlow</strong>. Todos os direitos reservados.
+          </span>
+          <span className={styles.footerAuthor}>
+            Desenvolvido por <strong>Omnia Tech</strong>
+          </span>
         </div>
       </footer>
 
-      {/* ─── 11. MODAL DE ONBOARDING & CHECKOUT (SWAGGER ATIVO) ─── */}
+      {/* ─── 11. MODAL DE ONBOARDING ATÔMICO ─── */}
       {isCheckoutOpen && (
         <div className={styles.checkoutOverlay} onClick={() => setIsCheckoutOpen(false)}>
           <div className={styles.checkoutModalBox} onClick={(e) => e.stopPropagation()}>
-            
             <div className={styles.checkoutModalTopbar}>
               <div className={styles.checkoutBrandLogo}>
                 <div className={styles.logoCircle}>
-                  <div className={styles.logoGlow} />
+                  <Image src={Toothsymbol} alt="OdontoFlow" width={20} height={20} />
                 </div>
                 <strong>OdontoFlow</strong>
               </div>
 
               <div className={styles.checkoutTopRight}>
-                <span>Já tem uma conta? <Link href="/login" className={styles.linkIniciarSessao}>Iniciar sessão</Link></span>
-                <button type="button" onClick={() => setIsCheckoutOpen(false)} className={styles.closeCheckoutBtn}>
+                <span>
+                  Já tem uma conta?{' '}
+                  <Link href="/login" className={styles.linkIniciarSessao}>
+                    Iniciar sessão
+                  </Link>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsCheckoutOpen(false)}
+                  className={styles.closeCheckoutBtn}
+                  aria-label="Fechar"
+                >
                   <X size={18} />
                 </button>
               </div>
             </div>
 
             <div className={styles.checkoutBodyGrid}>
-              
-              {/* Coluna Esquerda: Formulário Multistep */}
               <div className={styles.checkoutLeftCard}>
-                
                 <div className={styles.stepperRow}>
                   <div className={`${styles.stepItem} ${checkoutStep === 1 ? styles.stepItemActive : styles.stepItemDone}`}>
                     <span className={styles.stepNumberBadge}>1</span>
@@ -899,7 +950,9 @@ export default function LandingPage() {
                 {!createdClinicData ? (
                   <>
                     <h2 className={styles.checkoutFormTitle}>Comece os seus 7 dias grátis</h2>
-                    <p className={styles.checkoutFormSubtitle}>Configure o ambiente exclusivo da sua clínica odontológica em segundos.</p>
+                    <p className={styles.checkoutFormSubtitle}>
+                      Configure o ambiente exclusivo da sua clínica odontológica em segundos.
+                    </p>
 
                     {checkoutStep === 1 ? (
                       <form onSubmit={handleProceedToStep2} className={styles.formFieldsBox}>
@@ -938,11 +991,15 @@ export default function LandingPage() {
                               required
                               placeholder="suaclinica"
                               value={subdomain}
-                              onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                              onChange={(e) =>
+                                setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
+                              }
                               className={styles.subdomainInputPart}
                             />
                           </div>
-                          <small className={styles.subdomainHelp}>Este será o link seguro de acesso para você e sua equipe.</small>
+                          <small className={styles.subdomainHelp}>
+                            Este será o link seguro de acesso para você e sua equipe.
+                          </small>
                         </div>
 
                         <div className={styles.fieldsTwoCols}>
@@ -1046,14 +1103,14 @@ export default function LandingPage() {
                     )}
                   </>
                 ) : (
-                  /* Tela de Conclusão com o Link Usável Imediato */
                   <div className={styles.successOnboardingBox}>
                     <div className={styles.successBadgeCircle}>
                       <CheckCircle2 size={44} color="#10b981" />
                     </div>
                     <h3 className={styles.successTitle}>Clínica Criada com Sucesso!</h3>
                     <p className={styles.successDesc}>
-                      O ambiente para <strong>{createdClinicData.clinicTitle}</strong> está ativo e configurado com 7 dias grátis no plano <strong>{activePlan.name}</strong>.
+                      O ambiente para <strong>{createdClinicData.clinicTitle}</strong> está ativo e configurado com
+                      7 dias grátis no plano <strong>{activePlan.name}</strong>[cite: 17].
                     </p>
 
                     <div className={styles.generatedLinkCard}>
@@ -1124,7 +1181,9 @@ export default function LandingPage() {
                   </div>
 
                   <div className={styles.planPriceBigWrap}>
-                    <strong className={styles.bigPriceModal}>R$ {displayedPrice.toFixed(2).replace('.', ',')}</strong>
+                    <strong className={styles.bigPriceModal}>
+                      R$ {displayedPrice.toFixed(2).replace('.', ',')}
+                    </strong>
                     <span className={styles.bigPricePeriod}>/mês</span>
                   </div>
                 </div>
@@ -1139,7 +1198,7 @@ export default function LandingPage() {
                   </button>
                   <button
                     type="button"
-                    className={`${styles.modalToggleBtn} ${billingCycle === 'YEARLY' ? styles.modalToggleBtnActiveBlue : ''}`}
+                    className={`${styles.modalToggleBtn} ${billingCycle === 'YEARLY' ? styles.modalToggleBtnActive : ''}`}
                     onClick={() => setBillingCycle('YEARLY')}
                   >
                     Anual (10% OFF)
@@ -1153,7 +1212,7 @@ export default function LandingPage() {
                   <ul className={styles.modalFeaturesList}>
                     {activePlan.features.map((feat, idx) => (
                       <li key={idx}>
-                        <CheckCircle2 size={15} color="#0284c7" />
+                        <CheckCircle2 size={15} color="#0082c9" />
                         <span>{feat}</span>
                       </li>
                     ))}
@@ -1166,17 +1225,15 @@ export default function LandingPage() {
                     <span>7 dias de acesso sem restrições</span>
                   </div>
                   <div className={styles.trustItem}>
-                    <Sparkles size={14} color="#0284c7" />
+                    <Sparkles size={14} color="#0082c9" />
                     <span>Suporte humanizado no onboarding</span>
                   </div>
                 </div>
               </div>
-
             </div>
           </div>
         </div>
       )}
-
     </div>
   )
 }
