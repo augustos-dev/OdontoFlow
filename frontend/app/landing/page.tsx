@@ -23,10 +23,21 @@ import {
   Check,
   AlertCircle,
   ExternalLink,
-  Copy
+  Copy,
+  Box,
+  Zap,
+  Settings,
+  BarChart2,
+  ClipboardList,
+  Users,
+  Activity,
+  MoreHorizontal
 } from 'lucide-react'
 import api from '../../lib/api'
 import styles from './landing.module.css'
+import Toothsymbol from '../../public/Toothsymbol.svg'
+import vector from '../../public/Vector.svg'
+import Image from 'next/image'
 
 interface PlanTier {
   id: 'BASIC' | 'PREMIUM' | 'ENTERPRISE'
@@ -246,7 +257,13 @@ export default function LandingPage() {
         <div className={styles.navInner}>
           <div className={styles.navBrand}>
             <div className={styles.logoCircle}>
-              <div className={styles.logoGlow} />
+              <Image 
+                src={Toothsymbol}
+                alt="OdontoFlow"
+                width={20}
+                height={22}
+                flex-shrink={0}
+              />
             </div>
             <span className={styles.logoText}>OdontoFlow</span>
           </div>
@@ -317,57 +334,125 @@ export default function LandingPage() {
           </div>
 
           <div className={styles.heroMockupCol}>
-            <div className={styles.laptopFrame}>
-              <div className={styles.laptopTopBar}>
-                <div className={styles.laptopDots}>
-                  <span className={`${styles.dot} ${styles.dotRed}`} />
-                  <span className={`${styles.dot} ${styles.dotYellow}`} />
-                  <span className={`${styles.dot} ${styles.dotGreen}`} />
-                </div>
-                <div className={styles.laptopUrlBar}>app.odontoflow.com.br/agenda</div>
+      <div className={styles.laptopFrame}>
+        {/* Barra superior de janela Mac/Browser */}
+        <div className={styles.laptopTopBar}>
+          <div className={styles.laptopDots}>
+            <span className={`${styles.dot} ${styles.dotRed}`} />
+            <span className={`${styles.dot} ${styles.dotYellow}`} />
+            <span className={`${styles.dot} ${styles.dotGreen}`} />
+          </div>
+          <div className={styles.laptopUrlBar}>app.odontoflow.com.br/agenda</div>
+          <div className={styles.laptopTopRight}>
+            <MoreHorizontal size={14} className={styles.topDotsIcon} />
+          </div>
+        </div>
+
+        {/* Corpo principal dividido em Sidebar e Área de Conteúdo */}
+        <div className={styles.laptopBody}>
+          {/* Mini Sidebar Lateral */}
+          <aside className={styles.miniSidebar}>
+            <div className={`${styles.miniIconItem} ${styles.miniIconActive}`}>
+              <Activity size={18} strokeWidth={2.5} />
+            </div>
+            <div className={styles.miniIconItem}>
+              <Calendar size={18} />
+            </div>
+            <div className={styles.miniIconItem}>
+              <Users size={18} />
+            </div>
+            <div className={styles.miniIconItem}>
+              <ClipboardList size={18} />
+            </div>
+            <div className={styles.miniIconItem}>
+              <Package size={18} />
+            </div>
+            <div className={styles.miniIconItem}>
+              <BarChart2 size={18} />
+            </div>
+            <div className={styles.miniIconItem}>
+              <Settings size={18} />
+            </div>
+          </aside>
+
+          {/* Área da Agenda */}
+          <main className={styles.agendaContent}>
+            {/* Cabeçalho da Agenda */}
+            <div className={styles.mockupHeader}>
+              <div className={styles.mockupHeaderLeft}>
+                <h3 className={styles.mockupTitle}>Agenda Geral • Consultório 01</h3>
+                <span className={styles.mockupSubtitle}>Quarta-feira, 14 de outubro</span>
               </div>
+              <div className={styles.userAvatar}>NR</div>
+            </div>
 
-              <div className={styles.laptopBody}>
-                <div className={styles.mockupHeader}>
-                  <div className={styles.mockupHeaderLeft}>
-                    <strong>Agenda Geral • Consultório 01</strong>
-                  </div>
-                  <span className={styles.mockupExitBadge}>Exit Inteligente Ativo</span>
-                </div>
-
-                <div className={styles.mockupList}>
-                  <div className={styles.mockupRow}>
-                    <div className={styles.mockupAvatar}>NR</div>
-                    <div className={styles.mockupRowInfo}>
-                      <strong>Dra. Nathalia Rosa</strong>
-                      <span>09:00 • Restauração Estética Z350</span>
-                    </div>
-                    <span className={styles.mockupPillConfirmed}>Confirmada</span>
-                  </div>
-
-                  <div className={`${styles.mockupRow} ${styles.mockupRowActive}`}>
-                    <div className={styles.mockupAvatar}>LM</div>
-                    <div className={styles.mockupRowInfo}>
-                      <strong>Dr. Leonardo Martins</strong>
-                      <span>10:15 • Profilaxia + Aplicação Tópica</span>
-                    </div>
-
-                    <div className={styles.floatingFichaCard}>
-                      <div className={styles.floatingFichaTitle}>Resumo da Ficha Clínica</div>
-                      <div className={styles.floatingFichaLine}>
-                        <span>Insumo consumido:</span>
-                        <strong>Resina Composta (0.3g)</strong>
-                      </div>
-                      <div className={styles.floatingFichaLine}>
-                        <span>Custo proporcional:</span>
-                        <strong className={styles.floatingFichaCost}>R$ 9,00</strong>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            {/* Sub-barra: Badge Exit Inteligente + Tabs Dia/Semana */}
+            <div className={styles.subBar}>
+              <div className={styles.exitBadge}>
+                <Zap size={13} className={styles.zapIcon} />
+                <span>Exit Inteligente Ativo</span>
+              </div>
+              <div className={styles.viewTabs}>
+                <span className={styles.tabActive}>Dia</span>
+                <span className={styles.tabInactive}>Semana</span>
               </div>
             </div>
-          </div>
+
+            {/* Linhas de Horário e Cards de Agendamento */}
+            <div className={styles.scheduleGrid}>
+              {/* Horário 09:00 */}
+              <div className={styles.timeRow}>
+                <div className={styles.timeLabel}>09:00</div>
+                <div className={styles.appointmentCard}>
+                  <div className={styles.cardHeader}>
+                    <strong className={styles.dentistName}>Dra. Nathalia Rosa</strong>
+                    <span className={styles.statusDotGreen} />
+                  </div>
+                  <div className={styles.patientInfo}>Mariana Costa · Restauração</div>
+                  <div className={styles.cardFooter}>
+                    <span className={styles.roomDuration}>45 min · Cadeira 01</span>
+                    <span className={styles.pillConfirmed}>Confirmada</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Horário 10:00 */}
+              <div className={styles.timeRow}>
+                <div className={styles.timeLabel}>10:00</div>
+                <div className={styles.appointmentCard}>
+                  <div className={styles.cardHeader}>
+                    <strong className={styles.dentistName}>Dr. Leonardo Martins</strong>
+                    <span className={styles.statusDotCyan} />
+                  </div>
+                  <div className={styles.patientInfo}>Pedro Almeida · Avaliação clínica</div>
+                  <div className={styles.cardFooter}>
+                    <span className={styles.roomDuration}>45 min · Cadeira 01</span>
+                    <span className={styles.pillScheduled}>Agendada</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Horário 11:00 (Apenas a linha de corte inferior) */}
+              <div className={styles.timeRowDimmed}>
+                <div className={styles.timeLabel}>11:00</div>
+                <div className={styles.dividerLine} />
+              </div>
+            </div>
+
+            {/* Card Flutuante de Resumo Clínico */}
+            <div className={styles.floatingFichaCard}>
+              <div className={styles.floatingIconBox}>
+                <Box size={20} strokeWidth={2.2} />
+              </div>
+              <div className={styles.floatingTexts}>
+                <span className={styles.floatingTitle}>Resumo da Ficha Clínica:</span>
+                <span className={styles.floatingHighlight}>Resina Composta (0.3g) - R$ 9,00</span>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
 
         </div>
       </section>
