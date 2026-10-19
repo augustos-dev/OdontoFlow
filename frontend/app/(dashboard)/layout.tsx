@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -19,24 +20,21 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
-  Clock,
   CheckCircle2,
   AlertTriangle,
   Info,
   Loader2,
   X,
-  FileText,
   Activity,
   Coins,
   ArrowDownLeft,
   Truck,
   Lock,
-  Sparkles
+  Sparkles,
+  Menu
 } from 'lucide-react'
 import styles from './layout.module.css'
 import { ModalProvider, useModal } from '@/app/components/ModalContext'
-import Logo from '../../public/logo.svg'
-import Image from 'next/image'
 import api from '@/lib/api'
 import { usePlanAccess } from '../../src/hooks/usePlanAccess'
 import { TenantPlan } from '@/lib/planAccess'
@@ -48,8 +46,8 @@ interface NavItem {
   label: string
   icon: any
   roles?: UserRole[]
-  minPlan?: TenantPlan       // 🔒 Nível mínimo de assinatura exigido
-  badgeText?: string         // 🏷️ Texto descritivo da tag (ex: 'PRO', 'ENTERPRISE')
+  minPlan?: TenantPlan
+  badgeText?: string
 }
 
 interface NavGroup {
@@ -58,66 +56,49 @@ interface NavGroup {
   items: NavItem[]
 }
 
-// 🛡️ Matriz de Navegação com RBAC por Perfis e Proteção de Planos
 const NAV_GROUPS: NavGroup[] = [
   {
     label: 'VISÃO GERAL',
     roles: ['ADMIN', 'SECRETARY'],
     items: [
-      { href: '/', label: 'Dashboard Geral', icon: LayoutDashboard, roles: ['ADMIN', 'SECRETARY'], minPlan: 'BASIC' },
+      { href: '/', label: 'Dashboard geral', icon: LayoutDashboard, roles: ['ADMIN', 'SECRETARY'], minPlan: 'BASIC' },
     ],
   },
   {
     label: 'ATENDIMENTO CLÍNICO',
     roles: ['ADMIN', 'DENTIST'],
     items: [
-      { href: '/consultorio', label: 'Meu Consultório', icon: Activity, roles: ['DENTIST', 'ADMIN'], minPlan: 'BASIC' },
+      { href: '/consultorio', label: 'Meu consultório', icon: Activity, roles: ['DENTIST', 'ADMIN'], minPlan: 'BASIC' },
     ],
   },
   {
     label: 'OPERAÇÃO CLÍNICA',
     roles: ['ADMIN', 'DENTIST', 'SECRETARY'],
     items: [
-      { href: '/agenda', label: 'Agenda Integrada', icon: Calendar, roles: ['ADMIN', 'DENTIST', 'SECRETARY'], minPlan: 'BASIC' },
-      { href: '/pacientes', label: 'Pacientes & Prontuários', icon: Users, roles: ['ADMIN', 'DENTIST', 'SECRETARY'], minPlan: 'BASIC' },
-      { href: '/tratamentos', label: 'Planos & Orçamentos', icon: ClipboardList, roles: ['ADMIN', 'DENTIST', 'SECRETARY'], minPlan: 'BASIC' },
-      { href: '/procedimentos', label: 'Tabela de Procedimentos', icon: Stethoscope, roles: ['ADMIN', 'DENTIST'], minPlan: 'BASIC' },
+      { href: '/agenda', label: 'Agenda integrada', icon: Calendar, roles: ['ADMIN', 'DENTIST', 'SECRETARY'], minPlan: 'BASIC' },
+      { href: '/pacientes', label: 'Pacientes & prontuários', icon: Users, roles: ['ADMIN', 'DENTIST', 'SECRETARY'], minPlan: 'BASIC' },
+      { href: '/tratamentos', label: 'Planos & orçamentos', icon: ClipboardList, roles: ['ADMIN', 'DENTIST', 'SECRETARY'], minPlan: 'BASIC' },
+      { href: '/procedimentos', label: 'Procedimentos', icon: Stethoscope, roles: ['ADMIN', 'DENTIST'], minPlan: 'BASIC' },
     ],
   },
   {
     label: 'GESTÃO & ESTOQUE',
     roles: ['ADMIN', 'DENTIST', 'SECRETARY'],
     items: [
-      { href: '/estoque', label: 'Estoque & Insumos', icon: Package, roles: ['ADMIN', 'SECRETARY'], minPlan: 'BASIC' },
-      // 🔒 Módulos Financeiros Avançados: Exigem plano PREMIUM ou superior
+      { href: '/estoque', label: 'Estoque & insumos', icon: Package, roles: ['ADMIN', 'SECRETARY'], minPlan: 'BASIC' },
       { href: '/financeiro', label: 'Financeiro & DRE', icon: CreditCard, roles: ['ADMIN'], minPlan: 'PREMIUM', badgeText: 'PRO' },
-      { href: '/gestao-de-titulos', label: 'Gestão de Títulos', icon: ArrowDownLeft, roles: ['ADMIN', 'SECRETARY'], minPlan: 'PREMIUM', badgeText: 'PRO' },
-      { href: '/comissoes', label: 'Comissões & Repasses', icon: Coins, roles: ['ADMIN', 'DENTIST'], minPlan: 'PREMIUM', badgeText: 'PRO' },
+      { href: '/gestao-de-titulos', label: 'Gestão de títulos', icon: ArrowDownLeft, roles: ['ADMIN', 'SECRETARY'], minPlan: 'PREMIUM', badgeText: 'PRO' },
+      { href: '/comissoes', label: 'Comissões & repasses', icon: Coins, roles: ['ADMIN', 'DENTIST'], minPlan: 'PREMIUM', badgeText: 'PRO' },
     ],
   },
   {
     label: 'SISTEMA',
     roles: ['ADMIN'],
     items: [
-      { href: '/configuracoes', label: 'Configurações & Visual', icon: Settings, roles: ['ADMIN'], minPlan: 'BASIC' },
+      { href: '/configuracoes', label: 'Configurações & visual', icon: Settings, roles: ['ADMIN'], minPlan: 'BASIC' },
     ],
   },
 ]
-
-// Mapeamento de Títulos no Cabeçalho (Header)
-const ROUTE_PAGE_TITLES: Record<string, string> = {
-  '/': 'Dashboard Geral',
-  '/consultorio': 'Meu Consultório',
-  '/agenda': 'Agenda Integrada',
-  '/pacientes': 'Pacientes & Prontuários',
-  '/tratamentos': 'Planos & Orçamentos',
-  '/procedimentos': 'Tabela de Procedimentos',
-  '/estoque': 'Estoque & Insumos',
-  '/financeiro': 'Financeiro & DRE',
-  '/gestao-de-titulos': 'Gestão de Títulos (Pagar & Receber)',
-  '/comissoes': 'Comissões & Repasses',
-  '/configuracoes': 'Configurações & Visual',
-}
 
 interface ClinicVisualState {
   name: string
@@ -148,34 +129,35 @@ interface NotificationItem {
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [user, setUser] = useState<any>(null)
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const { openNovoAgendamento } = useModal()
-
-  // 🛡️ Hook centralizado de planos
   const { plan: userPlan, hasMinPlan } = usePlanAccess()
 
-  // Estado do Modal de Bloqueio de Plano
+  const [user, setUser] = useState<any>(null)
+  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  // Upgrade Modal State
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [upgradeMessage, setUpgradeMessage] = useState('')
 
-  // Estado da Clínica (White-Label)
+  // White-Label State
   const [clinicVisual, setClinicVisual] = useState<ClinicVisualState>({
     name: 'Clínica OdontoFlow',
-    primaryColor: '#06b6d4',
-    accentColor: '#0891b2',
+    primaryColor: '#0082c9',
+    accentColor: '#006fae',
     fontFamily: 'Inter',
     logoUrl: null,
   })
 
-  // Pesquisa Global
+  // Global Search State
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Notificações
+  // Real-Time Notifications State
   const [isNotifOpen, setIsNotifOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [loadingNotifs, setLoadingNotifs] = useState(false)
@@ -235,7 +217,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         })
       }
 
-      // 2. Agendamentos do Dia
+      // 2. Consultas do Dia
       if (apptRes.status === 'fulfilled') {
         const rawAppts = apptRes.value.data?.data || apptRes.value.data || []
         const activeAppts = Array.isArray(rawAppts)
@@ -257,7 +239,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         })
       }
 
-      // 3. Faturamento Recebido (Apenas ADMIN com plano compatível)
+      // 3. Faturamento
       if (transRes.status === 'fulfilled' && user?.role === 'ADMIN' && hasMinPlan('PREMIUM')) {
         const rawTrans = transRes.value.data?.data || transRes.value.data || []
         const recentTrans = Array.isArray(rawTrans) ? rawTrans.slice(0, 2) : []
@@ -268,7 +250,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           generatedNotifs.push({
             id,
             title: 'Faturamento Recebido',
-            description: `${valFormatted} registrado via ${t.paymentMethod || 'PIX'} (${t.description || 'Consulta'}).`,
+            description: `${valFormatted} registrado via ${t.paymentMethod || 'PIX'}.`,
             time: getRelativeTime(t.createdAt || t.paidAt || new Date().toISOString()),
             type: 'success',
             read: readNotifIds.includes(id),
@@ -277,80 +259,37 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         })
       }
 
-      // 4. Gestão de Títulos (Contas a Pagar / Boletos Vencidos - Exige Premium)
-      if (payablesRes.status === 'fulfilled' && (user?.role === 'ADMIN' || user?.role === 'SECRETARY') && hasMinPlan('PREMIUM')) {
+      // 4. Contas a Pagar / Títulos
+      if (payablesRes.status === 'fulfilled' && hasMinPlan('PREMIUM')) {
         const rawDespesas = payablesRes.value.data?.data || payablesRes.value.data || []
-        const despesas = Array.isArray(rawDespesas) ? rawDespesas : []
-
-        const pendingDespesas = despesas.filter((d: any) => !d.reconciled && (!d.paidAt || new Date(d.date) >= new Date(todayStr)))
-        const overdueDespesas = despesas.filter((d: any) => !d.reconciled && new Date(d.date) < new Date(todayStr))
+        const overdueDespesas = Array.isArray(rawDespesas)
+          ? rawDespesas.filter((d: any) => !d.reconciled && new Date(d.date) < new Date(todayStr))
+          : []
 
         if (overdueDespesas.length > 0) {
           const totalOverdue = overdueDespesas.reduce((acc: number, cur: any) => acc + (Number(cur.amount) || 0), 0)
           const valFormatted = totalOverdue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-          const id = `payable-overdue-${todayStr}-${overdueDespesas.length}`
+          const id = `payable-overdue-${todayStr}`
 
           generatedNotifs.push({
             id,
             title: 'Contas a Pagar Vencidas',
-            description: `${overdueDespesas.length} boleto(s) em atraso somando ${valFormatted}.`,
+            description: `${overdueDespesas.length} conta(s) em atraso totalizando ${valFormatted}.`,
             time: 'Atrasado',
             type: 'warning',
             read: readNotifIds.includes(id),
             targetPath: '/gestao-de-titulos',
-          })
-        } else if (pendingDespesas.length > 0) {
-          const totalPending = pendingDespesas.reduce((acc: number, cur: any) => acc + (Number(cur.amount) || 0), 0)
-          const valFormatted = totalPending.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-          const id = `payable-pending-${todayStr}-${pendingDespesas.length}`
-
-          generatedNotifs.push({
-            id,
-            title: 'Títulos a Pagar no Mês',
-            description: `${pendingDespesas.length} conta(s) somando ${valFormatted} aguardando liquidação.`,
-            time: 'A Vencer',
-            type: 'info',
-            read: readNotifIds.includes(id),
-            targetPath: '/gestao-de-titulos',
-          })
-        }
-      }
-
-      // 5. Repasses de Comissões Pendentes (Exige Premium)
-      if (commRes.status === 'fulfilled' && (user?.role === 'ADMIN' || user?.role === 'DENTIST') && hasMinPlan('PREMIUM')) {
-        const rawComms = commRes.value.data?.data || commRes.value.data || []
-        const list = Array.isArray(rawComms) ? rawComms : []
-
-        const pendingComms = user?.role === 'DENTIST'
-          ? list.filter((c: any) => c.dentistId === user.id)
-          : list
-
-        if (pendingComms.length > 0) {
-          const totalPending = pendingComms.reduce((acc: number, cur: any) => acc + (Number(cur.commissionAmount) || 0), 0)
-          const valFormatted = totalPending.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-          const id = `comm-pending-${todayStr}-${pendingComms.length}`
-
-          generatedNotifs.push({
-            id,
-            title: user?.role === 'DENTIST' ? 'Comissões a Receber' : 'Repasses a Liquidar',
-            description: user?.role === 'DENTIST'
-              ? `Possui ${valFormatted} acumulado em ${pendingComms.length} procedimento(s) a receber.`
-              : `${pendingComms.length} comissão(ões) pendente(s) totalizando ${valFormatted} prontas para baixa.`,
-            time: 'Hoje',
-            type: 'commission',
-            read: readNotifIds.includes(id),
-            targetPath: '/comissoes',
           })
         }
       }
 
       setNotifications(generatedNotifs)
     } catch (err) {
-      console.error('Erro ao consultar notificações:', err)
+      console.error('Erro ao buscar notificações:', err)
     } finally {
       setLoadingNotifs(false)
     }
-  }, [user?.role, user?.id, hasMinPlan])
+  }, [user?.role, hasMinPlan])
 
   const applyThemeVariables = useCallback((theme: ClinicVisualState) => {
     if (typeof document === 'undefined') return
@@ -372,14 +311,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       if (!current) return
 
       let visual: ClinicVisualState = {
-        name: current.name || 'Minha Clínica',
-        primaryColor: '#06b6d4',
-        accentColor: '#0891b2',
+        name: current.name || 'Clínica OdontoFlow',
+        primaryColor: '#0082c9',
+        accentColor: '#006fae',
         fontFamily: 'Inter',
         logoUrl: current.logoUrl || null,
       }
 
-      // Customização visual avançada a partir do plano PREMIUM
       if (hasMinPlan('PREMIUM')) {
         const customRes = await api.get(`/clinics/${current.id}/customization`).catch(() => null)
         if (customRes?.data) {
@@ -396,7 +334,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       setClinicVisual(visual)
       applyThemeVariables(visual)
     } catch (err) {
-      console.error('Falha ao sincronizar tema da clínica:', err)
+      console.error('Falha ao sincronizar identidade visual:', err)
     }
   }, [applyThemeVariables, hasMinPlan])
 
@@ -415,15 +353,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         parsedUser = JSON.parse(stored)
         setUser(parsedUser)
       } catch (e) {
-        console.error('Erro ao ler utilizador:', e)
+        console.error('Erro ao ler dados da sessão:', e)
       }
     }
 
-    // 🛡️ Guarda Dupla de Rotas no Cliente: RBAC por Perfil + Trava de Planos
+    // RBAC & Route Guard
     if (parsedUser) {
       const currentRole: UserRole = parsedUser.role || 'SECRETARY'
 
-      // 1. Validação por Cargo (RBAC)
       if (currentRole === 'DENTIST') {
         if (pathname === '/financeiro' || pathname === '/configuracoes' || pathname === '/gestao-de-titulos') {
           router.replace('/consultorio')
@@ -436,7 +373,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // 2. Validação por Plano de Assinatura
       const isTryingRestrictedPlanRoute = 
         pathname === '/financeiro' || 
         pathname === '/gestao-de-titulos' || 
@@ -456,9 +392,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
     const notifInterval = setInterval(loadDynamicNotifications, 120000)
 
-    const handleThemeUpdate = () => fetchClinicCustomization()
-    window.addEventListener('clinic_customization_updated', handleThemeUpdate)
-
     function handleClickOutside(event: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setIsSearchOpen(false)
@@ -467,12 +400,22 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         setIsNotifOpen(false)
       }
     }
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        setIsSearchOpen(true)
+      }
+    }
+
     document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
 
     return () => {
       clearInterval(notifInterval)
-      window.removeEventListener('clinic_customization_updated', handleThemeUpdate)
       document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
     }
   }, [router, pathname, fetchClinicCustomization, loadDynamicNotifications, hasMinPlan])
 
@@ -489,18 +432,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         setIsSearching(true)
         setIsSearchOpen(true)
 
-        const [patientsRes, proceduresRes, plansRes, suppliersRes] = await Promise.all([
+        const [patientsRes, proceduresRes, plansRes] = await Promise.all([
           api.get(`/patients?name=${encodeURIComponent(searchQuery)}&limit=3`).catch(() => ({ data: [] })),
           api.get(`/procedures?name=${encodeURIComponent(searchQuery)}&limit=3`).catch(() => ({ data: [] })),
-          api.get(`/treatment-plans?limit=20`).catch(() => ({ data: [] })),
-          api.get(`/suppliers?limit=10`).catch(() => ({ data: [] })),
+          api.get(`/treatment-plans?limit=10`).catch(() => ({ data: [] })),
         ])
 
         const patientItems: SearchResultItem[] = (patientsRes.data?.data || patientsRes.data || []).map((p: any) => ({
           id: p.id,
           type: 'PATIENT' as const,
           title: p.name,
-          subtitle: `Paciente • Tel: ${p.phone || 'S/ telefone'}`,
+          subtitle: `Paciente • ${p.phone || 'Sem telefone'}`,
           link: `/pacientes`,
         }))
 
@@ -512,41 +454,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           link: `/procedimentos`,
         }))
 
-        const planList = Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data || []
-        const queryLower = searchQuery.toLowerCase()
-        const planItems: SearchResultItem[] = planList
-          .filter((pl: any) => 
-            (pl.title && pl.title.toLowerCase().includes(queryLower)) ||
-            (pl.patient?.name && pl.patient.name.toLowerCase().includes(queryLower))
-          )
-          .slice(0, 3)
-          .map((pl: any) => ({
-            id: pl.id,
-            type: 'PLAN' as const,
-            title: pl.title,
-            subtitle: `Plano • ${pl.patient?.name || 'Paciente'} (R$ ${Number(pl.totalAmount || 0).toFixed(2)})`,
-            link: `/tratamentos`,
-          }))
-
-        const supplierList = Array.isArray(suppliersRes.data) ? suppliersRes.data : suppliersRes.data?.data || []
-        const supplierItems: SearchResultItem[] = supplierList
-          .filter((s: any) => s.name && s.name.toLowerCase().includes(queryLower))
-          .slice(0, 2)
-          .map((s: any) => ({
-            id: s.id,
-            type: 'SUPPLIER' as const,
-            title: s.name,
-            subtitle: `Fornecedor Dental ${s.cnpj ? `• CNPJ: ${s.cnpj}` : ''}`,
-            link: `/gestao-de-titulos`,
-          }))
-
-        setSearchResults([...patientItems, ...procedureItems, ...planItems, ...supplierItems])
+        setSearchResults([...patientItems, ...procedureItems])
       } catch (err) {
-        console.error('Erro na pesquisa global:', err)
+        console.error('Erro na pesquisa:', err)
       } finally {
         setIsSearching(false)
       }
-    }, 300)
+    }, 280)
 
     return () => clearTimeout(timer)
   }, [searchQuery])
@@ -585,20 +499,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   function handlePlanRestrictedClick(itemLabel: string, minPlan: TenantPlan) {
     const planName = minPlan === 'ENTERPRISE' ? 'Plano Enterprise' : 'Plano Clínico Pro'
-    setUpgradeMessage(`O módulo "${itemLabel}" é exclusivo para assinantes do ${planName}. Faça o upgrade para desbloquear relatórios, conciliação e comissões automáticas.`)
+    setUpgradeMessage(`O módulo "${itemLabel}" é exclusivo para assinantes do ${planName}. Faça o upgrade para desbloquear conciliações e relatórios analíticos.`)
     setShowUpgradeModal(true)
   }
-
-  const today = new Date().toLocaleDateString('pt-BR', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  })
-  const todayFormatted = today.charAt(0).toUpperCase() + today.slice(1)
-
-  const pageTitle = ROUTE_PAGE_TITLES[pathname] ?? 'OdontoFlow'
-
-  const initials = user?.name
-    ? user.name.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()
-    : 'U'
 
   function handleLogout() {
     localStorage.removeItem('odontoflow_token')
@@ -609,6 +512,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   const userRole: UserRole = user?.role || 'SECRETARY'
+  const userDisplayName = user?.name || 'Dra. Ana Costa'
 
   return (
     <div 
@@ -619,35 +523,42 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         '--app-font': clinicVisual.fontFamily,
       } as React.CSSProperties}
     >
-      {/* ─── Menu Lateral (Sidebar) com RBAC e Trava de Planos ─── */}
-      <aside className={`${styles.sidebar} ${isCollapsed ? styles.sidebarCollapsed : ''}`}>
+      {/* ─── MENU LATERAL / SIDEBAR ─── */}
+      <aside className={`${styles.sidebar} ${isCollapsed ? styles.sidebarCollapsed : ''} ${isMobileMenuOpen ? styles.mobileSidebarOpen : ''}`}>
         <div className={styles.sidebarLogo}>
           <div className={styles.logoIcon}>
             {clinicVisual.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img 
                 src={clinicVisual.logoUrl} 
-                alt="Logótipo da Clínica" 
+                alt="Logo da Clínica" 
                 className={styles.customClinicLogo}
               />
             ) : (
-              <Image src={Logo} alt="Logótipo" width={24} height={24} />
+              <Image src="/logo.svg" alt="OdontoFlow" width={26} height={26} priority />
             )}
           </div>
           {!isCollapsed && (
             <div className={styles.logoTextWrapper}>
-              <div className={styles.logoName}>OdontoFlow</div>
-              <div className={styles.logoSub}>GESTÃO CLÍNICA</div>
+              <span className={styles.logoName}>OdontoFlow</span>
+              <span className={styles.logoSub}>{clinicVisual.name.toUpperCase()}</span>
             </div>
+          )}
+          {isMobileMenuOpen && (
+            <button 
+              type="button" 
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={styles.closeMobileMenuBtn}
+            >
+              <X size={18} />
+            </button>
           )}
         </div>
 
-        {/* Links Filtrados com RBAC e Protegidos por Assinatura */}
+        {/* Links Filtrados com RBAC e Trava de Planos */}
         <nav className={styles.nav}>
           {NAV_GROUPS.map((group) => {
-            if (group.roles && !group.roles.includes(userRole)) {
-              return null
-            }
+            if (group.roles && !group.roles.includes(userRole)) return null
 
             const visibleItems = group.items.filter(
               (item) => !item.roles || item.roles.includes(userRole)
@@ -692,6 +603,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     <Link
                       key={item.href}
                       href={item.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
                       className={`${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
                       title={isCollapsed ? item.label : undefined}
                     >
@@ -705,81 +617,90 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
+        {/* Botão de Colapsar (Desktop / Tablet) */}
         <button 
           type="button" 
           onClick={toggleSidebar} 
           className={styles.btnToggleSidebar}
-          title={isCollapsed ? "Expandir menu" : "Recolher menu"}
+          title={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
         >
           {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           {!isCollapsed && <span>Recolher menu</span>}
         </button>
 
-        {/* Perfil do Utilizador e Indicador de Plano no Rodapé */}
-        <div className={styles.sidebarFooter}>
-          <div className={styles.avatar}>{initials}</div>
-          {!isCollapsed && (
-            <div className={styles.userInfo}>
-              <div className={styles.userName}>{user?.name ?? 'Utilizador'}</div>
-              <div className={styles.userMetaBadges}>
-                <span className={styles.userRoleBadge}>
-                  {userRole === 'ADMIN' ? 'Admin' : userRole === 'DENTIST' ? 'Dentista' : 'Recepção'}
-                </span>
-                <span className={`${styles.planPill} ${styles[`planPill_${userPlan.toLowerCase()}`]}`}>
-                  {userPlan === 'ENTERPRISE' ? 'Enterprise' : userPlan === 'PREMIUM' ? 'Pro' : 'Básico'}
-                </span>
-              </div>
+        {/* Rodapé da Sidebar (Card de Perfil do Figma) */}
+        <div className={styles.sidebarFooterCard}>
+          <div className={styles.footerProfileLeft}>
+            <div className={styles.userAvatarInitials}>
+              {userDisplayName.slice(0, 2).toUpperCase()}
             </div>
-          )}
+            {!isCollapsed && (
+              <div className={styles.footerProfileInfo}>
+                <strong className={styles.footerUserName}>{userDisplayName}</strong>
+                <span className={styles.footerUserRole}>
+                  {userRole} • {userPlan}
+                </span>
+                <span className={styles.footerProtectedText}>Dados protegidos • LGPD</span>
+              </div>
+            )}
+          </div>
           <button 
-            className={styles.logoutBtn} 
+            type="button" 
             onClick={handleLogout} 
-            title="Sair do sistema" 
-            aria-label="Sair"
+            className={styles.btnLogoutIcon}
+            title="Sair do sistema"
           >
             <LogOut size={16} />
           </button>
         </div>
       </aside>
 
-      {/* ─── Conteúdo Principal ─── */}
+      {/* ─── CONTEÚDO PRINCIPAL & HEADER ─── */}
       <div className={styles.main}>
+        {/* HEADER SUPERIOR DO FIGMA */}
         <header className={styles.header}>
-          <div className={styles.headerLeft}>
-            <div className={styles.clinicName}>
+          <div className={styles.headerLeftArea}>
+            <button 
+              type="button" 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className={styles.btnOpenMobileDrawer}
+              aria-label="Abrir menu"
+            >
+              <Menu size={20} />
+            </button>
+            <div className={styles.headerClinicContext}>
               <span>{clinicVisual.name}</span>
-              <span className={styles.roleHeaderPill}>{userRole}</span>
-              <span className={styles.planHeaderPill}>{userPlan}</span>
+              <span className={styles.contextSeparator}>/</span>
+              <span className={styles.contextActiveTag}>Ambiente seguro</span>
             </div>
-            <h1 className={styles.pageTitle}>{pageTitle}</h1>
           </div>
-          
-          <div className={styles.headerRight}>
-            <span className={styles.headerDate}>{todayFormatted}</span>
-            
-            {/* Campo de Pesquisa Global */}
+
+          <div className={styles.headerRightArea}>
+            {/* Campo de Pesquisa com Atalho ⌘ K */}
             <div className={styles.searchWrapper} ref={searchRef}>
-              <div className={styles.headerSearch}>
+              <div className={styles.headerSearchBox}>
                 {isSearching ? (
-                  <Loader2 size={16} className={styles.searchSpinner} />
+                  <Loader2 size={15} className={styles.searchSpinner} />
                 ) : (
-                  <Search size={16} className={styles.searchIcon} />
+                  <Search size={15} className={styles.searchIcon} />
                 )}
-                <input 
-                  type="text" 
+                <input
+                  ref={searchInputRef}
+                  type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => { if (searchQuery.trim()) setIsSearchOpen(true) }}
-                  placeholder="Buscar paciente, procedimento, plano..." 
-                  className={styles.searchInput} 
+                  placeholder="Buscar pacientes, agenda..."
+                  className={styles.searchInput}
                 />
+                <kbd className={styles.searchKbd}>⌘ K</kbd>
                 {searchQuery && (
                   <button 
                     type="button" 
                     onClick={() => { setSearchQuery(''); setIsSearchOpen(false) }}
                     className={styles.btnClearSearch}
                   >
-                    <X size={14} />
+                    <X size={13} />
                   </button>
                 )}
               </div>
@@ -789,7 +710,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 <div className={styles.searchDropdown}>
                   {searchResults.length === 0 ? (
                     <div className={styles.emptySearch}>
-                      <span>{isSearching ? 'A procurar registos...' : 'Nenhum resultado encontrado.'}</span>
+                      <span>{isSearching ? 'Buscando registros...' : 'Nenhum resultado encontrado.'}</span>
                     </div>
                   ) : (
                     <div className={styles.searchList}>
@@ -799,19 +720,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                           onClick={() => handleSelectSearchResult(item.link)}
                           className={styles.searchItem}
                         >
-                          <div className={
-                            item.type === 'PATIENT' 
-                              ? styles.searchItemIconPatient 
-                              : item.type === 'PLAN' 
-                              ? styles.searchItemIconPlan 
-                              : item.type === 'SUPPLIER'
-                              ? styles.searchItemIconSupplier
-                              : styles.searchItemIconProc
-                          }>
-                            {item.type === 'PATIENT' && <User size={15} />}
-                            {item.type === 'PROCEDURE' && <Stethoscope size={15} />}
-                            {item.type === 'PLAN' && <ClipboardList size={15} />}
-                            {item.type === 'SUPPLIER' && <Truck size={15} />}
+                          <div className={item.type === 'PATIENT' ? styles.searchItemIconPatient : styles.searchItemIconProc}>
+                            {item.type === 'PATIENT' ? <User size={14} /> : <Stethoscope size={14} />}
                           </div>
                           <div className={styles.searchItemInfo}>
                             <span className={styles.searchItemTitle}>{item.title}</span>
@@ -824,10 +734,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 </div>
               )}
             </div>
-            
-            {/* Notificações Dinâmicas */}
+
+            {/* Status Sincronizado */}
+            <div className={styles.syncStatusHeader}>
+              <span className={styles.greenPulseDot} />
+              <span>Sincronizado</span>
+            </div>
+
+            {/* Notificações em Tempo Real */}
             <div className={styles.notifWrapper} ref={notifRef}>
               <button 
+                type="button"
                 className={`${styles.notifBtn} ${isNotifOpen ? styles.notifBtnActive : ''}`} 
                 onClick={() => {
                   setIsNotifOpen(!isNotifOpen)
@@ -865,7 +782,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     {loadingNotifs && notifications.length === 0 ? (
                       <div className={styles.emptyNotif}>
                         <Loader2 size={16} className={styles.searchSpinner} />
-                        <span>A carregar notificações...</span>
+                        <span>Carregando notificações...</span>
                       </div>
                     ) : notifications.length === 0 ? (
                       <div className={styles.emptyNotif}>
@@ -877,7 +794,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                           key={n.id} 
                           onClick={() => handleNotificationClick(n)}
                           className={`${styles.notifItem} ${!n.read ? styles.notifItemUnread : ''}`}
-                          style={{ cursor: 'pointer' }}
                         >
                           <div className={`${styles.notifIcon} ${styles[`notif_${n.type}`]}`}>
                             {n.type === 'warning' && <AlertTriangle size={14} />}
@@ -899,19 +815,29 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 </div>
               )}
             </div>
-            
+
+            {/* Badges de Cargo e Plano */}
+            <div className={styles.userRoleBadgePill}>
+              <span>{userRole} • {userPlan}</span>
+            </div>
+
             {/* Botão Novo Agendamento */}
-            <button className={styles.newAppointmentBtn} onClick={openNovoAgendamento}>
+            <button 
+              type="button" 
+              onClick={openNovoAgendamento} 
+              className={styles.btnPrimaryAction}
+            >
               <Plus size={16} />
               <span>Novo Agendamento</span>
             </button>
           </div>
         </header>
 
+        {/* Conteúdo Dinâmico das Telas */}
         <main className={styles.content}>{children}</main>
       </div>
 
-      {/* ─── Modal de Upgrade de Plano ─── */}
+      {/* ─── MODAL DE UPGRADE DE PLANO ─── */}
       {showUpgradeModal && (
         <div className={styles.upgradeModalOverlay}>
           <div className={styles.upgradeModalCard}>

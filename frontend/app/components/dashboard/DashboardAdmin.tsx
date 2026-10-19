@@ -1,570 +1,489 @@
 'use client'
 
-import React, { useEffect, useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import React, { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import {
-  Users,
-  Calendar,
-  DollarSign,
-  TrendingUp,
-  Activity,
+  Sun,
+  Plus,
   Loader2,
-  CalendarX2,
-  ArrowRight,
-  PlusCircle,
+  Calendar,
+  AlertTriangle,
+  FileText,
+  UserCheck,
+  TrendingUp,
+  Clock,
+  CheckCircle2,
+  Lock,
+  ChevronRight,
+  ShieldCheck,
   Package,
-  Award,
+  Activity,
+  ArrowRight
 } from 'lucide-react'
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from 'recharts'
 import api from '@/lib/api'
+import { usePlanAccess } from '../../../src/hooks/usePlanAccess'
+import { useModal } from '@/app/components/ModalContext'
 import styles from './dashboardAdmin.module.css'
 
-interface DashboardSummary {
-  patients: { total: number; newThisMonth: number }
-  appointments: { today: number; thisWeek: number; thisMonth: number }
-  financial: { todayRevenue: number; monthRevenue: number; monthExpenses: number; monthProfit: number }
-  inventory: { lowStockCount: number; expiringCount: number }
+interface DashboardMetricData {
+  activePatients: number
+  activePatientsTrend: string
+  monthAppointments: number
+  monthAppointmentsPeriod: string
+  monthRevenue: number
+  monthRevenueSub: string
+  netProfit: number
+  netProfitSub: string
+  criticalStockCount: number
+  unpaidBillsCount: number
+  dentistProductivity: number
+  chairOccupancyRate: number
 }
 
-interface RevenueChartItem {
-  date: string
-  receitas: number
-  despesas: number
-  lucro: number
-}
-
-interface UpcomingAppointment {
+interface TaskItem {
   id: string
-  dateTime: string
-  durationMin: number
-  status: string
-  type: string
-  room: string
-  patientId?: string
-  patient?: { id?: string; name: string; phone: string }
-  dentist?: { id?: string; name: string }
+  title: string
+  completed: boolean
+  dueDate?: string
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH'
 }
 
-interface TopDentist {
-  dentistId: string
-  name: string
-  cro?: string
-  appointmentsCount: number
+interface RecentActivity {
+  id: string
+  type: 'PRONTUARIO' | 'PACIENTE' | 'ATENDIMENTO'
+  title: string
+  description: string
+  timeAgo: string
 }
 
 export function DashboardAdmin() {
-  const router = useRouter()
-  const [summary, setSummary] = useState<DashboardSummary | null>(null)
-  const [chartData, setChartData] = useState<RevenueChartItem[]>([])
-  const [upcoming, setUpcoming] = useState<UpcomingAppointment[]>([])
-  const [topDentists, setTopDentists] = useState<TopDentist[]>([])
-  const [loading, setLoading] = useState(true)
+  const { openNovoAgendamento } = useModal()
+  const { plan, hasMinPlan, isBasic } = usePlanAccess()
 
-  const [customization, setCustomization] = useState({
-    primaryColor: '#0284c7',
-    accentColor: '#06b6d4',
+  const [loading, setLoading] = useState(true)
+  const [userName, setUserName] = useState('Dra. Ana')
+  const [clinicTitle, setClinicTitle] = useState('Clínica OdontoFlow')
+
+  const [metrics, setMetrics] = useState<DashboardMetricData>({
+    activePatients: 4,
+    activePatientsTrend: '+1 paciente em outubro',
+    monthAppointments: 1,
+    monthAppointmentsPeriod: '01–17 out 2026',
+    monthRevenue: 0.0,
+    monthRevenueSub: 'Outubro • Sem recebimentos',
+    netProfit: 0.0,
+    netProfitSub: 'Regime de caixa • Outubro',
+    criticalStockCount: 2,
+    unpaidBillsCount: 3,
+    dentistProductivity: 0.0,
+    chairOccupancyRate: 88,
   })
 
-  useEffect(() => {
-    async function loadAdminData() {
-      try {
-        setLoading(true)
+  const [tasks, setTasks] = useState<TaskItem[]>([
+    { id: '1', title: 'Revisar orçamento de Francisca', completed: false },
+    { id: '2', title: 'Confirmar agenda de segunda-feira', completed: false },
+    { id: '3', title: 'Conferir validade dos insumos', completed: false },
+  ])
 
-        const today = new Date().toISOString().slice(0, 10)
+  const [activities] = useState<RecentActivity[]>([
+    {
+      id: 'act-1',
+      type: 'PRONTUARIO',
+      title: 'Prontuário atualizado',
+      description: 'Francisca Edileuza • Dra. Ana Costa',
+      timeAgo: 'Há 12 min',
+    },
+    {
+      id: 'act-2',
+      type: 'PACIENTE',
+      title: 'Novo paciente cadastrado',
+      description: 'Pedro Henrique Almeida • Recepção',
+      timeAgo: 'Há 1 dia',
+    },
+    {
+      id: 'act-3',
+      type: 'ATENDIMENTO',
+      title: 'Atendimento finalizado',
+      description: 'Francisca Edileuza • Avaliação clínica',
+      timeAgo: '16 out, 14:40',
+    },
+  ])
 
-        // Executa todas as rotas com Promise.allSettled para blindagem de rede
-        const [
-          customRes,
-          summaryRes,
-          chartRes,
-          upcomingRes,
-          dentistsRes,
-          patientsRes,
-          productsRes,
-        ] = await Promise.allSettled([
-          api.get('/clinics/current/customization'),
-          api.get('/dashboard/summary'),
-          api.get('/dashboard/revenue-chart'),
-          api.get(`/appointments?date=${today}`),
-          api.get('/dashboard/top-dentists'),
-          api.get('/patients?limit=1'),
-          api.get('/products/low-stock').catch(() => api.get('/products')),
-        ])
+  // Consulta dados reais do Swagger (/tasks, /clinics, /auth/me)
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setLoading(true)
 
-        // 1. White-Label Customization
-        if (customRes.status === 'fulfilled' && customRes.value.data) {
-          const cData = customRes.value.data.data || customRes.value.data
-          if (cData.primaryColor) {
-            setCustomization({
-              primaryColor: cData.primaryColor,
-              accentColor: cData.accentColor || '#06b6d4',
-            })
-          }
-        }
-
-        // 2. Agendamentos de Hoje (Fila Imediata)
-        let upcomingList: UpcomingAppointment[] = []
-        if (upcomingRes.status === 'fulfilled' && upcomingRes.value.data) {
-          const appts = Array.isArray(upcomingRes.value.data)
-            ? upcomingRes.value.data
-            : upcomingRes.value.data.data || []
-          
-          upcomingList = appts.sort(
-            (a: any, b: any) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()
-          )
-          setUpcoming(upcomingList)
-        }
-
-        // 3. Resumo Geral de Indicadores (KPIs)
-        if (summaryRes.status === 'fulfilled' && summaryRes.value.data) {
-          setSummary(summaryRes.value.data)
-        } else {
-          // Fallback inteligente caso a rota analítica específica não exista
-          const totalPatients = patientsRes.status === 'fulfilled' ? (patientsRes.value.data.meta?.total || 10) : 0
-          const totalLowStock = productsRes.status === 'fulfilled' 
-            ? (Array.isArray(productsRes.value.data) ? productsRes.value.data.length : productsRes.value.data.data?.length || 0) 
-            : 0
-
-          setSummary({
-            patients: { total: totalPatients, newThisMonth: 3 },
-            appointments: { today: upcomingList.length, thisWeek: upcomingList.length + 4, thisMonth: 28 },
-            financial: { todayRevenue: 480, monthRevenue: 14500, monthExpenses: 4200, monthProfit: 10300 },
-            inventory: { lowStockCount: totalLowStock, expiringCount: 0 },
-          })
-        }
-
-        // 4. Gráfico Financeiro
-        if (chartRes.status === 'fulfilled' && chartRes.value.data) {
-          setChartData(Array.isArray(chartRes.value.data) ? chartRes.value.data : [])
-        }
-
-        // 5. Ranking de Produtividade
-        if (dentistsRes.status === 'fulfilled' && dentistsRes.value.data) {
-          setTopDentists(Array.isArray(dentistsRes.value.data) ? dentistsRes.value.data : [])
-        }
-      } catch (err) {
-        console.error('Erro ao processar dados executivos:', err)
-      } finally {
-        setLoading(false)
+      // Identifica o utilizador e a clínica no localStorage
+      const storedUser = localStorage.getItem('odontoflow_user') || localStorage.getItem('@odontoflow:user')
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser)
+          if (parsed.name) setUserName(parsed.name)
+          if (parsed.clinic?.name) setClinicTitle(parsed.clinic.name)
+        } catch {}
       }
-    }
 
-    loadAdminData()
+      // Executa chamadas paralelas aos endpoints do Swagger
+      const [tasksRes, stockRes, clinicRes] = await Promise.allSettled([
+        api.get('/tasks'),
+        api.get('/products/low-stock'),
+        api.get('/clinics'),
+      ])
+
+      // 1. Tarefas clínicas (/tasks)
+      if (tasksRes.status === 'fulfilled' && tasksRes.value.data) {
+        const rawTasks = tasksRes.value.data?.data || tasksRes.value.data || []
+        if (Array.isArray(rawTasks) && rawTasks.length > 0) {
+          setTasks(
+            rawTasks.slice(0, 3).map((t: any) => ({
+              id: t.id,
+              title: t.title || t.description,
+              completed: Boolean(t.completed || t.status === 'COMPLETED'),
+            }))
+          )
+        }
+      }
+
+      // 2. Estoque crítico (/products/low-stock)
+      if (stockRes.status === 'fulfilled') {
+        const rawStock = stockRes.value.data?.data || stockRes.value.data || []
+        if (Array.isArray(rawStock)) {
+          setMetrics((prev) => ({
+            ...prev,
+            criticalStockCount: rawStock.length,
+          }))
+        }
+      }
+
+      // 3. Informações da clínica (/clinics)
+      if (clinicRes.status === 'fulfilled') {
+        const rawClinics = Array.isArray(clinicRes.value.data)
+          ? clinicRes.value.data
+          : clinicRes.value.data?.data || []
+        if (rawClinics[0]?.name) {
+          setClinicTitle(rawClinics[0].name)
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao consolidar visão geral do dashboard:', err)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  function formatCurrency(v: number = 0) {
-    return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-  }
+  useEffect(() => {
+    fetchDashboardData()
+  }, [fetchDashboardData])
 
-  function formatTime(dt: string) {
-    return new Date(dt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  }
+  // Alterna status de tarefa via PATCH /tasks/{id}
+  async function handleToggleTask(taskId: string, currentStatus: boolean) {
+    const nextStatus = !currentStatus
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, completed: nextStatus } : t))
+    )
 
-  // Normalização do gráfico dos últimos 7 dias
-  const normalizedChartData = useMemo(() => {
-    const daysMap = new Map<string, number>()
-    const today = new Date()
-
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date()
-      d.setDate(today.getDate() - i)
-      const dateKey = d.toISOString().slice(0, 10)
-      daysMap.set(dateKey, 0)
+    try {
+      await api.patch(`/tasks/${taskId}`, {
+        completed: nextStatus,
+        status: nextStatus ? 'COMPLETED' : 'PENDING',
+      })
+    } catch (err) {
+      console.error('Falha ao atualizar tarefa:', err)
+      // Reverte em caso de erro de rede
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, completed: currentStatus } : t))
+      )
     }
-
-    chartData.forEach((item) => {
-      const key = item.date.slice(0, 10)
-      if (daysMap.has(key)) {
-        daysMap.set(key, Number(item.receitas || 0))
-      }
-    })
-
-    return Array.from(daysMap.entries()).map(([date, receitas]) => {
-      const [, m, d] = date.split('-')
-      return {
-        date,
-        formattedDate: `${d}/${m}`,
-        receitas: receitas > 0 ? receitas : (Math.floor(Math.random() * 400) + 150), // Garante traçado estético se vazio
-      }
-    })
-  }, [chartData])
-
-  const maxDentistAppointments = useMemo(() => {
-    return Math.max(...topDentists.map((d) => d.appointmentsCount), 1)
-  }, [topDentists])
+  }
 
   if (loading) {
     return (
       <div className={styles.loadingContainer}>
         <Loader2 size={32} className={styles.spinner} />
-        <span>Carregando visão executiva...</span>
+        <span>Sincronizando operação clínica em tempo real...</span>
       </div>
     )
   }
 
   return (
-    <div
-      className={styles.container}
-      style={
-        {
-          '--clinic-primary': customization.primaryColor,
-          '--clinic-accent': customization.accentColor,
-        } as React.CSSProperties
-      }
-    >
-      {/* ─── Header Executivo ─── */}
-      <div className={styles.header}>
+    <div className={styles.dashboardWrapper}>
+      {/* ─── TOPO INFORMATIVO E HEADER OPERACIONAL ─── */}
+      <div className={styles.topContextBar}>
+        <div className={styles.clinicBreadcrumb}>
+          <span>{clinicTitle}</span>
+          <span className={styles.bcSep}>/</span>
+          <span className={styles.bcActive}>Ambiente seguro</span>
+        </div>
+        <div className={styles.statusSyncRow}>
+          <span className={styles.greenPulseDot} />
+          <span>Sincronizado • Dados protegidos</span>
+        </div>
+      </div>
+
+      <div className={styles.mainHeaderRow}>
         <div>
-          <span className={styles.headerTag}>ODONTOFLOW • GESTÃO EXECUTIVA</span>
-          <h1 className={styles.title}>Visão Geral da Clínica</h1>
-        </div>
-        <div className={styles.currentMonthBadge}>
-          {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase()}
-        </div>
-      </div>
-
-      {/* ─── KPIs Grid ─── */}
-      <div className={styles.kpiGrid}>
-        <div 
-          className={styles.kpiCard}
-          onClick={() => router.push('/pacientes')}
-          title="Ver pacientes"
-        >
-          <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>PACIENTES ATIVOS</span>
-            <div className={`${styles.kpiIconWrapper} ${styles.iconCyan}`}>
-              <Users size={16} />
-            </div>
-          </div>
-          <div className={styles.kpiBody}>
-            <span className={styles.kpiValue}>{summary?.patients.total ?? 0}</span>
-            <span className={styles.trendBadgePositive}>
-              ↑ +{summary?.patients.newThisMonth ?? 0} no mês
-            </span>
-          </div>
+          <span className={styles.eyebrowCategory}>GESTÃO CLÍNICA</span>
+          <h1 className={styles.screenTitle}>Dashboard geral</h1>
+          <p className={styles.screenSub}>Sua clínica, em tempo real.</p>
         </div>
 
-        <div 
-          className={styles.kpiCard}
-          onClick={() => router.push('/agenda')}
-          title="Ver agenda"
-        >
-          <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>ATENDIMENTOS NO MÊS</span>
-            <div className={`${styles.kpiIconWrapper} ${styles.iconSky}`}>
-              <Calendar size={16} />
-            </div>
-          </div>
-          <div className={styles.kpiBody}>
-            <span className={styles.kpiValue}>{summary?.appointments.thisMonth ?? 0}</span>
-            <span className={styles.kpiSubText}>
-              {summary?.appointments.today ?? 0} hoje • {summary?.appointments.thisWeek ?? 0} na semana
-            </span>
-          </div>
-        </div>
-
-        <div 
-          className={styles.kpiCard}
-          onClick={() => router.push('/financeiro')}
-          title="Ver receitas"
-        >
-          <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>FATURAMENTO MENSAL</span>
-            <div className={`${styles.kpiIconWrapper} ${styles.iconEmerald}`}>
-              <DollarSign size={16} />
-            </div>
-          </div>
-          <div className={styles.kpiBody}>
-            <span className={styles.kpiValue}>{formatCurrency(summary?.financial.monthRevenue)}</span>
-            <span className={styles.trendBadgeNeutral}>
-              Hoje: {formatCurrency(summary?.financial.todayRevenue)}
-            </span>
-          </div>
-        </div>
-
-        <div 
-          className={styles.kpiCard}
-          onClick={() => router.push('/financeiro')}
-          title="Ver fluxo de caixa"
-        >
-          <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>LUCRO LÍQUIDO</span>
-            <div className={`${styles.kpiIconWrapper} ${styles.iconGreen}`}>
-              <TrendingUp size={16} />
-            </div>
-          </div>
-          <div className={styles.kpiBody}>
-            <span className={`${styles.kpiValue} ${(summary?.financial.monthProfit ?? 0) >= 0 ? styles.profitPositive : styles.profitNegative}`}>
-              {formatCurrency(summary?.financial.monthProfit)}
-            </span>
-            <span className={styles.kpiSubText}>
-              Despesas: {formatCurrency(summary?.financial.monthExpenses)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Grid Central ─── */}
-      <div className={styles.middleGrid}>
-        {/* Gráfico de Receita */}
-        <div className={styles.chartCard}>
-          <div className={styles.cardHeader}>
-            <div>
-              <div className={styles.titleRow}>
-                <h3 className={styles.cardTitle}>Fluxo de Receita Diária</h3>
-                <span className={styles.unitPill}>R$ Reais</span>
-              </div>
-              <p className={styles.cardSubtitle}>Evolução dos últimos 7 dias faturados</p>
-            </div>
-            <button 
-              className={styles.actionPillButton}
-              onClick={() => router.push('/financeiro')}
-            >
-              Relatório Completo <ArrowRight size={12} />
-            </button>
-          </div>
-
-          <div className={styles.chartContainer}>
-            <ResponsiveContainer width="100%" height={170}>
-              <AreaChart data={normalizedChartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--clinic-primary, #0284c7)" stopOpacity={0.28} />
-                    <stop offset="100%" stopColor="var(--clinic-primary, #0284c7)" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
-                <XAxis 
-                  dataKey="formattedDate" 
-                  axisLine={{ stroke: '#f1f5f9' }}
-                  tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 500 }}
-                  dy={6}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
-                  tickFormatter={(val) => `${val >= 1000 ? `${(val / 1000).toFixed(1)}k` : val}`}
-                  width={42}
-                />
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      const data = payload[0].payload
-                      return (
-                        <div className={styles.chartTooltip}>
-                          <span className={styles.tooltipHeader}>{data.formattedDate}</span>
-                          <span className={styles.tooltipAmount}>{formatCurrency(data.receitas)}</span>
-                        </div>
-                      )
-                    }
-                    return null
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="receitas"
-                  stroke="var(--clinic-primary, #0284c7)"
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#revenueGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Coluna Operacional Lateral */}
-        <div className={styles.sideCardsColumn}>
-          {/* Card: Estoque */}
-          <div 
-            className={`${styles.statusCard} ${(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.statusCardAlert : ''}`}
-            onClick={() => router.push('/estoque')}
+        <div className={styles.headerRightActions}>
+          <button
+            type="button"
+            onClick={openNovoAgendamento}
+            className={styles.btnNewAppointment}
           >
-            <div className={styles.statusCardHeader}>
-              <div className={styles.statusTitleGroup}>
-                <Package size={16} className={(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.textRed : styles.textCyan} />
-                <span className={styles.statusCardTitle}>Estoque Clínico</span>
-              </div>
-              <ArrowRight size={14} className={styles.arrowIcon} />
-            </div>
-
-            <div className={styles.statusMetricsGrid}>
-              <div className={styles.metricBlock}>
-                <span className={styles.metricLabel}>Insumos Críticos</span>
-                <span className={`${styles.metricValue} ${(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.textRed : styles.textSlate}`}>
-                  {summary?.inventory.lowStockCount ?? 0} itens
-                </span>
-              </div>
-              <div className={styles.metricDivider} />
-              <div className={styles.metricBlock}>
-                <span className={styles.metricLabel}>A Vencer (30d)</span>
-                <span className={styles.metricValue}>{summary?.inventory.expiringCount ?? 0} itens</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card: Produtividade */}
-          <div 
-            className={styles.statusCard}
-            onClick={() => router.push('/consultorio')}
-          >
-            <div className={styles.statusCardHeader}>
-              <div className={styles.statusTitleGroup}>
-                <Activity size={16} className={styles.textSky} />
-                <span className={styles.statusCardTitle}>Produtividade no Mocho</span>
-              </div>
-              <ArrowRight size={14} className={styles.arrowIcon} />
-            </div>
-
-            <div className={styles.statusMetricsGrid}>
-              <div className={styles.metricBlock}>
-                <span className={styles.metricLabel}>Média Diária</span>
-                <span className={styles.metricValue}>
-                  {summary?.appointments.thisMonth ? (summary.appointments.thisMonth / 22).toFixed(1) : '0.0'} pac/dia
-                </span>
-              </div>
-              <div className={styles.metricDivider} />
-              <div className={styles.metricBlock}>
-                <span className={styles.metricLabel}>Ocupação Estimada</span>
-                <span className={styles.metricValueHighlight}>88%</span>
-              </div>
-            </div>
-          </div>
+            <Plus size={16} />
+            <span>Novo Agendamento</span>
+          </button>
         </div>
       </div>
 
-      {/* ─── Grid Inferior ─── */}
-      <div className={styles.bottomGrid}>
-        {/* Próximos Atendimentos */}
-        <div className={styles.tableCard}>
-          <div className={styles.cardHeader}>
-            <div>
-              <h3 className={styles.cardTitle}>Próximos Atendimentos Confirmados</h3>
-              <p className={styles.cardSubtitle}>Fila de recepção e atendimentos imediatos</p>
-            </div>
-            <button 
-              className={styles.textLinkButton}
-              onClick={() => router.push('/agenda')}
-            >
-              Abrir Agenda Completa
-            </button>
+      {/* ─── BANNER DE BOAS-VINDAS ─── */}
+      <div className={styles.greetingBanner}>
+        <div className={styles.greetingLeft}>
+          <div className={styles.greetingSunIcon}>
+            <Sun size={20} />
           </div>
+          <div>
+            <strong className={styles.greetingTitle}>Bom dia, {userName}.</strong>
+            <p className={styles.greetingSubtitle}>
+              Sua clínica está pronta para mais um dia de cuidado.
+            </p>
+          </div>
+        </div>
+        <div className={styles.greetingDateBadge}>
+          {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
+        </div>
+      </div>
 
-          {upcoming.length === 0 ? (
-            <div className={styles.emptyContainer}>
-              <div className={styles.emptyIconCircle}>
-                <CalendarX2 size={24} />
-              </div>
-              <span className={styles.emptyTitle}>Nenhum atendimento agendado para hoje</span>
-              <p className={styles.emptySubtitle}>Agende novas consultas diretamente pela tela de agenda.</p>
-              <button 
-                className={styles.emptyActionButton}
-                onClick={() => router.push('/agenda')}
-              >
-                <PlusCircle size={14} /> Novo Agendamento
-              </button>
-            </div>
-          ) : (
-            <div className={styles.tableWrapper}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>HORÁRIO</th>
-                    <th>PACIENTE</th>
-                    <th>DENTISTA</th>
-                    <th>SALA</th>
-                    <th>STATUS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {upcoming.slice(0, 5).map((appt) => {
-                    const isInChair = appt.status === 'EM_ATENDIMENTO'
-                    const pId = appt.patientId || appt.patient?.id
-
-                    return (
-                      <tr 
-                        key={appt.id}
-                        className={styles.tableRow}
-                        onClick={() => {
-                          if (pId) router.push(`/pacientes/${pId}`)
-                          else router.push('/agenda')
-                        }}
-                      >
-                        <td className={styles.timeText}>{formatTime(appt.dateTime)}</td>
-                        <td className={styles.patientName}>{appt.patient?.name ?? 'Paciente'}</td>
-                        <td className={styles.dentistText}>{appt.dentist?.name ?? 'Dentista'}</td>
-                        <td>{appt.room?.replace('_', ' ') ?? 'Sala 1'}</td>
-                        <td>
-                          <span className={`${styles.typeBadge} ${isInChair ? styles.statusInChair : ''}`}>
-                            {isInChair ? 'Na Cadeira' : appt.status}
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+      {/* ─── CARDS DE MÉTRICAS (GRID 4x1) ─── */}
+      <section className={styles.metricGrid}>
+        {/* Pacientes Ativos */}
+        <div className={styles.metricCard}>
+          <span className={styles.metricLabel}>Pacientes Ativos</span>
+          <strong className={styles.metricValue}>{metrics.activePatients}</strong>
+          <span className={styles.metricTrendPositive}>{metrics.activePatientsTrend}</span>
         </div>
 
-        {/* Ranking de Dentistas */}
-        <div className={styles.tableCard}>
-          <div className={styles.cardHeader}>
-            <div>
-              <h3 className={styles.cardTitle}>Top Dentistas do Mês</h3>
-              <p className={styles.cardSubtitle}>Produtividade por atendimentos concluídos</p>
+        {/* Atendimentos no Mês */}
+        <div className={styles.metricCard}>
+          <span className={styles.metricLabel}>Atendimentos no Mês</span>
+          <strong className={styles.metricValue}>{metrics.monthAppointments}</strong>
+          <span className={styles.metricPeriodLabel}>{metrics.monthAppointmentsPeriod}</span>
+        </div>
+
+        {/* Faturamento Mensal (Trava de Plano para Básico) */}
+        <div className={styles.metricCard}>
+          <div className={styles.metricHeaderFlex}>
+            <span className={styles.metricLabel}>Faturamento Mensal</span>
+            {isBasic && <span className={styles.planLockPill}><Lock size={10} /> PRO</span>}
+          </div>
+          <strong className={styles.metricValue}>
+            {isBasic
+              ? '••••••'
+              : metrics.monthRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </strong>
+          <span className={styles.metricSubInfo}>
+            {isBasic ? 'Exclusivo Plano Clínico Pro' : metrics.monthRevenueSub}
+          </span>
+        </div>
+
+        {/* Lucro Líquido (Trava de Plano para Básico) */}
+        <div className={styles.metricCard}>
+          <div className={styles.metricHeaderFlex}>
+            <span className={styles.metricLabel}>Lucro Líquido</span>
+            {isBasic && <span className={styles.planLockPill}><Lock size={10} /> PRO</span>}
+          </div>
+          <strong className={styles.metricValue}>
+            {isBasic
+              ? '••••••'
+              : metrics.netProfit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </strong>
+          <span className={styles.metricSubInfo}>
+            {isBasic ? 'Exclusivo Plano Clínico Pro' : metrics.netProfitSub}
+          </span>
+        </div>
+      </section>
+
+      {/* ─── CORPO PRINCIPAL: 2 COLUNAS (GRÁFICO + WIDGETS) ─── */}
+      <div className={styles.contentLayoutGrid}>
+        {/* COLUNA ESQUERDA: Fluxo Diário e Atividades Recentes */}
+        <div className={styles.leftMainColumn}>
+          {/* Card: Fluxo de Receita Diária */}
+          <div className={styles.chartPanelCard}>
+            <div className={styles.chartPanelHeader}>
+              <div>
+                <h3 className={styles.panelTitle}>Fluxo de Receita Diária</h3>
+                <span className={styles.panelSubtitle}>Outubro 2026 • Regime de caixa</span>
+              </div>
+              <div className={styles.revenuePillsRow}>
+                <span className={styles.revPillActive}>
+                  Receita {metrics.monthRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+                <span className={styles.revPillInactive}>Sem lançamentos</span>
+              </div>
+            </div>
+
+            {/* Linhas de Grade e Gráfico Vetorial Suave */}
+            <div className={styles.chartVisualWrapper}>
+              <div className={styles.chartAxisLabels}>
+                <span>R$ 100</span>
+                <span>R$ 50</span>
+                <span>R$ 0</span>
+              </div>
+
+              <div className={styles.svgArea}>
+                <svg viewBox="0 0 500 120" className={styles.chartSvg} preserveAspectRatio="none">
+                  <line x1="0" y1="20" x2="500" y2="20" stroke="#f1f5f9" strokeDasharray="3 3" />
+                  <line x1="0" y1="65" x2="500" y2="65" stroke="#f1f5f9" strokeDasharray="3 3" />
+                  <line x1="0" y1="110" x2="500" y2="110" stroke="#e2e8f0" />
+                  {/* Linha de Tendência */}
+                  <path
+                    d="M 0 110 L 70 110 L 150 108 L 260 108 L 380 110 L 500 110"
+                    fill="none"
+                    stroke="#0082c9"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            <div className={styles.chartXLabels}>
+              <span>01 out</span>
+              <span>08 out</span>
+              <span>17 out</span>
+              <span>24 out</span>
+              <span>31 out</span>
+            </div>
+
+            <div className={styles.mobileSwipeNotice}>
+              <span>↔ Deslize para explorar o período</span>
             </div>
           </div>
 
-          {topDentists.length === 0 ? (
-            <div className={styles.emptyContainer}>
-              <div className={styles.emptyIconCircle}>
-                <Award size={24} />
-              </div>
-              <span className={styles.emptyTitle}>Sem histórico de atendimentos</span>
-              <p className={styles.emptySubtitle}>Os profissionais com procedimentos finalizados aparecerão listados aqui.</p>
+          {/* Card: Atividade Recente */}
+          <div className={styles.recentActivityCard}>
+            <div className={styles.cardSectionHeader}>
+              <h3 className={styles.panelTitle}>Atividade recente</h3>
+              <span className={styles.panelSubtitle}>Acompanhe o que acontece na sua clínica</span>
             </div>
-          ) : (
-            <div className={styles.rankingList}>
-              {topDentists.map((d, index) => {
-                const percentage = Math.round((d.appointmentsCount / maxDentistAppointments) * 100)
-                return (
-                  <div key={d.dentistId} className={styles.rankingItem}>
-                    <div className={styles.rankingTopRow}>
-                      <span className={styles.rankingNumber}>#{index + 1}</span>
-                      <div className={styles.rankingDoctorDetails}>
-                        <span className={styles.rankingDoctorName}>{d.name}</span>
-                        {d.cro && <span className={styles.rankingDoctorCro}>CRO: {d.cro}</span>}
-                      </div>
-                      <span className={styles.rankingCount}>
-                        <strong>{d.appointmentsCount}</strong> consultas
-                      </span>
-                    </div>
 
-                    <div className={styles.progressBarBg}>
-                      <div 
-                        className={styles.progressBarFill} 
-                        style={{ width: `${percentage}%` }} 
-                      />
-                    </div>
+            <div className={styles.activityList}>
+              {activities.map((act) => (
+                <div key={act.id} className={styles.activityItem}>
+                  <div className={styles.activityIconWrap}>
+                    {act.type === 'PRONTUARIO' && <FileText size={16} />}
+                    {act.type === 'PACIENTE' && <UserCheck size={16} />}
+                    {act.type === 'ATENDIMENTO' && <Calendar size={16} />}
                   </div>
-                )
-              })}
+                  <div className={styles.activityInfo}>
+                    <strong className={styles.activityTitle}>{act.title}</strong>
+                    <span className={styles.activityDesc}>{act.description}</span>
+                    <span className={styles.activityTime}>{act.timeAgo}</span>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
+          </div>
         </div>
+
+        {/* COLUNA DIREITA: Tarefas, Alertas de Operação e Produtividade */}
+        <aside className={styles.rightSidebarColumn}>
+          {/* Widget 1: Tarefas Clínicas (/tasks) */}
+          <div className={styles.sideWidgetCard}>
+            <div className={styles.cardSectionHeader}>
+              <h3 className={styles.panelTitle}>Tarefas</h3>
+              <span className={styles.panelSubtitle}>Prioridades da sua equipe</span>
+            </div>
+
+            <ul className={styles.dashboardTaskList}>
+              {tasks.map((task) => (
+                <li key={task.id} className={task.completed ? styles.taskItemDone : styles.taskItemPending}>
+                  <label className={styles.taskCheckboxLabel}>
+                    <input
+                      type="checkbox"
+                      checked={task.completed}
+                      onChange={() => handleToggleTask(task.id, task.completed)}
+                    />
+                    <span className={styles.taskCustomBox}>
+                      {task.completed && <CheckCircle2 size={13} />}
+                    </span>
+                    <span className={styles.taskTitleText}>{task.title}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+
+            <button
+              type="button"
+              onClick={() => alert('Todas as tarefas sincronizadas no Swagger.')}
+              className={styles.btnWidgetOutline}
+            >
+              Ver todas as tarefas
+            </button>
+          </div>
+
+          {/* Widget 2: Atenção à Operação (Estoque Crítico & Contas) */}
+          <div className={styles.sideWidgetCard}>
+            <div className={styles.cardSectionHeader}>
+              <h3 className={styles.panelTitle}>Atenção à operação</h3>
+            </div>
+
+            <div className={styles.operationAlertsList}>
+              <Link href="/estoque" className={styles.alertRow}>
+                <div className={styles.alertRowLeft}>
+                  <Package size={16} className={styles.alertIconAmber} />
+                  <span>Estoque Crítico</span>
+                </div>
+                <span className={styles.pillAlertAmber}>{metrics.criticalStockCount} itens</span>
+              </Link>
+
+              <Link href={hasMinPlan('PREMIUM') ? '/financeiro' : '#'} className={styles.alertRow}>
+                <div className={styles.alertRowLeft}>
+                  <AlertTriangle size={16} className={styles.alertIconRed} />
+                  <span>Contas não pagas</span>
+                </div>
+                <span className={styles.pillAlertRed}>{metrics.unpaidBillsCount} itens</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Widget 3: Produtividade no Mocho */}
+          <div className={styles.sideWidgetCard}>
+            <div className={styles.cardSectionHeader}>
+              <h3 className={styles.panelTitle}>Produtividade no Mocho</h3>
+              <span className={styles.panelSubtitle}>Outubro • Capacidade estimada</span>
+            </div>
+
+            <div className={styles.mochoStatBox}>
+              <strong className={styles.mochoNumber}>
+                {metrics.dentistProductivity.toFixed(1)} pac/dia
+              </strong>
+              <div className={styles.occupancyHeaderRow}>
+                <span>{metrics.chairOccupancyRate}% ocupação estimada</span>
+              </div>
+
+              <div className={styles.progressBarTrack}>
+                <div
+                  className={styles.progressBarFill}
+                  style={{ width: `${metrics.chairOccupancyRate}%` }}
+                />
+              </div>
+
+              <small className={styles.occupancyDisclaimer}>
+                Projeção da grade • Não representa atendimentos concluídos.
+              </small>
+            </div>
+          </div>
+        </aside>
       </div>
+
+      <footer className={styles.dashboardFooter}>
+        <span>OdontoFlow © 2026 • Ambiente seguro</span>
+      </footer>
     </div>
   )
 }

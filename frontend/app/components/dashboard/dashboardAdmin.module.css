@@ -1,568 +1,631 @@
-.container {
+/* ─── TOKENS & RESET ─── */
+.dashboardWrapper {
+  --primary: var(--primary-color, #0082c9);
+  --primary-hover: var(--primary-accent, #006fae);
+  --bg-card: #ffffff;
+  --bg-page: #f8fafc;
+  --text-dark: #0f172a;
+  --text-muted: #64748b;
+  --text-subtle: #94a3b8;
+  --border-light: #e2e8f0;
+
+  width: 100%;
+  padding: 24px 32px 48px 32px;
+  background-color: var(--bg-page);
+  color: var(--text-dark);
+  font-family: var(--app-font, 'Inter', -apple-system, BlinkMacSystemFont, sans-serif);
+  box-sizing: border-box;
+}
+
+.loadingContainer {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-}
-
-/* ─── Header ─── */
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.headerTag {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: #0891b2;
-}
-
-.title {
-  font-size: 22px;
-  font-weight: 700;
-  color: #0f172a;
-  margin-top: 2px;
-}
-
-.currentMonthBadge {
-  font-size: 12px;
-  font-weight: 600;
-  color: #475569;
-  background: #ffffff;
-  padding: 6px 14px;
-  border-radius: 9999px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-}
-
-/* ─── KPIs Grid ─── */
-.kpiGrid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-
-.kpiCard {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 18px 20px;
-  border: 1px solid #eef2f6;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.kpiCard:hover {
-  transform: translateY(-2px);
-  border-color: #cbd5e1;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.05);
-}
-
-.kpiHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.kpiLabel {
-  font-size: 11px;
-  font-weight: 700;
-  color: #64748b;
-  letter-spacing: 0.04em;
-}
-
-.kpiIconWrapper {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 60vh;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 14px;
 }
 
-.iconCyan { background: #ecfeff; color: #0891b2; }
-.iconSky { background: #e0f2fe; color: #0284c7; }
-.iconEmerald { background: #ecfdf5; color: #10b981; }
-.iconGreen { background: #f0fdf4; color: #16a34a; }
-
-.kpiBody {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.spinner {
+  color: var(--primary);
+  animation: spin 1s linear infinite;
 }
 
-.kpiValue {
-  font-size: 24px;
-  font-weight: 700;
-  color: #0f172a;
-  line-height: 1.1;
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-.trendBadgePositive {
-  font-size: 12px;
-  font-weight: 600;
-  color: #16a34a;
-}
-
-.trendBadgeNeutral {
-  font-size: 12px;
-  font-weight: 500;
-  color: #0891b2;
-}
-
-.kpiSubText {
-  font-size: 12px;
-  color: #94a3b8;
-}
-
-.profitPositive { color: #16a34a; }
-.profitNegative { color: #dc2626; }
-
-/* ─── Middle Grid ─── */
-.middleGrid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 16px;
-}
-
-.chartCard {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid #eef2f6;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.cardHeader {
+/* ─── TOPO BREADCRUMB & STATUS ─── */
+.topContextBar {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 14px;
-}
-
-.titleRow {
-  display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.cardTitle {
-  font-size: 15px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0;
-}
-
-.unitPill {
-  font-size: 10px;
-  font-weight: 600;
-  color: #64748b;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  padding: 2px 6px;
-  border-radius: 6px;
-}
-
-.cardSubtitle {
+  margin-bottom: 18px;
   font-size: 12px;
-  color: #94a3b8;
-  margin: 2px 0 0 0;
 }
 
-.actionPillButton {
+.clinicBreadcrumb {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.bcSep {
+  color: var(--text-subtle);
+}
+
+.bcActive {
+  color: var(--text-dark);
   font-weight: 600;
-  color: #0891b2;
-  background: #ecfeff;
-  border: 1px solid #cffafe;
-  padding: 5px 12px;
-  border-radius: 9999px;
-  cursor: pointer;
-  transition: all 0.15s;
 }
 
-.actionPillButton:hover {
-  background: #cffafe;
-  color: #0e7490;
-}
-
-.chartContainer {
-  width: 100%;
-  height: 170px;
-}
-
-.chartTooltip {
-  background: #0f172a;
-  padding: 8px 12px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+.statusSyncRow {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
-.tooltipHeader {
+.greenPulseDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #10b981;
+}
+
+/* ─── HEADER PRINCIPAL ─── */
+.mainHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 24px;
+}
+
+.eyebrowCategory {
   font-size: 11px;
-  color: #94a3b8;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--primary);
+  display: block;
+  margin-bottom: 4px;
 }
 
-.tooltipAmount {
+.screenTitle {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-dark);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.screenSub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 4px 0 0 0;
+}
+
+.btnNewAppointment {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--primary);
+  color: #ffffff;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 130, 201, 0.2);
+  transition: background-color 0.15s ease;
+}
+
+.btnNewAppointment:hover {
+  background-color: var(--primary-hover);
+}
+
+/* ─── BANNER DE BOAS-VINDAS ─── */
+.greetingBanner {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.greetingLeft {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.greetingSunIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e0f2fe;
+}
+
+.greetingTitle {
   font-size: 14px;
   font-weight: 700;
-  color: #38bdf8;
+  color: var(--text-dark);
 }
 
-/* ─── Coluna Lateral Operacional ─── */
-.sideCardsColumn {
+.greetingSubtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 2px 0 0 0;
+}
+
+.greetingDateBadge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.05em;
+  background: #ffffff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #bae6fd;
+}
+
+/* ─── GRID DE MÉTRICAS (4x1) ─── */
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.metricCard {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metricHeaderFlex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.metricLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.planLockPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  font-weight: 800;
+  background: #f1f5f9;
+  color: var(--primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.metricValue {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-dark);
+  letter-spacing: -0.02em;
+}
+
+.metricTrendPositive {
+  font-size: 11px;
+  font-weight: 600;
+  color: #10b981;
+}
+
+.metricPeriodLabel,
+.metricSubInfo {
+  font-size: 11px;
+  color: var(--text-subtle);
+}
+
+/* ─── LAYOUT EM 2 COLUNAS ─── */
+.contentLayoutGrid {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.leftMainColumn,
+.rightSidebarColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ─── CARD: GRÁFICO DE FLUXO ─── */
+.chartPanelCard {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 24px;
+}
+
+.chartPanelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.panelTitle {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-dark);
+}
+
+.panelSubtitle {
+  font-size: 11px;
+  color: var(--text-subtle);
+  margin-top: 2px;
+  display: block;
+}
+
+.revenuePillsRow {
+  display: flex;
+  gap: 8px;
+}
+
+.revPillActive {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.revPillInactive {
+  background: #f8fafc;
+  border: 1px solid var(--border-light);
+  color: var(--text-subtle);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.chartVisualWrapper {
+  display: flex;
+  gap: 12px;
+  height: 120px;
+  align-items: stretch;
+}
+
+.chartAxisLabels {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-subtle);
+  text-align: right;
+  width: 44px;
+}
+
+.svgArea {
+  flex: 1;
+  position: relative;
+}
+
+.chartSvg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.chartXLabels {
+  display: flex;
+  justify-content: space-between;
+  padding-left: 56px;
+  font-size: 10px;
+  color: var(--text-subtle);
+  margin-top: 10px;
+}
+
+.mobileSwipeNotice {
+  display: none;
+}
+
+/* ─── CARD: ATIVIDADE RECENTE ─── */
+.recentActivityCard {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 24px;
+}
+
+.cardSectionHeader {
+  margin-bottom: 18px;
+}
+
+.activityList {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.statusCard {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 18px 20px;
-  border: 1px solid #eef2f6;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+.activityItem {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  flex: 1;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  align-items: flex-start;
+  gap: 14px;
 }
 
-.statusCard:hover {
-  transform: translateY(-2px);
-  border-color: #cbd5e1;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.05);
-}
-
-.statusCardAlert:hover {
-  border-color: #fca5a5;
-}
-
-.statusCardHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.statusTitleGroup {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.statusCardTitle {
-  font-size: 13px;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.arrowIcon {
-  color: #94a3b8;
-  transition: transform 0.15s;
-}
-
-.statusCard:hover .arrowIcon {
-  transform: translateX(3px);
-  color: #0891b2;
-}
-
-.statusMetricsGrid {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: #f8fafc;
-  padding: 12px 16px;
+.activityIconWrap {
+  width: 34px;
+  height: 34px;
   border-radius: 8px;
+  background: #f0f9ff;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e0f2fe;
 }
 
-.metricBlock {
+.activityInfo {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.metricDivider {
-  width: 1px;
-  height: 28px;
-  background: #e2e8f0;
-}
-
-.metricLabel {
-  font-size: 11px;
-  color: #64748b;
-}
-
-.metricValue {
-  font-size: 15px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.metricValueHighlight {
-  font-size: 15px;
-  font-weight: 700;
-  color: #0284c7;
-}
-
-.textCyan { color: #0891b2; }
-.textSky { color: #0284c7; }
-.textRed { color: #dc2626; }
-.textSlate { color: #0f172a; }
-
-/* ─── Bottom Grid ─── */
-.bottomGrid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 16px;
-}
-
-.tableCard {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid #eef2f6;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
-  min-height: 240px;
-  display: flex;
-  flex-direction: column;
-}
-
-.textLinkButton {
-  font-size: 12px;
-  font-weight: 600;
-  color: #0891b2;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-.textLinkButton:hover {
-  color: #0e7490;
-  text-decoration: underline;
-}
-
-.tableWrapper {
-  overflow-x: auto;
-  margin-top: 6px;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.table th {
-  text-align: left;
-  padding: 8px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #94a3b8;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.table td {
-  padding: 12px;
+.activityTitle {
   font-size: 13px;
-  color: #334155;
-  border-bottom: 1px solid #f8fafc;
+  font-weight: 700;
+  color: var(--text-dark);
 }
 
-.tableRow {
-  cursor: pointer;
-  transition: background 0.15s;
+.activityDesc {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
-.tableRow:hover {
-  background: #f8fafc;
+.activityTime {
+  font-size: 10px;
+  color: var(--text-subtle);
+  margin-top: 2px;
 }
 
-.timeText {
-  font-weight: 600;
-  color: #0891b2;
+/* ─── WIDGETS LATERAIS ─── */
+.sideWidgetCard {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 22px;
 }
 
-.patientName {
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.dentistText {
-  color: #64748b;
-}
-
-.typeBadge {
-  font-size: 11px;
-  font-weight: 600;
-  background: #f1f5f9;
-  padding: 3px 8px;
-  border-radius: 6px;
-  color: #475569;
-}
-
-/* Ranking */
-.rankingList {
+.dashboardTaskList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-top: 8px;
 }
 
-.rankingItem {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  background: #f8fafc;
-  border-radius: 8px;
-}
-
-.rankingTopRow {
+.taskCheckboxLabel {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13px;
 }
 
-.rankingNumber {
+.taskCheckboxLabel input {
+  position: absolute;
+  opacity: 0;
+}
+
+.taskCustomBox {
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+}
+
+.taskItemDone .taskTitleText {
+  text-decoration: line-through;
+  color: var(--text-subtle);
+}
+
+.btnWidgetOutline {
+  width: 100%;
+  padding: 9px;
+  background: transparent;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
   font-size: 12px;
-  font-weight: 700;
-  color: #0891b2;
-  width: 24px;
+  font-weight: 600;
+  color: var(--text-dark);
+  cursor: pointer;
+  transition: background 0.15s ease;
 }
 
-.rankingDoctorDetails {
-  flex: 1;
+.btnWidgetOutline:hover {
+  background: #f8fafc;
+}
+
+.operationAlertsList {
   display: flex;
   flex-direction: column;
+  gap: 12px;
 }
 
-.rankingDoctorName {
+.alertRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
   font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dark);
+}
+
+.alertRowLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.alertIconAmber { color: #f59e0b; }
+.alertIconRed { color: #ef4444; }
+
+.pillAlertAmber {
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.pillAlertRed {
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+/* Produtividade */
+.mochoStatBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mochoNumber {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.occupancyHeaderRow {
+  font-size: 12px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-muted);
 }
 
-.rankingDoctorCro {
-  font-size: 11px;
-  color: #94a3b8;
-}
-
-.rankingCount {
-  font-size: 11px;
-  color: #94a3b8;
-}
-
-.rankingCount strong {
-  font-size: 13px;
-  color: #0f172a;
-}
-
-.progressBarBg {
+.progressBarTrack {
   width: 100%;
-  height: 4px;
-  background: #e2e8f0;
+  height: 8px;
+  background-color: #f1f5f9;
   border-radius: 9999px;
   overflow: hidden;
 }
 
 .progressBarFill {
   height: 100%;
-  background: #06b6d4;
+  background-color: var(--primary);
   border-radius: 9999px;
-  transition: width 0.3s ease-out;
 }
 
-/* ─── Empty States Refinados ─── */
-.emptyContainer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  margin: auto;
-  padding: 24px 16px;
+.occupancyDisclaimer {
+  font-size: 10px;
+  color: var(--text-subtle);
+  margin-top: 4px;
+}
+
+.dashboardFooter {
   text-align: center;
-  gap: 6px;
+  font-size: 11px;
+  color: var(--text-subtle);
+  padding-top: 16px;
 }
 
-.emptyIconCircle {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #94a3b8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 4px;
+/* ─── RESPONSIVIDADE: TABLET (768px) ─── */
+@media (max-width: 1024px) {
+  .dashboardWrapper {
+    padding: 20px;
+  }
+
+  .metricGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .contentLayoutGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .mobileSwipeNotice {
+    display: block;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-subtle);
+    margin-top: 12px;
+  }
 }
 
-.emptyTitle {
-  font-size: 13px;
-  font-weight: 600;
-  color: #334155;
-}
+/* ─── RESPONSIVIDADE: MOBILE (390px) ─── */
+@media (max-width: 640px) {
+  .dashboardWrapper {
+    padding: 16px 14px;
+  }
 
-.emptySubtitle {
-  font-size: 12px;
-  color: #94a3b8;
-  max-width: 280px;
-  margin: 0;
-}
+  .topContextBar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
 
-.emptyActionButton {
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  background: #ecfeff;
-  color: #0891b2;
-  border: 1px solid #cffafe;
-  padding: 6px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
+  .mainHeaderRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
 
-.emptyActionButton:hover {
-  background: #cffafe;
-  color: #0e7490;
-}
+  .btnNewAppointment {
+    width: 100%;
+    justify-content: center;
+  }
 
-/* ─── Loading ─── */
-.loadingContainer {
-  padding: 100px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: #64748b;
-  font-weight: 500;
-}
+  .greetingBanner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
 
-.spinner {
-  animation: spin 1s linear infinite;
-  color: #06b6d4;
-}
+  .metricGrid {
+    grid-template-columns: 1fr;
+  }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  .chartPanelHeader {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .revenuePillsRow {
+    width: 100%;
+    justify-content: space-between;
+  }
 }

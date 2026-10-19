@@ -2,27 +2,29 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { 
   Lock, 
-  Mail, 
   Eye, 
   EyeOff, 
   Loader2, 
   CheckCircle2, 
-  Activity, 
   ShieldCheck, 
-  Sparkles,
-  User,
+  Check,
   ArrowRight
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './login.module.css'
-import Image from 'next/image'
+
+// 🖼️ CAMINHO DA LOGO: Altere o caminho ou o arquivo facilmente aqui
+const LOGO_SRC = '/logo.svg'
+const LOGO_ALT = 'OdontoFlow Logo'
 
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -35,16 +37,16 @@ export default function LoginPage() {
     try {
       const response = await api.post('/auth/login', {
         email: email.trim(),
-        password
+        password,
       })
 
       const { token, user } = response.data
 
-      // Armazena tokens e dados de sessão
+      // Armazenamento de sessão e token
       localStorage.setItem('odontoflow_token', token)
       localStorage.setItem('odontoflow_user', JSON.stringify(user))
       
-      // Cookie para middleware de rotas (se aplicável)
+      // Cookie de autenticação para middlewares
       document.cookie = `odontoflow_token=${token}; path=/; max-age=604800; SameSite=Lax`
 
       router.push('/')
@@ -59,163 +61,163 @@ export default function LoginPage() {
 
   return (
     <main className={styles.wrapper}>
-      {/* ─── LADO ESQUERDO: SHOWCASE ENTERPRISE ─── */}
+      {/* ─── SHOWCASE LATERAL (DESKTOP / TABLET / MOBILE) ─── */}
       <section className={styles.brandSide}>
-        <div className={styles.glowOverlay} />
-
-       
-        {/* Topo: Brand Minimalista */}
-        <div className={styles.brandTop}>
-          <div className={styles.logoBadge}>
-            <div className={styles.logoTooth}>
+        <div className={styles.brandInner}>
+          {/* Logo */}
+          <div className={styles.logoRow}>
+            <div className={styles.logoImageWrap}>
               <Image
-                src="/logo.svg"
-                alt="OdontoFlow Logo"
-                width={32}
-                height={32}
+                src={LOGO_SRC}
+                alt={LOGO_ALT}
+                width={36}
+                height={36}
                 priority
+                className={styles.logoImg}
               />
             </div>
-            <div className={styles.logoTitleBlock}>
-              <span className={styles.logoTitle}>OdontoFlow</span>
-              <span className={styles.logoSubtitle}>PLATAFORMA CLÍNICA 2026</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Conteúdo Central */}
-        <div className={styles.brandContent}>
-          <div className={styles.awardBadge}>
-            <Sparkles size={14} color="#06b6d4" />
-            <span>ECOSSISTEMA ODONTOLÓGICO INTELIGENTE</span>
+            <span className={styles.logoBrandName}>OdontoFlow</span>
           </div>
 
-          <h1 className={styles.mainHeading}>
-            Gestão clínica de <span>alta precisão</span> para consultórios modernos.
-          </h1>
+          <div className={styles.brandMainContent}>
+            <span className={styles.eyebrowTag}>ECOSSISTEMA ODONTOLÓGICO INTELIGENTE</span>
 
-          <p className={styles.mainDescription}>
-            Conecte recepção, prontuário digital com odontograma, controle automatizado de insumos e saúde financeira em uma única infraestrutura segura.
-          </p>
+            <h1 className={styles.mainHeading}>
+              Gestão clínica de alta precisão para consultórios modernos
+            </h1>
 
-          <div className={styles.featuresList}>
-            <div className={styles.featureItem}>
-              <div className={styles.checkIcon}>
-                <CheckCircle2 size={16} />
+            <p className={styles.mainSubtitle}>
+              Mais tempo para cuidar. Mais clareza para decidir. Toda a sua operação em um só lugar.
+            </p>
+
+            <ul className={styles.featuresList}>
+              <li>
+                <CheckCircle2 size={18} className={styles.featureCheckIcon} />
+                <span>Prontuário inteligente e cuidado conectado</span>
+              </li>
+              <li>
+                <CheckCircle2 size={18} className={styles.featureCheckIcon} />
+                <span>Controle financeiro com visão de resultado</span>
+              </li>
+              <li>
+                <CheckCircle2 size={18} className={styles.featureCheckIcon} />
+                <span>Segurança e rastreabilidade em cada registro</span>
+              </li>
+            </ul>
+
+            {/* Card LGPD & Auditoria */}
+            <div className={styles.securityCard}>
+              <div className={styles.securityCardHeader}>
+                <ShieldCheck size={18} className={styles.securityCardIcon} />
+                <strong>Seu cuidado merece uma base segura.</strong>
               </div>
-              <p>Baixa automática de materiais vinculada a procedimentos clínicos</p>
-            </div>
-
-            <div className={styles.featureItem}>
-              <div className={styles.checkIcon}>
-                <CheckCircle2 size={16} />
+              <p className={styles.securityCardText}>
+                Dados criptografados, acesso por perfil e trilha de auditoria para sua equipe trabalhar com confiança.
+              </p>
+              <div className={styles.securityPills}>
+                <span className={styles.pillTag}>LGPD</span>
+                <span className={styles.pillTag}>ACESSO SEGURO</span>
               </div>
-              <p>Controle financeiro com conciliação e vínculo de fornecedores</p>
-            </div>
-
-            <div className={styles.featureItem}>
-              <div className={styles.checkIcon}>
-                <CheckCircle2 size={16} />
-              </div>
-              <p>Segurança multi-tenant em nuvem em conformidade com a LGPD</p>
             </div>
           </div>
-        </div>
 
-        {/* Card Flutuante de Métrica (Efeito Sankhya) */}
-        <div className={styles.kpiFloatCard}>
-          <div className={styles.kpiFloatIcon}>
-            <Activity size={20} color="#06b6d4" />
-          </div>
-          <div>
-            <span className={styles.kpiFloatTitle}>Produtividade & Conformidade</span>
-            <p className={styles.kpiFloatSub}>Redução de até 40% em perdas de insumos cirúrgicos</p>
-          </div>
+          <footer className={styles.brandFooter}>
+            <span>OdontoFlow © 2026 • Tecnologia a serviço do cuidado</span>
+          </footer>
         </div>
       </section>
 
-      {/* ─── LADO DIREITO: FORMULÁRIO DE AUTENTICAÇÃO ─── */}
+      {/* ─── FORMULÁRIO DE LOGIN ─── */}
       <section className={styles.formSide}>
-        <div className={styles.loginCard}>
-          {/* Avatar de Boas-Vindas */}
-          <div className={styles.userAvatarContainer}>
-            <div className={styles.userAvatar}>
-              <User size={28} color="#0891b2" />
-            </div>
+        <div className={styles.formContainer}>
+          <div className={styles.portalTag}>
+            <Lock size={13} className={styles.portalTagIcon} />
+            <span>PORTAL DA CLÍNICA</span>
           </div>
 
-          <div className={styles.cardHeader}>
+          <div className={styles.formHeader}>
             <h2 className={styles.welcomeTitle}>Bem-vindo(a)</h2>
             <p className={styles.welcomeSub}>Identifique-se com suas credenciais de acesso</p>
           </div>
 
           {errorMessage && (
             <div className={styles.errorAlert} role="alert">
-              <ShieldCheck size={16} className={styles.errorIcon} />
               <span>{errorMessage}</span>
             </div>
           )}
 
           <form onSubmit={handleLogin} className={styles.form}>
             {/* Campo E-mail */}
-            <div className={styles.inputGroup}>
-              <label htmlFor="email">E-mail corporativo</label>
-              <div className={styles.inputWrapper}>
-                <Mail size={18} className={styles.fieldIcon} />
+            <div className={styles.fieldGroup}>
+              <label htmlFor="email" className={styles.fieldLabel}>E-mail corporativo</label>
+              <div className={styles.inputWrap}>
                 <input
                   id="email"
                   type="email"
                   required
                   autoComplete="email"
-                  placeholder="exemplo@odontoflow.com"
+                  placeholder="ana.costa@odontoflow.com.br"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className={styles.inputField}
+                  className={styles.textInput}
                 />
               </div>
             </div>
 
             {/* Campo Senha */}
-            <div className={styles.inputGroup}>
-              <div className={styles.labelRow}>
-                <label htmlFor="password">Senha</label>
-                <a 
-                  href="#" 
-                  onClick={(e) => { e.preventDefault(); alert('Contate o administrador da clínica para redefinir sua credencial.') }}
-                  className={styles.forgotLink}
-                >
-                  Esqueci minha senha
-                </a>
-              </div>
-              <div className={styles.inputWrapper}>
-                <Lock size={18} className={styles.fieldIcon} />
+            <div className={styles.fieldGroup}>
+              <label htmlFor="password" className={styles.fieldLabel}>Senha</label>
+              <div className={styles.inputWrap}>
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   required
                   autoComplete="current-password"
-                  placeholder="••••••••"
+                  placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={styles.inputField}
+                  className={styles.textInput}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className={styles.togglePasswordBtn}
+                  className={styles.btnTogglePass}
                   tabIndex={-1}
                   aria-label={showPassword ? 'Ocultar senha' : 'Exibir senha'}
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            {/* Botão de Submissão */}
+            {/* Opções de Sessão e Recuperação */}
+            <div className={styles.optionsRow}>
+              <label className={styles.rememberCheckbox}>
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                <span className={styles.customCheck}>
+                  {rememberMe && <Check size={12} strokeWidth={3} />}
+                </span>
+                <span>Manter conectado</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => alert('Contate o administrador da clínica para redefinir sua credencial.')}
+                className={styles.linkForgot}
+              >
+                Esqueci minha senha
+              </button>
+            </div>
+
+            {/* Botão de Login Dinâmico */}
             <button
               type="submit"
               disabled={loading}
-              className={styles.submitButton}
+              className={`${styles.submitBtn} ${loading ? styles.submitBtnLoading : ''}`}
             >
               {loading ? (
                 <>
@@ -225,27 +227,29 @@ export default function LoginPage() {
               ) : (
                 <>
                   <span>Prosseguir</span>
-                  <ArrowRight size={16} />
+                  <ArrowRight size={17} />
                 </>
               )}
             </button>
+
+            {loading && (
+              <span className={styles.verifyingNotice}>
+                Verificando seu acesso ao ambiente da clínica...
+              </span>
+            )}
           </form>
 
-          {/* Rodapé Interno do Card */}
-          <div className={styles.cardFooter}>
-            <ShieldCheck size={14} color="#16a34a" />
-            <span>Ambiente Criptografado de Ponta a Ponta</span>
+          <div className={styles.divider} />
+
+          <div className={styles.supportHelpBox}>
+            <span>Precisa de ajuda? Fale com o administrador da sua clínica.</span>
+          </div>
+
+          <div className={styles.safeConnectionRow}>
+            <ShieldCheck size={14} className={styles.safeIcon} />
+            <span>Conexão protegida • Dados criptografados</span>
           </div>
         </div>
-
-        {/* Rodapé da Página */}
-        <footer className={styles.pageFooter}>
-          <span>OdontoFlow SaaS</span>
-          <span className={styles.footerDot}>•</span>
-          <span>Suporte Técnico</span>
-          <span className={styles.footerDot}>•</span>
-          <span>Versão 1.4.2</span>
-        </footer>
       </section>
     </main>
   )
