@@ -13,33 +13,12 @@ export default function DashboardPage() {
   useEffect(() => {
     async function checkUserRole() {
       try {
-        // Unifica as chaves de storage usadas na autenticação
-        const token =
-          typeof window !== 'undefined'
-            ? localStorage.getItem('odontoflow_token') ||
-              localStorage.getItem('@odontoflow:token') ||
-              localStorage.getItem('token')
-            : null
-
-        const storedUser =
-          typeof window !== 'undefined'
-            ? localStorage.getItem('odontoflow_user') ||
-              localStorage.getItem('@odontoflow:user')
-            : null
-
-        if (storedUser) {
-          try {
-            const parsed = JSON.parse(storedUser)
-            if (parsed.role) {
-              setRole(parsed.role)
-              setLoading(false)
-              return
-            }
-          } catch {}
-        }
-
+        // Tenta obter o perfil direto da API ou do token armazenado
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('@odontoflow:token') : null
+        
         if (token) {
           try {
+            // Decodificação rápida de payload JWT caso não queira fazer request extra
             const payloadBase64 = token.split('.')[1]
             if (payloadBase64) {
               const decoded = JSON.parse(atob(payloadBase64))
@@ -49,18 +28,20 @@ export default function DashboardPage() {
                 return
               }
             }
-          } catch {}
+          } catch {
+            // Fallback para rota de perfil se a decodificação falhar
+          }
         }
 
         const res = await api.get('/auth/me').catch(() => ({ data: null }))
         if (res.data?.role) {
           setRole(res.data.role)
         } else {
-          setRole('SECRETARY')
+          setRole('RECEPTIONIST')
         }
       } catch (err) {
         console.error('Erro ao identificar role:', err)
-        setRole('SECRETARY')
+        setRole('RECEPTIONIST')
       } finally {
         setLoading(false)
       }
@@ -72,17 +53,17 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '12px', color: '#64748b' }}>
-        <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: '#0082c9' }} />
+        <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: '#06b6d4' }} />
         <span style={{ fontSize: '14px', fontWeight: 500 }}>Carregando visão personalizada...</span>
       </div>
     )
   }
 
-  // 🛡️ ADMIN recebe a visão executiva completa alinhada ao Figma
+  // 🛡️ ADMIN recebe visão executiva Omnia Hub SaaS
   if (role === 'ADMIN') {
     return <DashboardAdmin />
   }
 
-  // 🏥 DENTIST e SECRETARY recebem a visão operacional
+  // 🏥 DENTIST e RECEPTIONIST recebem a visão operacional
   return <DashboardRecepcao />
 }
