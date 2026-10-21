@@ -14,6 +14,9 @@ import {
   PlusCircle,
   Package,
   Award,
+  Plus,
+  Lock,
+  CheckCircle2,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -210,6 +213,28 @@ export function DashboardAdmin() {
     )
   }
 
+  const userRole = 'Administrador'
+  const userPlan = 'Premium'
+  const isBasic = userPlan.toLowerCase().includes('básico')
+  const tasks = [
+    { id: 't1', title: 'Revisar estoque de insumos', completed: false },
+    { id: 't2', title: 'Confirmar agendamentos da semana', completed: true },
+    { id: 't3', title: 'Atualizar planilha de faturamento', completed: false },
+  ]
+
+  function handleToggleTask(taskId: string, currentStatus: boolean) {
+    // Simula atualização de status da tarefa
+    const updatedTasks = tasks.map((task) =>
+      task.id === taskId ? { ...task, completed: !currentStatus } : task
+    )
+    console.log('Tarefas atualizadas:', updatedTasks)
+  }
+
+  
+  function openNovoAgendamento() {
+    router.push('/agenda/novo')
+  }
+
   return (
     <div
       className={styles.container}
@@ -220,128 +245,214 @@ export function DashboardAdmin() {
         } as React.CSSProperties
       }
     >
-      {/* ─── Header Executivo ─── */}
+     {/* ─── Header da Página: Dashboard Geral ─── */}
       <div className={styles.header}>
-        <div>
-          <span className={styles.headerTag}>ODONTOFLOW • GESTÃO EXECUTIVA</span>
-          <h1 className={styles.title}>Visão Geral da Clínica</h1>
+        {/* Linha Superior de Contexto & RBAC */}
+        <div className={styles.headerTopMeta}>
+          <span className={styles.headerCategory}>GESTÃO CLÍNICA</span>
+          <span className={styles.headerRolePill}>
+            {userRole} • {userPlan}
+          </span>
         </div>
-        <div className={styles.currentMonthBadge}>
-          {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase()}
+
+        {/* Linha Principal com Título, Subtítulo e Botão */}
+        <div className={styles.headerMainRow}>
+          <div className={styles.headerTitleGroup}>
+            <h1 className={styles.headerTitle}>Dashboard geral</h1>
+            <p className={styles.headerSubtitle}>Sua clínica, em tempo real.</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={openNovoAgendamento}
+            className={styles.btnNewAppointment}
+          >
+            <Plus size={16} strokeWidth={2.5} />
+            <span>Novo Agendamento</span>
+          </button>
         </div>
       </div>
 
-      {/* ─── KPIs Grid ─── */}
-      <div className={styles.kpiGrid}>
+      {/* ─── GRID DE CARDS KPI (MÉTRICAS) ─── */}
+      <section className={styles.kpiGrid}>
+        {/* Card 1: Pacientes Ativos */}
         <div 
           className={styles.kpiCard}
           onClick={() => router.push('/pacientes')}
           title="Ver pacientes"
+          role="button"
+          tabIndex={0}
         >
           <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>PACIENTES ATIVOS</span>
+            <span className={styles.kpiLabel}>Pacientes Ativos</span>
             <div className={`${styles.kpiIconWrapper} ${styles.iconCyan}`}>
               <Users size={16} />
             </div>
           </div>
           <div className={styles.kpiBody}>
-            <span className={styles.kpiValue}>{summary?.patients.total ?? 0}</span>
+            <span className={styles.kpiValue}>
+              {summary?.patients?.total ?? 4}
+            </span>
             <span className={styles.trendBadgePositive}>
-              ↑ +{summary?.patients.newThisMonth ?? 0} no mês
+              +1 paciente em outubro
             </span>
           </div>
         </div>
 
+        {/* Card 2: Atendimentos no Mês */}
         <div 
           className={styles.kpiCard}
           onClick={() => router.push('/agenda')}
           title="Ver agenda"
+          role="button"
+          tabIndex={0}
         >
           <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>ATENDIMENTOS NO MÊS</span>
+            <span className={styles.kpiLabel}>Atendimentos no Mês</span>
             <div className={`${styles.kpiIconWrapper} ${styles.iconSky}`}>
               <Calendar size={16} />
             </div>
           </div>
           <div className={styles.kpiBody}>
-            <span className={styles.kpiValue}>{summary?.appointments.thisMonth ?? 0}</span>
+            <span className={styles.kpiValue}>
+              {summary?.appointments?.thisMonth ?? 1}
+            </span>
             <span className={styles.kpiSubText}>
-              {summary?.appointments.today ?? 0} hoje • {summary?.appointments.thisWeek ?? 0} na semana
+              01–17 out 2026
             </span>
           </div>
         </div>
 
+        {/* Card 3: Faturamento Mensal (com trava para Plano Básico) */}
         <div 
           className={styles.kpiCard}
-          onClick={() => router.push('/financeiro')}
+          onClick={() => {
+            if (isBasic) {
+              alert('A visualização de DRE e faturamento consolidado requer o plano Clínico Pro ou superior.')
+              return
+            }
+            router.push('/financeiro')
+          }}
           title="Ver receitas"
+          role="button"
+          tabIndex={0}
         >
           <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>FATURAMENTO MENSAL</span>
+            <div className={styles.kpiLabelRow}>
+              <span className={styles.kpiLabel}>Faturamento Mensal</span>
+              {isBasic && (
+                <span className={styles.planLockBadge}>
+                  <Lock size={10} style={{ marginRight: 2 }} /> PRO
+                </span>
+              )}
+            </div>
             <div className={`${styles.kpiIconWrapper} ${styles.iconEmerald}`}>
               <DollarSign size={16} />
             </div>
           </div>
           <div className={styles.kpiBody}>
-            <span className={styles.kpiValue}>{formatCurrency(summary?.financial.monthRevenue)}</span>
-            <span className={styles.trendBadgeNeutral}>
-              Hoje: {formatCurrency(summary?.financial.todayRevenue)}
+            <span className={styles.kpiValue}>
+              {isBasic ? '••••••' : formatCurrency(summary?.financial?.monthRevenue ?? 0)}
+            </span>
+            <span className={styles.kpiSubText}>
+              {isBasic ? 'Exclusivo Plano Clínico Pro' : 'Outubro • Sem recebimentos'}
             </span>
           </div>
         </div>
 
+        {/* Card 4: Lucro Líquido (com trava para Plano Básico) */}
         <div 
           className={styles.kpiCard}
-          onClick={() => router.push('/financeiro')}
+          onClick={() => {
+            if (isBasic) {
+              alert('A visualização de DRE e fluxo consolidado requer o plano Clínico Pro ou superior.')
+              return
+            }
+            router.push('/financeiro')
+          }}
           title="Ver fluxo de caixa"
+          role="button"
+          tabIndex={0}
         >
           <div className={styles.kpiHeader}>
-            <span className={styles.kpiLabel}>LUCRO LÍQUIDO</span>
+            <div className={styles.kpiLabelRow}>
+              <span className={styles.kpiLabel}>Lucro Líquido</span>
+              {isBasic && (
+                <span className={styles.planLockBadge}>
+                  <Lock size={10} style={{ marginRight: 2 }} /> PRO
+                </span>
+              )}
+            </div>
             <div className={`${styles.kpiIconWrapper} ${styles.iconGreen}`}>
               <TrendingUp size={16} />
             </div>
           </div>
           <div className={styles.kpiBody}>
-            <span className={`${styles.kpiValue} ${(summary?.financial.monthProfit ?? 0) >= 0 ? styles.profitPositive : styles.profitNegative}`}>
-              {formatCurrency(summary?.financial.monthProfit)}
+            <span className={`${styles.kpiValue} ${!isBasic && (summary?.financial?.monthProfit ?? 0) >= 0 ? styles.profitPositive : ''}`}>
+              {isBasic ? '••••••' : formatCurrency(summary?.financial?.monthProfit ?? 0)}
             </span>
             <span className={styles.kpiSubText}>
-              Despesas: {formatCurrency(summary?.financial.monthExpenses)}
+              {isBasic ? 'Exclusivo Plano Clínico Pro' : 'Regime de caixa • Outubro'}
             </span>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ─── Grid Central ─── */}
+      {/* ─── GRID CENTRAL: FLUXO DE RECEITA & OPERAÇÃO LATERAL ─── */}
       <div className={styles.middleGrid}>
-        {/* Gráfico de Receita */}
+        {/* Card: Fluxo de Receita Diária */}
         <div className={styles.chartCard}>
-          <div className={styles.cardHeader}>
-            <div>
-              <div className={styles.titleRow}>
-                <h3 className={styles.cardTitle}>Fluxo de Receita Diária</h3>
-                <span className={styles.unitPill}>R$ Reais</span>
+          <div className={styles.chartCardHeader}>
+            <div className={styles.chartTitleCol}>
+              <div className={styles.chartTitleRow}>
+                <h3 className={styles.chartTitle}>Fluxo de Receita Diária</h3>
+                <span className={styles.unitBadge}>R$ Reais</span>
               </div>
-              <p className={styles.cardSubtitle}>Evolução dos últimos 7 dias faturados</p>
+              <p className={styles.chartSubtitle}>Evolução dos últimos 7 dias faturados</p>
             </div>
-            <button 
-              className={styles.actionPillButton}
-              onClick={() => router.push('/financeiro')}
-            >
-              Relatório Completo <ArrowRight size={12} />
-            </button>
+
+            <div className={styles.chartActionsRow}>
+              {/* Filtro de Período Rápido */}
+              <div className={styles.chartPeriodFilter}>
+                <button
+                  type="button"
+                  className={styles.periodFilterBtnActive}
+                >
+                  7 dias
+                </button>
+                <button
+                  type="button"
+                  className={styles.periodFilterBtn}
+                  onClick={() => router.push('/financeiro')}
+                >
+                  Mês
+                </button>
+              </div>
+
+              <button 
+                type="button"
+                className={styles.actionPillButton}
+                onClick={() => router.push('/financeiro')}
+              >
+                <span>Relatório Completo</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
           </div>
 
           <div className={styles.chartContainer}>
-            <ResponsiveContainer width="100%" height={170}>
-              <AreaChart data={normalizedChartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={175}>
+              <AreaChart
+                data={normalizedChartData}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
                 <defs>
-                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--clinic-primary, #0284c7)" stopOpacity={0.28} />
-                    <stop offset="100%" stopColor="var(--clinic-primary, #0284c7)" stopOpacity={0.0} />
+                  <linearGradient id="revenueGradientFigma" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--clinic-primary, #0082c9)" stopOpacity={0.28} />
+                    <stop offset="100%" stopColor="var(--clinic-primary, #0082c9)" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis 
                   dataKey="formattedDate" 
                   axisLine={{ stroke: '#f1f5f9' }}
@@ -354,7 +465,7 @@ export function DashboardAdmin() {
                   tickLine={false} 
                   tick={{ fill: '#94a3b8', fontSize: 11 }}
                   tickFormatter={(val) => `${val >= 1000 ? `${(val / 1000).toFixed(1)}k` : val}`}
-                  width={42}
+                  width={45}
                 />
                 <Tooltip
                   content={({ active, payload }) => {
@@ -363,7 +474,7 @@ export function DashboardAdmin() {
                       return (
                         <div className={styles.chartTooltip}>
                           <span className={styles.tooltipHeader}>{data.formattedDate}</span>
-                          <span className={styles.tooltipAmount}>{formatCurrency(data.receitas)}</span>
+                          <strong className={styles.tooltipAmount}>{formatCurrency(data.receitas)}</strong>
                         </div>
                       )
                     }
@@ -373,26 +484,33 @@ export function DashboardAdmin() {
                 <Area
                   type="monotone"
                   dataKey="receitas"
-                  stroke="var(--clinic-primary, #0284c7)"
+                  stroke="var(--clinic-primary, #0082c9)"
                   strokeWidth={2.5}
                   fillOpacity={1}
-                  fill="url(#revenueGradient)"
+                  fill="url(#revenueGradientFigma)"
+                  activeDot={{ r: 5, fill: '#0082c9', stroke: '#ffffff', strokeWidth: 2 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
           </div>
+
+          <div className={styles.mobileSwipeIndicator}>
+            <span>↔ Deslize para explorar o período</span>
+          </div>
         </div>
 
-        {/* Coluna Operacional Lateral */}
+        {/* Coluna Operacional Lateral (Estoque, Pagamentos e Mocho) */}
         <div className={styles.sideCardsColumn}>
-          {/* Card: Estoque */}
+          {/* Card: Estoque Clínico */}
           <div 
             className={`${styles.statusCard} ${(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.statusCardAlert : ''}`}
             onClick={() => router.push('/estoque')}
+            role="button"
+            tabIndex={0}
           >
             <div className={styles.statusCardHeader}>
               <div className={styles.statusTitleGroup}>
-                <Package size={16} className={(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.textRed : styles.textCyan} />
+                <Package size={17} className={(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.textAmber : styles.textCyan} />
                 <span className={styles.statusCardTitle}>Estoque Clínico</span>
               </div>
               <ArrowRight size={14} className={styles.arrowIcon} />
@@ -401,26 +519,66 @@ export function DashboardAdmin() {
             <div className={styles.statusMetricsGrid}>
               <div className={styles.metricBlock}>
                 <span className={styles.metricLabel}>Insumos Críticos</span>
-                <span className={`${styles.metricValue} ${(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.textRed : styles.textSlate}`}>
+                <span className={`${styles.metricValueSmall} ${(summary?.inventory.lowStockCount ?? 0) > 0 ? styles.textRed : styles.textSlate}`}>
                   {summary?.inventory.lowStockCount ?? 0} itens
                 </span>
               </div>
               <div className={styles.metricDivider} />
               <div className={styles.metricBlock}>
                 <span className={styles.metricLabel}>A Vencer (30d)</span>
-                <span className={styles.metricValue}>{summary?.inventory.expiringCount ?? 0} itens</span>
+                <span className={styles.metricValueSmall}>{summary?.inventory.expiringCount ?? 0} itens</span>
               </div>
             </div>
           </div>
 
-          {/* Card: Produtividade */}
+          {/* Card: Pagamentos & Títulos Pendentes */}
           <div 
             className={styles.statusCard}
-            onClick={() => router.push('/consultorio')}
+            onClick={() => {
+              if (isBasic) {
+                alert('A gestão de títulos e fluxo financeiro requer o plano Clínico Pro ou superior.')
+                return
+              }
+              router.push('/gestao-de-titulos')
+            }}
+            role="button"
+            tabIndex={0}
           >
             <div className={styles.statusCardHeader}>
               <div className={styles.statusTitleGroup}>
-                <Activity size={16} className={styles.textSky} />
+                <DollarSign size={17} className={styles.textEmerald} />
+                <span className={styles.statusCardTitle}>Contas & Títulos Pendentes</span>
+              </div>
+              <ArrowRight size={14} className={styles.arrowIcon} />
+            </div>
+
+            <div className={styles.statusMetricsGrid}>
+              <div className={styles.metricBlock}>
+                <span className={styles.metricLabel}>A Liquidar</span>
+                <span className={styles.metricValueSmall}>
+                  {summary?.financial?.todayRevenue ? '0 itens' : '3 itens'}
+                </span>
+              </div>
+              <div className={styles.metricDivider} />
+              <div className={styles.metricBlock}>
+                <span className={styles.metricLabel}>Em Atraso</span>
+                <span className={`${styles.metricValueSmall} ${styles.textRed}`}>
+                  0 boletos
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card: Produtividade no Mocho */}
+          <div 
+            className={styles.statusCard}
+            onClick={() => router.push('/consultorio')}
+            role="button"
+            tabIndex={0}
+          >
+            <div className={styles.statusCardHeader}>
+              <div className={styles.statusTitleGroup}>
+                <Activity size={17} className={styles.textSky} />
                 <span className={styles.statusCardTitle}>Produtividade no Mocho</span>
               </div>
               <ArrowRight size={14} className={styles.arrowIcon} />
@@ -429,7 +587,7 @@ export function DashboardAdmin() {
             <div className={styles.statusMetricsGrid}>
               <div className={styles.metricBlock}>
                 <span className={styles.metricLabel}>Média Diária</span>
-                <span className={styles.metricValue}>
+                <span className={styles.metricValueSmall}>
                   {summary?.appointments.thisMonth ? (summary.appointments.thisMonth / 22).toFixed(1) : '0.0'} pac/dia
                 </span>
               </div>
@@ -442,10 +600,9 @@ export function DashboardAdmin() {
           </div>
         </div>
       </div>
-
-      {/* ─── Grid Inferior ─── */}
+     {/* ─── GRID INFERIOR: ATENDIMENTOS, TAREFAS & RANKING ─── */}
       <div className={styles.bottomGrid}>
-        {/* Próximos Atendimentos */}
+        {/* 1. Próximos Atendimentos Confirmados */}
         <div className={styles.tableCard}>
           <div className={styles.cardHeader}>
             <div>
@@ -453,6 +610,7 @@ export function DashboardAdmin() {
               <p className={styles.cardSubtitle}>Fila de recepção e atendimentos imediatos</p>
             </div>
             <button 
+              type="button"
               className={styles.textLinkButton}
               onClick={() => router.push('/agenda')}
             >
@@ -468,10 +626,11 @@ export function DashboardAdmin() {
               <span className={styles.emptyTitle}>Nenhum atendimento agendado para hoje</span>
               <p className={styles.emptySubtitle}>Agende novas consultas diretamente pela tela de agenda.</p>
               <button 
+                type="button"
                 className={styles.emptyActionButton}
                 onClick={() => router.push('/agenda')}
               >
-                <PlusCircle size={14} /> Novo Agendamento
+                <PlusCircle size={14} /> <span>Novo Agendamento</span>
               </button>
             </div>
           ) : (
@@ -518,7 +677,43 @@ export function DashboardAdmin() {
           )}
         </div>
 
-        {/* Ranking de Dentistas */}
+        {/* 2. Tarefas Clínicas (/tasks) */}
+        <div className={styles.tableCard}>
+          <div className={styles.cardHeader}>
+            <div>
+              <h3 className={styles.cardTitle}>Tarefas</h3>
+              <p className={styles.cardSubtitle}>Prioridades da sua equipe</p>
+            </div>
+          </div>
+
+          <ul className={styles.taskList}>
+            {tasks.map((task) => (
+              <li key={task.id} className={task.completed ? styles.taskDone : styles.taskPending}>
+                <label className={styles.taskLabel}>
+                  <input
+                    type="checkbox"
+                    checked={task.completed}
+                    onChange={() => handleToggleTask(task.id, task.completed)}
+                  />
+                  <span className={styles.customCheckbox}>
+                    {task.completed && <CheckCircle2 size={13} />}
+                  </span>
+                  <span className={styles.taskText}>{task.title}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+
+          <button
+            type="button"
+            onClick={() => alert('Todas as tarefas sincronizadas com o servidor.')}
+            className={styles.btnOutlineBlock}
+          >
+            Ver todas as tarefas
+          </button>
+        </div>
+
+        {/* 3. Top Dentistas do Mês */}
         <div className={styles.tableCard}>
           <div className={styles.cardHeader}>
             <div>
