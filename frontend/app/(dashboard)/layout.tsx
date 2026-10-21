@@ -25,6 +25,7 @@ import {
   Info,
   Loader2,
   X,
+  Menu, // 👈 Adicione aqui
   FileText,
   Activity,
   Coins,
@@ -35,7 +36,7 @@ import {
 } from 'lucide-react'
 import styles from './layout.module.css'
 import { ModalProvider, useModal } from '@/app/components/ModalContext'
-import Logo from '../../public/logo.svg'
+import ToothLogo from '../../public/Toothlogo.svg'
 import Image from 'next/image'
 import api from '@/lib/api'
 import { usePlanAccess } from '../../src/hooks/usePlanAccess'
@@ -609,6 +610,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   const userRole: UserRole = user?.role || 'SECRETARY'
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const userDisplayName = user?.name || 'Usuário'
 
   return (
     <div 
@@ -620,34 +625,58 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       } as React.CSSProperties}
     >
       {/* ─── Menu Lateral (Sidebar) com RBAC e Trava de Planos ─── */}
-      <aside className={`${styles.sidebar} ${isCollapsed ? styles.sidebarCollapsed : ''}`}>
+      {/* Backdrop transparente/escuro para fechar o menu no celular ao tocar fora */}
+      {isMobileMenuOpen && (
+        <div 
+          className={styles.sidebarBackdrop} 
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ─── MENU LATERAL / ASIDE RESPONSIVO ─── */}
+      <aside 
+        className={`
+          ${styles.sidebar} 
+          ${isCollapsed ? styles.sidebarCollapsed : ''} 
+          ${isMobileMenuOpen ? styles.mobileSidebarOpen : ''}
+        `}
+      >
+        {/* Topo da Sidebar: Logo & Ícone */}
         <div className={styles.sidebarLogo}>
           <div className={styles.logoIcon}>
             {clinicVisual.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img 
                 src={clinicVisual.logoUrl} 
-                alt="Logótipo da Clínica" 
+                alt="Logo da Clínica" 
                 className={styles.customClinicLogo}
               />
             ) : (
-              <Image src={Logo} alt="Logótipo" width={24} height={24} />
+              <Image src={ToothLogo} alt="OdontoFlow" width={26} height={26} priority />
             )}
           </div>
-          {!isCollapsed && (
-            <div className={styles.logoTextWrapper}>
-              <div className={styles.logoName}>OdontoFlow</div>
-              <div className={styles.logoSub}>GESTÃO CLÍNICA</div>
-            </div>
-          )}
+
+          <div className={styles.logoTextWrapper}>
+            <span className={styles.logoName}>OdontoFlow</span>
+            <span className={styles.logoSub}>{clinicVisual.name.toUpperCase()}</span>
+          </div>
+
+          {/* Botão de Fechar Exclusivo para Mobile */}
+          <button 
+            type="button" 
+            onClick={() => setIsMobileMenuOpen(false)}
+            className={styles.closeMobileMenuBtn}
+            aria-label="Fechar menu"
+          >
+            <X size={18} />
+          </button>
         </div>
 
-        {/* Links Filtrados com RBAC e Protegidos por Assinatura */}
+        {/* Links de navegação com RBAC e Trava de Plano */}
         <nav className={styles.nav}>
           {NAV_GROUPS.map((group) => {
-            if (group.roles && !group.roles.includes(userRole)) {
-              return null
-            }
+            if (group.roles && !group.roles.includes(userRole)) return null
 
             const visibleItems = group.items.filter(
               (item) => !item.roles || item.roles.includes(userRole)
@@ -657,8 +686,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
             return (
               <div key={group.label} className={styles.navGroup}>
-                {!isCollapsed && <p className={styles.navGroupLabel}>{group.label}</p>}
-                {isCollapsed && <div className={styles.navGroupDivider} />}
+                <p className={styles.navGroupLabel}>{group.label}</p>
+                <div className={styles.navGroupDivider} />
 
                 {visibleItems.map((item) => {
                   const IconComponent = item.icon
@@ -670,20 +699,21 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                       <button
                         key={item.href}
                         type="button"
-                        onClick={() => handlePlanRestrictedClick(item.label, item.minPlan!)}
+                        onClick={() => {
+                          setIsMobileMenuOpen(false)
+                          handlePlanRestrictedClick(item.label, item.minPlan!)
+                        }}
                         className={`${styles.navItem} ${styles.navItemLocked}`}
-                        title={isCollapsed ? `${item.label} (${item.badgeText || 'Bloqueado'})` : undefined}
+                        title={item.label}
                       >
-                        <IconComponent size={18} className={styles.navIcon} />
-                        {!isCollapsed && (
-                          <div className={styles.navItemLockedContent}>
-                            <span>{item.label}</span>
-                            <span className={styles.planLockBadge}>
-                              <Lock size={10} style={{ marginRight: 3 }} />
-                              {item.badgeText || 'PRO'}
-                            </span>
-                          </div>
-                        )}
+                        <IconComponent size={19} className={styles.navIcon} />
+                        <div className={styles.navItemLockedContent}>
+                          <span className={styles.navItemText}>{item.label}</span>
+                          <span className={styles.planLockBadge}>
+                            <Lock size={10} style={{ marginRight: 3 }} />
+                            {item.badgeText || 'PRO'}
+                          </span>
+                        </div>
                       </button>
                     )
                   }
@@ -692,11 +722,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     <Link
                       key={item.href}
                       href={item.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
                       className={`${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
-                      title={isCollapsed ? item.label : undefined}
+                      title={item.label}
                     >
-                      <IconComponent size={18} className={styles.navIcon} />
-                      {!isCollapsed && <span>{item.label}</span>}
+                      <IconComponent size={19} className={styles.navIcon} />
+                      <span className={styles.navItemText}>{item.label}</span>
                     </Link>
                   )
                 })}
@@ -705,36 +736,37 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
+        {/* Botão de Toggle da Sidebar (visível apenas no Desktop) */}
         <button 
           type="button" 
           onClick={toggleSidebar} 
           className={styles.btnToggleSidebar}
-          title={isCollapsed ? "Expandir menu" : "Recolher menu"}
+          title={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
         >
           {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-          {!isCollapsed && <span>Recolher menu</span>}
+          <span className={styles.toggleBtnText}>Recolher menu</span>
         </button>
 
-        {/* Perfil do Utilizador e Indicador de Plano no Rodapé */}
-        <div className={styles.sidebarFooter}>
-          <div className={styles.avatar}>{initials}</div>
-          {!isCollapsed && (
-            <div className={styles.userInfo}>
-              <div className={styles.userName}>{user?.name ?? 'Utilizador'}</div>
-              <div className={styles.userMetaBadges}>
-                <span className={styles.userRoleBadge}>
-                  {userRole === 'ADMIN' ? 'Admin' : userRole === 'DENTIST' ? 'Dentista' : 'Recepção'}
-                </span>
-                <span className={`${styles.planPill} ${styles[`planPill_${userPlan.toLowerCase()}`]}`}>
-                  {userPlan === 'ENTERPRISE' ? 'Enterprise' : userPlan === 'PREMIUM' ? 'Pro' : 'Básico'}
-                </span>
+        {/* Rodapé: Avatar e Iniciais (Card estilizado) */}
+        <div className={styles.sidebarFooterCard}>
+          <div className={styles.footerProfileLeft}>
+            <div className={styles.userAvatarInitials} title={userDisplayName}>
+              {userDisplayName.slice(0, 2).toUpperCase()}
+            </div>
+            <div className={styles.footerProfileInfo}>
+              <strong className={styles.footerUserName}>{userDisplayName}</strong>
+              <div className={styles.footerBadgeRow}>
+                <span className={styles.footerRolePill}>{userRole}</span>
+                <span className={styles.footerPlanPill}>{userPlan}</span>
               </div>
             </div>
-          )}
+          </div>
+
           <button 
-            className={styles.logoutBtn} 
+            type="button" 
             onClick={handleLogout} 
-            title="Sair do sistema" 
+            className={styles.btnLogoutIcon}
+            title="Sair do sistema"
             aria-label="Sair"
           >
             <LogOut size={16} />
@@ -742,44 +774,53 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* ─── Conteúdo Principal ─── */}
+     {/* ─── Conteúdo Principal ─── */}
       <div className={styles.main}>
         <header className={styles.header}>
+          {/* Lado Esquerdo: Breadcrumb minimalista conforme Figma */}
           <div className={styles.headerLeft}>
-            <div className={styles.clinicName}>
-              <span>{clinicVisual.name}</span>
-              <span className={styles.roleHeaderPill}>{userRole}</span>
-              <span className={styles.planHeaderPill}>{userPlan}</span>
+            <button 
+              type="button" 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className={styles.btnOpenMobileDrawer}
+              aria-label="Abrir menu"
+            >
+              <Menu size={20} />
+            </button>
+            <div className={styles.headerBreadcrumb}>
+              <span className={styles.headerClinicName}>{clinicVisual.name}</span>
+              <span className={styles.headerDivider}>/</span>
+              <span className={styles.headerContext}>Ambiente seguro</span>
             </div>
-            <h1 className={styles.pageTitle}>{pageTitle}</h1>
           </div>
           
+          {/* Lado Direito: Busca minimalista com atalho, Sincronizado e Sino */}
           <div className={styles.headerRight}>
-            <span className={styles.headerDate}>{todayFormatted}</span>
-            
             {/* Campo de Pesquisa Global */}
             <div className={styles.searchWrapper} ref={searchRef}>
               <div className={styles.headerSearch}>
                 {isSearching ? (
-                  <Loader2 size={16} className={styles.searchSpinner} />
+                  <Loader2 size={14} className={styles.searchSpinner} />
                 ) : (
-                  <Search size={16} className={styles.searchIcon} />
+                  <Search size={14} className={styles.searchIcon} />
                 )}
                 <input 
+                  ref={searchInputRef}
                   type="text" 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => { if (searchQuery.trim()) setIsSearchOpen(true) }}
-                  placeholder="Buscar paciente, procedimento, plano..." 
+                  placeholder="Buscar pacientes, agenda..." 
                   className={styles.searchInput} 
                 />
+                <kbd className={styles.searchKbd}>⌘ K</kbd>
                 {searchQuery && (
                   <button 
                     type="button" 
                     onClick={() => { setSearchQuery(''); setIsSearchOpen(false) }}
                     className={styles.btnClearSearch}
                   >
-                    <X size={14} />
+                    <X size={12} />
                   </button>
                 )}
               </div>
@@ -789,7 +830,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 <div className={styles.searchDropdown}>
                   {searchResults.length === 0 ? (
                     <div className={styles.emptySearch}>
-                      <span>{isSearching ? 'A procurar registos...' : 'Nenhum resultado encontrado.'}</span>
+                      <span>{isSearching ? 'Buscando registros...' : 'Nenhum resultado encontrado.'}</span>
                     </div>
                   ) : (
                     <div className={styles.searchList}>
@@ -799,19 +840,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                           onClick={() => handleSelectSearchResult(item.link)}
                           className={styles.searchItem}
                         >
-                          <div className={
-                            item.type === 'PATIENT' 
-                              ? styles.searchItemIconPatient 
-                              : item.type === 'PLAN' 
-                              ? styles.searchItemIconPlan 
-                              : item.type === 'SUPPLIER'
-                              ? styles.searchItemIconSupplier
-                              : styles.searchItemIconProc
-                          }>
-                            {item.type === 'PATIENT' && <User size={15} />}
-                            {item.type === 'PROCEDURE' && <Stethoscope size={15} />}
-                            {item.type === 'PLAN' && <ClipboardList size={15} />}
-                            {item.type === 'SUPPLIER' && <Truck size={15} />}
+                          <div className={item.type === 'PATIENT' ? styles.searchItemIconPatient : styles.searchItemIconProc}>
+                            {item.type === 'PATIENT' ? <User size={14} /> : <Stethoscope size={14} />}
                           </div>
                           <div className={styles.searchItemInfo}>
                             <span className={styles.searchItemTitle}>{item.title}</span>
@@ -824,10 +854,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 </div>
               )}
             </div>
+
+            {/* Status Sincronizado do Figma */}
+            <div className={styles.syncStatusBadge}>
+              <span className={styles.syncGreenDot} />
+              <span>Sincronizado</span>
+            </div>
             
             {/* Notificações Dinâmicas */}
             <div className={styles.notifWrapper} ref={notifRef}>
               <button 
+                type="button"
                 className={`${styles.notifBtn} ${isNotifOpen ? styles.notifBtnActive : ''}`} 
                 onClick={() => {
                   setIsNotifOpen(!isNotifOpen)
@@ -865,7 +902,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     {loadingNotifs && notifications.length === 0 ? (
                       <div className={styles.emptyNotif}>
                         <Loader2 size={16} className={styles.searchSpinner} />
-                        <span>A carregar notificações...</span>
+                        <span>Carregando notificações...</span>
                       </div>
                     ) : notifications.length === 0 ? (
                       <div className={styles.emptyNotif}>
@@ -877,7 +914,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                           key={n.id} 
                           onClick={() => handleNotificationClick(n)}
                           className={`${styles.notifItem} ${!n.read ? styles.notifItemUnread : ''}`}
-                          style={{ cursor: 'pointer' }}
                         >
                           <div className={`${styles.notifIcon} ${styles[`notif_${n.type}`]}`}>
                             {n.type === 'warning' && <AlertTriangle size={14} />}
@@ -899,12 +935,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 </div>
               )}
             </div>
-            
-            {/* Botão Novo Agendamento */}
-            <button className={styles.newAppointmentBtn} onClick={openNovoAgendamento}>
-              <Plus size={16} />
-              <span>Novo Agendamento</span>
-            </button>
           </div>
         </header>
 

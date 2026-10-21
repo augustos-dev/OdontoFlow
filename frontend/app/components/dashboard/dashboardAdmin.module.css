@@ -66,6 +66,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  color: #64748B;
+font-family: Inter;
+font-size: 11px;
+font-style: normal;
+font-weight: 500;
+line-height: 170%; /* 18.7px */
+align-self: stretch;
 }
 
 .kpiLabel {
