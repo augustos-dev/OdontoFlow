@@ -246,32 +246,7 @@ export function DashboardAdmin() {
       }
     >
      {/* ─── Header da Página: Dashboard Geral ─── */}
-      <div className={styles.header}>
-        {/* Linha Superior de Contexto & RBAC */}
-        <div className={styles.headerTopMeta}>
-          <span className={styles.headerCategory}>GESTÃO CLÍNICA</span>
-          <span className={styles.headerRolePill}>
-            {userRole} • {userPlan}
-          </span>
-        </div>
-
-        {/* Linha Principal com Título, Subtítulo e Botão */}
-        <div className={styles.headerMainRow}>
-          <div className={styles.headerTitleGroup}>
-            <h1 className={styles.headerTitle}>Dashboard geral</h1>
-            <p className={styles.headerSubtitle}>Sua clínica, em tempo real.</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={openNovoAgendamento}
-            className={styles.btnNewAppointment}
-          >
-            <Plus size={16} strokeWidth={2.5} />
-            <span>Novo Agendamento</span>
-          </button>
-        </div>
-      </div>
+     
 
       {/* ─── GRID DE CARDS KPI (MÉTRICAS) ─── */}
       <section className={styles.kpiGrid}>
