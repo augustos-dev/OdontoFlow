@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import {
   DollarSign,
   PackageMinus,
@@ -116,11 +116,11 @@ export default function ComissoesPage() {
       if (primary) setThemePrimary(primary)
     }
   }, [])
-
+// ─── 1. BUSCA DE COMISSÕES (DESACOPLADA DE ESTADOS EXTERNOS) ───
   const loadCommissions = useCallback(async (
     dentistId?: string,
-    procLookup = proceduresMap,
-    dentistLookup = dentists
+    procLookup?: Record<string, string>,
+    dentistLookup?: DentistOption[]
   ) => {
     try {
       const params: Record<string, string> = {}
@@ -129,36 +129,39 @@ export default function ComissoesPage() {
       const { data } = await api.get('/commissions', { params })
       const rawList = Array.isArray(data) ? data : data?.data || []
 
-      const enrichedList: CommissionItem[] = rawList.map((item: any) => {
-        const foundDentist = dentistLookup.find((d) => d.id === item.dentistId)
-        const procedureTitle =
-          item.procedureName ||
-          procLookup[item.procedureId] ||
-          (item.treatmentPlanTitle ? `Plano: ${item.treatmentPlanTitle}` : 'Procedimento Clínico')
+      // Usa o lookup passado como parâmetro ou o estado atual como fallback seguro
+      setCommissions((prevComms) => {
+        return rawList.map((item: any) => {
+          const foundDentist = dentistLookup?.find((d) => d.id === item.dentistId)
+          const procedureTitle =
+            item.procedureName ||
+            (procLookup && procLookup[item.procedureId]) ||
+            (item.treatmentPlanTitle ? `Plano: ${item.treatmentPlanTitle}` : 'Procedimento Clínico')
 
-        return {
-          ...item,
-          dentistName: item.dentistName || foundDentist?.name || 'Dr(a). Cirurgião-Dentista',
-          procedureName: procedureTitle,
-          grossAmount: Number(item.grossAmount) || 0,
-          materialsCost: Number(item.materialsCost) || 0,
-          netBaseAmount: Number(item.netBaseAmount) || 0,
-          percentage: Number(item.percentage) || 0,
-          commissionAmount: Number(item.commissionAmount) || 0,
-        }
+          return {
+            ...item,
+            dentistName: item.dentistName || foundDentist?.name || 'Dr(a). Cirurgião-Dentista',
+            procedureName: procedureTitle,
+            grossAmount: Number(item.grossAmount) || 0,
+            materialsCost: Number(item.materialsCost) || 0,
+            netBaseAmount: Number(item.netBaseAmount) || 0,
+            percentage: Number(item.percentage) || 0,
+            commissionAmount: Number(item.commissionAmount) || 0,
+          }
+        })
       })
 
-      setCommissions(enrichedList)
       setSelectedItemIds([])
     } catch (err) {
       console.error('Erro ao buscar comissões:', err)
     }
-  }, [proceduresMap, dentists])
+  }, []) // 👈 VAZIO: não recria a função quando states mudam!
 
+  // ─── 2. CARREGAMENTO INICIAL UNIFICADO ───
   const loadInitialData = useCallback(async () => {
     try {
       setLoading(true)
-      syncWhiteLabel()
+      syncWhiteLabel?.()
 
       // 1. Perfil e RBAC
       let currentUser: UserProfile | null = null
@@ -210,16 +213,23 @@ export default function ComissoesPage() {
         setChartDentistFilter(initialDentist)
       }
 
+      // Executa a busca inicial passando as referências locais recém-obtidas
       await loadCommissions(initialDentist, procMap, dentistsList)
     } finally {
       setLoading(false)
     }
-  }, [syncWhiteLabel, loadCommissions])
+  }, [loadCommissions])
+
+  // ─── 3. USEEFFECT DE MONTAGEM BLINDADO (RODA 1 ÚNICA VEZ) ───
+  const initialLoadDoneRef = useRef(false)
 
   useEffect(() => {
-    loadInitialData()
+    if (!initialLoadDoneRef.current) {
+      initialLoadDoneRef.current = true
+      loadInitialData()
+    }
 
-    const handleThemeUpdate = () => syncWhiteLabel()
+    const handleThemeUpdate = () => syncWhiteLabel?.()
     const handlePermissionsUpdate = () => loadInitialData()
 
     window.addEventListener('clinic_customization_updated', handleThemeUpdate)
@@ -229,7 +239,8 @@ export default function ComissoesPage() {
       window.removeEventListener('clinic_customization_updated', handleThemeUpdate)
       window.removeEventListener('permissions_updated', handlePermissionsUpdate)
     }
-  }, [loadInitialData, syncWhiteLabel])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function formatCurrency(val: number) {
     return (val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
