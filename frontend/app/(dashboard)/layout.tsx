@@ -119,6 +119,19 @@ const ROUTE_PAGE_TITLES: Record<string, string> = {
   '/comissoes': 'Comissões & Repasses',
   '/configuracoes': 'Configurações & Visual',
 }
+const ROUTE_SUBTITLES: Record<string, string> = {
+  '/': 'Sua clínica, em tempo real.',
+  '/consultorio': 'Atendimento do mocho e evolução clínica.',
+  '/agenda': 'Grade de atendimento diário e recepção.',
+  '/pacientes': 'Cadastro geral e histórico do paciente.',
+  '/tratamentos': 'Orçamentos odontológicos e propostas.',
+  '/procedimentos': 'Valores base e regras de comissão.',
+  '/estoque': 'Controle de materiais e insumos críticos.',
+  '/financeiro': 'Fluxo de caixa, conciliação e relatórios.',
+  '/gestao-de-titulos': 'Contas a pagar e a receber.',
+  '/comissoes': 'Repasses profissionais de dentistas.',
+  '/configuracoes': 'Customização White-Label e assinatura.',
+}
 
 interface ClinicVisualState {
   name: string
@@ -199,17 +212,36 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   // Consulta Notificações em Tempo Real
+  // 1. Ref para garantir que o layout NUNCA dispare isso mais de uma vez na montagem
+  const hasLoadedNotifsRef = useRef(false)
+
   const loadDynamicNotifications = useCallback(async () => {
+    // Evita rodar antes de ter a sessão resolvida
+    if (!user?.id) return
+
     try {
       setLoadingNotifs(true)
       const todayStr = new Date().toISOString().slice(0, 10)
 
+      // Checagem local simples de plano sem depender de função externa no hook
+      const isPremiumOrEnterprise = userPlan === 'PREMIUM' || userPlan === 'ENTERPRISE'
+      const isAdmin = user?.role === 'ADMIN'
+      const isDentist = user?.role === 'DENTIST'
+      const isSecretary = user?.role === 'SECRETARY'
+
+      // Executa apenas as rotas que o usuário realmente tem permissão de ver
       const [stockRes, apptRes, transRes, commRes, payablesRes] = await Promise.allSettled([
         api.get('/products/low-stock').catch(() => api.get('/products?limit=50')),
         api.get(`/appointments?date=${todayStr}&limit=15`),
-        api.get('/transactions?type=RECEITA&limit=5'),
-        api.get('/commissions?status=PENDING&limit=10'),
-        api.get('/transactions?type=DESPESA&limit=50'),
+        isAdmin && isPremiumOrEnterprise
+          ? api.get('/transactions?type=RECEITA&limit=5')
+          : Promise.resolve({ data: [] }),
+        (isAdmin || isDentist) && isPremiumOrEnterprise
+          ? api.get('/commissions?status=PENDING&limit=10')
+          : Promise.resolve({ data: [] }),
+        (isAdmin || isSecretary) && isPremiumOrEnterprise
+          ? api.get('/transactions?type=DESPESA&limit=50')
+          : Promise.resolve({ data: [] }),
       ])
 
       const generatedNotifs: NotificationItem[] = []
@@ -217,7 +249,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       // 1. Estoque Crítico
       if (stockRes.status === 'fulfilled') {
-        const rawStock = stockRes.value.data?.data || stockRes.value.data || []
+        const rawStock = (stockRes.value as any).data?.data || (stockRes.value as any).data || []
         const lowItems = Array.isArray(rawStock)
           ? rawStock.filter((p: any) => p.quantity <= p.minQuantity).slice(0, 3)
           : []
@@ -238,7 +270,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       // 2. Agendamentos do Dia
       if (apptRes.status === 'fulfilled') {
-        const rawAppts = apptRes.value.data?.data || apptRes.value.data || []
+        const rawAppts = (apptRes.value as any).data?.data || (apptRes.value as any).data || []
         const activeAppts = Array.isArray(rawAppts)
           ? rawAppts.filter((a: any) => a.status === 'CONFIRMADO' || a.status === 'EM_ANDAMENTO').slice(0, 2)
           : []
@@ -253,14 +285,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             time: getRelativeTime(a.dateTime || a.scheduledAt),
             type: 'info',
             read: readNotifIds.includes(id),
-            targetPath: user?.role === 'DENTIST' ? '/consultorio' : '/agenda',
+            targetPath: isDentist ? '/consultorio' : '/agenda',
           })
         })
       }
 
-      // 3. Faturamento Recebido (Apenas ADMIN com plano compatível)
-      if (transRes.status === 'fulfilled' && user?.role === 'ADMIN' && hasMinPlan('PREMIUM')) {
-        const rawTrans = transRes.value.data?.data || transRes.value.data || []
+      // 3. Faturamento Recebido
+      if (transRes.status === 'fulfilled' && isAdmin && isPremiumOrEnterprise) {
+        const rawTrans = (transRes.value as any).data?.data || (transRes.value as any).data || []
         const recentTrans = Array.isArray(rawTrans) ? rawTrans.slice(0, 2) : []
 
         recentTrans.forEach((t: any) => {
@@ -278,9 +310,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         })
       }
 
-      // 4. Gestão de Títulos (Contas a Pagar / Boletos Vencidos - Exige Premium)
-      if (payablesRes.status === 'fulfilled' && (user?.role === 'ADMIN' || user?.role === 'SECRETARY') && hasMinPlan('PREMIUM')) {
-        const rawDespesas = payablesRes.value.data?.data || payablesRes.value.data || []
+      // 4. Gestão de Títulos (Despesas)
+      if (payablesRes.status === 'fulfilled' && (isAdmin || isSecretary) && isPremiumOrEnterprise) {
+        const rawDespesas = (payablesRes.value as any).data?.data || (payablesRes.value as any).data || []
         const despesas = Array.isArray(rawDespesas) ? rawDespesas : []
 
         const pendingDespesas = despesas.filter((d: any) => !d.reconciled && (!d.paidAt || new Date(d.date) >= new Date(todayStr)))
@@ -317,12 +349,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // 5. Repasses de Comissões Pendentes (Exige Premium)
-      if (commRes.status === 'fulfilled' && (user?.role === 'ADMIN' || user?.role === 'DENTIST') && hasMinPlan('PREMIUM')) {
-        const rawComms = commRes.value.data?.data || commRes.value.data || []
+      // 5. Comissões
+      if (commRes.status === 'fulfilled' && (isAdmin || isDentist) && isPremiumOrEnterprise) {
+        const rawComms = (commRes.value as any).data?.data || (commRes.value as any).data || []
         const list = Array.isArray(rawComms) ? rawComms : []
 
-        const pendingComms = user?.role === 'DENTIST'
+        const pendingComms = isDentist
           ? list.filter((c: any) => c.dentistId === user.id)
           : list
 
@@ -333,8 +365,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
           generatedNotifs.push({
             id,
-            title: user?.role === 'DENTIST' ? 'Comissões a Receber' : 'Repasses a Liquidar',
-            description: user?.role === 'DENTIST'
+            title: isDentist ? 'Comissões a Receber' : 'Repasses a Liquidar',
+            description: isDentist
               ? `Possui ${valFormatted} acumulado em ${pendingComms.length} procedimento(s) a receber.`
               : `${pendingComms.length} comissão(ões) pendente(s) totalizando ${valFormatted} prontas para baixa.`,
             time: 'Hoje',
@@ -351,7 +383,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     } finally {
       setLoadingNotifs(false)
     }
-  }, [user?.role, user?.id, hasMinPlan])
+    // 👇 APENAS PRIMITIVOS ESTÁVEIS NAS DEPENDÊNCIAS (Sem hasMinPlan!)
+  }, [user?.role, user?.id, userPlan])
+  
 
   const applyThemeVariables = useCallback((theme: ClinicVisualState) => {
     if (typeof document === 'undefined') return
@@ -401,6 +435,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }, [applyThemeVariables, hasMinPlan])
 
+  // ─── 1. Autenticação & Guarda RBAC / Planos ───
   useEffect(() => {
     const token = localStorage.getItem('odontoflow_token') || localStorage.getItem('@odontoflow:token')
     const stored = localStorage.getItem('odontoflow_user') || localStorage.getItem('@odontoflow:user')
@@ -410,52 +445,68 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       return
     }
 
-    let parsedUser: any = null
     if (stored) {
       try {
-        parsedUser = JSON.parse(stored)
-        setUser(parsedUser)
+        const parsedUser = JSON.parse(stored)
+        // Só atualiza o estado se ainda não estiver definido para não forçar re-render à toa
+        setUser((prev: any) => (!prev ? parsedUser : prev))
+
+        const currentRole: UserRole = parsedUser.role || 'SECRETARY'
+
+        // 1. RBAC por Perfil
+        if (currentRole === 'DENTIST') {
+          if (pathname === '/financeiro' || pathname === '/configuracoes' || pathname === '/gestao-de-titulos') {
+            router.replace('/consultorio')
+            return
+          }
+        } else if (currentRole === 'SECRETARY') {
+          if (pathname === '/financeiro' || pathname === '/configuracoes' || pathname === '/consultorio' || pathname === '/comissoes') {
+            router.replace('/agenda')
+            return
+          }
+        }
+
+        // 2. Trava por Plano de Assinatura (usa string primitiva userPlan)
+        const isTryingRestrictedPlanRoute = 
+          pathname === '/financeiro' || 
+          pathname === '/gestao-de-titulos' || 
+          pathname === '/comissoes'
+
+        const isPremiumOrEnterprise = userPlan === 'PREMIUM' || userPlan === 'ENTERPRISE'
+
+        if (isTryingRestrictedPlanRoute && !isPremiumOrEnterprise) {
+          router.replace('/agenda')
+          return
+        }
       } catch (e) {
         console.error('Erro ao ler utilizador:', e)
       }
     }
+  }, [pathname, router, userPlan])
 
-    // 🛡️ Guarda Dupla de Rotas no Cliente: RBAC por Perfil + Trava de Planos
-    if (parsedUser) {
-      const currentRole: UserRole = parsedUser.role || 'SECRETARY'
+  // ─── 2. Busca Inicial de Notificações & Intervalo de Polling ───
+  
+  useEffect(() => {
+  if (!user?.id) return
 
-      // 1. Validação por Cargo (RBAC)
-      if (currentRole === 'DENTIST') {
-        if (pathname === '/financeiro' || pathname === '/configuracoes' || pathname === '/gestao-de-titulos') {
-          router.replace('/consultorio')
-          return
-        }
-      } else if (currentRole === 'SECRETARY') {
-        if (pathname === '/financeiro' || pathname === '/configuracoes' || pathname === '/consultorio' || pathname === '/comissoes') {
-          router.replace('/agenda')
-          return
-        }
-      }
+  if (!hasLoadedNotifsRef.current) {
+    hasLoadedNotifsRef.current = true
+    loadDynamicNotifications()
+  }
 
-      // 2. Validação por Plano de Assinatura
-      const isTryingRestrictedPlanRoute = 
-        pathname === '/financeiro' || 
-        pathname === '/gestao-de-titulos' || 
-        pathname === '/comissoes'
+  const notifInterval = setInterval(() => {
+    loadDynamicNotifications()
+  }, 120000)
 
-      if (isTryingRestrictedPlanRoute && !hasMinPlan('PREMIUM')) {
-        router.replace('/agenda')
-        return
-      }
-    }
+  return () => clearInterval(notifInterval)
+}, [user?.id, loadDynamicNotifications])
 
+  // ─── 3. Event Listeners de UI & Tema White-Label ───
+  useEffect(() => {
     const savedCollapsed = localStorage.getItem('odontoflow_sidebar_collapsed')
     if (savedCollapsed === 'true') setIsCollapsed(true)
 
     fetchClinicCustomization()
-    loadDynamicNotifications()
-
-    const notifInterval = setInterval(loadDynamicNotifications, 120000)
 
     const handleThemeUpdate = () => fetchClinicCustomization()
     window.addEventListener('clinic_customization_updated', handleThemeUpdate)
@@ -471,12 +522,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     document.addEventListener('mousedown', handleClickOutside)
 
     return () => {
-      clearInterval(notifInterval)
       window.removeEventListener('clinic_customization_updated', handleThemeUpdate)
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [router, pathname, fetchClinicCustomization, loadDynamicNotifications, hasMinPlan])
-
+  }, [fetchClinicCustomization])
   // Pesquisa Global
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -614,6 +663,25 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const searchInputRef = useRef<HTMLInputElement>(null)
   const userDisplayName = user?.name || 'Usuário'
+
+  // Localiza automaticamente o grupo (categoria) e o item (título) ativos
+  const activeRouteInfo = useMemo(() => {
+    for (const group of NAV_GROUPS) {
+      const foundItem = group.items.find((item) => item.href === pathname)
+      if (foundItem) {
+        return {
+          title: ROUTE_PAGE_TITLES[pathname] || foundItem.label,
+          category: group.label,
+          subtitle: ROUTE_SUBTITLES[pathname] || 'Ambiente seguro',
+        }
+      }
+    }
+    return {
+      title: ROUTE_PAGE_TITLES[pathname] || 'OdontoFlow',
+      category: 'GESTÃO CLÍNICA',
+      subtitle: 'Ambiente seguro',
+    }
+  }, [pathname])
 
   return (
     <div 
@@ -938,7 +1006,37 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className={styles.content}>{children}</main>
+        {/* ─── MIOLO DA PÁGINA COM CABEÇALHO PADRONIZADO ─── */}
+        <main className={styles.content}>
+          {/* CABEÇALHO PADRÃO DO FIGMA (RENDERIZADO AUTOMATICAMENTE) */}
+          <div className={styles.pageHeader}>
+            <div className={styles.pageHeaderTopMeta}>
+              <span className={styles.pageHeaderCategory}>{activeRouteInfo.category}</span>
+              <span className={styles.pageHeaderRolePill}>
+                {userRole} • {userPlan}
+              </span>
+            </div>
+
+            <div className={styles.pageHeaderMainRow}>
+              <div className={styles.pageHeaderTitleGroup}>
+                <h1 className={styles.pageHeaderTitle}>{activeRouteInfo.title}</h1>
+                <p className={styles.pageHeaderSubtitle}>{activeRouteInfo.subtitle}</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={openNovoAgendamento}
+                className={styles.btnPageNewAppointment}
+              >
+                <Plus size={16} strokeWidth={2.5} />
+                <span>Novo Agendamento</span>
+              </button>
+            </div>
+          </div>
+
+          {/* O CONTEÚDO ESPECÍFICO DE CADA ROTA É INJETADO AQUI */}
+          {children}
+        </main>
       </div>
 
       {/* ─── Modal de Upgrade de Plano ─── */}
