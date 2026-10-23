@@ -400,40 +400,32 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const fetchClinicCustomization = useCallback(async () => {
     try {
-      const res = await api.get('/clinics')
-      const clinicList = Array.isArray(res.data) ? res.data : res.data?.data || []
-      const current = clinicList[0]
-
-      if (!current) return
-
-      let visual: ClinicVisualState = {
-        name: current.name || 'Minha Clínica',
-        primaryColor: '#06b6d4',
-        accentColor: '#0891b2',
-        fontFamily: 'Inter',
-        logoUrl: current.logoUrl || null,
-      }
-
-      // Customização visual avançada a partir do plano PREMIUM
-      if (hasMinPlan('PREMIUM')) {
-        const customRes = await api.get(`/clinics/${current.id}/customization`).catch(() => null)
-        if (customRes?.data) {
-          visual = {
-            name: customRes.data.clinicName || current.name,
-            primaryColor: customRes.data.primaryColor || visual.primaryColor,
-            accentColor: customRes.data.accentColor || visual.accentColor,
-            fontFamily: customRes.data.fontFamily || visual.fontFamily,
-            logoUrl: customRes.data.customLogoUrl || visual.logoUrl,
+      const res = await api.get('/customization').catch(() => null)
+      if (res?.data) {
+        const data = res.data.data || res.data
+        setClinicVisual((prev: any) => {
+          // Compara se realmente mudou para não causar re-render desnecessário
+          if (
+            prev.name === data.name &&
+            prev.primaryColor === data.primaryColor &&
+            prev.accentColor === data.accentColor &&
+            prev.logoUrl === data.logoUrl
+          ) {
+            return prev
           }
-        }
+          return {
+            name: data.name || 'Clarium Clinic',
+            primaryColor: data.primaryColor || '#0082c9',
+            accentColor: data.accentColor || '#006fae',
+            fontFamily: data.fontFamily || 'Inter',
+            logoUrl: data.logoUrl || null,
+          }
+        })
       }
-
-      setClinicVisual(visual)
-      applyThemeVariables(visual)
-    } catch (err) {
-      console.error('Falha ao sincronizar tema da clínica:', err)
+    } catch (e) {
+      console.error('Erro ao buscar customização visual:', e)
     }
-  }, [applyThemeVariables, hasMinPlan])
+  }, [])
 
   // ─── 1. Autenticação & Guarda RBAC / Planos ───
   useEffect(() => {
@@ -527,10 +519,14 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }, [fetchClinicCustomization])
   // Pesquisa Global
-  useEffect(() => {
-    if (!searchQuery.trim()) {
+ useEffect(() => {
+    const trimmed = searchQuery.trim()
+
+    // 🔒 Só busca se o usuário digitou pelo menos 2 caracteres
+    if (!trimmed || trimmed.length < 2) {
       setSearchResults([])
       setIsSearchOpen(false)
+      setIsSearching(false)
       return
     }
 
@@ -540,9 +536,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         setIsSearchOpen(true)
 
         const [patientsRes, proceduresRes, plansRes, suppliersRes] = await Promise.all([
-          api.get(`/patients?name=${encodeURIComponent(searchQuery)}&limit=3`).catch(() => ({ data: [] })),
-          api.get(`/procedures?name=${encodeURIComponent(searchQuery)}&limit=3`).catch(() => ({ data: [] })),
-          api.get(`/treatment-plans?limit=20`).catch(() => ({ data: [] })),
+          api.get(`/patients?name=${encodeURIComponent(trimmed)}&limit=3`).catch(() => ({ data: [] })),
+          api.get(`/procedures?name=${encodeURIComponent(trimmed)}&limit=3`).catch(() => ({ data: [] })),
+          api.get(`/treatment-plans?limit=10`).catch(() => ({ data: [] })),
           api.get(`/suppliers?limit=10`).catch(() => ({ data: [] })),
         ])
 
@@ -563,7 +559,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         }))
 
         const planList = Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data || []
-        const queryLower = searchQuery.toLowerCase()
+        const queryLower = trimmed.toLowerCase()
         const planItems: SearchResultItem[] = planList
           .filter((pl: any) => 
             (pl.title && pl.title.toLowerCase().includes(queryLower)) ||
@@ -596,7 +592,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       } finally {
         setIsSearching(false)
       }
-    }, 300)
+    }, 400) // 400ms de debounce
 
     return () => clearTimeout(timer)
   }, [searchQuery])
