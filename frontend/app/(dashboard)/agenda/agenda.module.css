@@ -1,745 +1,842 @@
+/* ─── VARIÁVEIS WHITE-LABEL DINÂMICAS ─── */
 .page {
+  --primary: var(--clinic-primary, #0082c9);
+  --primary-hover: var(--clinic-accent, #006fae);
+  --primary-light: #f0f9ff;
+  --primary-border: #0082c9;
+
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ─── TOOLBAR PADRONIZADA FIGMA ─── */
+.toolbarCard {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px 24px;
+  box-shadow: 0 2px 10px -2px rgba(15, 23, 42, 0.03);
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 16px;
 }
 
-/* ─── TOOLBAR & LEGENDA ─── */
-.toolbar {
+.dateSection {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
   gap: 12px;
-  background: #ffffff;
-  border: 1px solid #eef2f6;
-  border-radius: 12px;
-  padding: 12px 18px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
 }
 
-.dateNav {
+.responsiveDateHeader {
+  display: none;
+}
+
+.dateControlsRow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
-.dateBtn {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+.btnTodayDesktop {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  width: 32px;
-  height: 32px;
-  font-size: 16px;
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.dateBtn:hover {
-  border-color: var(--primary-color, #06b6d4);
-  color: var(--primary-color, #06b6d4);
+.btnTodayDesktop:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
 }
 
-.dateInput {
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #0f172a;
-  background: #ffffff;
-  outline: none;
-}
-
-.dateInput:focus {
-  border-color: var(--primary-color, #06b6d4);
-}
-
-.filterGroup {
-  display: flex;
+.dateNavigator {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.dateArrowBtn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+}
+
+.dateArrowBtn:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.dateDisplayWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dateTextDesktop {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.dateTextMobile {
+  display: none;
+}
+
+.hiddenNativeDateInput {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.weekDayBadgeDesktop {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  background-color: #f1f5f9;
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+/* Seletor de Salas */
+.roomsFilterSection {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
 .roomsSelector {
   display: flex;
-  background: #f1f5f9;
-  padding: 3px;
-  border-radius: 8px;
-  gap: 2px;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .roomCountBtn {
-  border: none;
-  background: transparent;
-  color: #64748b;
-  padding: 5px 12px;
-  border-radius: 6px;
-  font-size: 12px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
   font-weight: 600;
+  color: #64748b;
   cursor: pointer;
-  display: flex;
+  transition: all 0.15s ease;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  transition: all 0.15s;
+  gap: 6px;
+}
+
+.roomCountBtn:hover {
+  border-color: #cbd5e1;
+  color: #0f172a;
 }
 
 .roomCountBtnActive {
-  background: #ffffff;
-  color: #0f172a;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  background-color: #f0f9ff !important;
+  border-color: var(--primary, #0082c9) !important;
+  color: var(--primary, #0082c9) !important;
 }
 
 .crownIcon {
-  color: var(--primary-color, #0891b2);
-}
-
-.roomSelect {
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  font-size: 12px;
-  font-weight: 600;
-  color: #334155;
-  background: #ffffff;
-  outline: none;
-  cursor: pointer;
-}
-
-.legend {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.legendItem {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #64748b;
-}
-
-/* Dots da Legenda */
-.dotAgendado { width: 8px; height: 8px; border-radius: 50%; background: #0284c7; }
-.dotConfirmado { width: 8px; height: 8px; border-radius: 50%; background: #1d4ed8; }
-.dotEmAtendimento { width: 8px; height: 8px; border-radius: 50%; background: #10b981; }
-.dotFinalizado { width: 8px; height: 8px; border-radius: 50%; background: #64748b; }
-
-/* ─── LAYOUT PRINCIPAL ─── */
-.mainLayout {
-  display: grid;
-  grid-template-columns: 1fr 280px;
-  gap: 16px;
-  align-items: start;
-}
-
-@media (max-width: 1024px) {
-  .mainLayout {
-    grid-template-columns: 1fr;
-  }
-}
-
-.card {
-  background: #ffffff;
-  border-radius: 12px;
-  border: 1px solid #eef2f6;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
-  overflow: hidden;
-}
-
-.cardHeader {
-  padding: 18px 22px;
-  border-bottom: 1px solid #eef2f6;
-}
-
-.cardTitle {
-  font-size: 16px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.cardSub {
-  font-size: 12px;
-  color: #64748b;
-  margin-top: 2px;
-}
-
-.loading {
-  padding: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  color: #64748b;
-  font-size: 13px;
-}
-
-.spinner {
-  animation: spin 1s linear infinite;
-  color: var(--primary-color, #06b6d4);
-}
-
-/* ─── GRADE DA AGENDA ─── */
-.gridContainer {
-  width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-.grid {
-  display: flex;
-  min-width: 100%;
-}
-
-.timeCol {
-  width: 65px;
-  min-width: 65px;
-  flex-shrink: 0;
-  position: sticky;
-  left: 0;
-  background: #ffffff;
-  z-index: 12;
-  border-right: 1px solid #eef2f6;
-}
-
-.timeColHeader {
-  height: 42px;
-  border-bottom: 1px solid #eef2f6;
-  background: #f8fafc;
-}
-
-.timeColBody {
-  position: relative;
-  height: 1760px;
-}
-
-.timeSlot {
-  height: 160px;
-  display: flex;
-  align-items: flex-start;
-  padding-top: 4px;
-  padding-left: 8px;
-  font-size: 11px;
-  font-weight: 600;
   color: #94a3b8;
 }
 
-.roomCol {
-  flex: 1;
-  min-width: 250px;
-  border-right: 1px solid #eef2f6;
+.roomCountBtnActive .crownIcon {
+  color: var(--primary, #0082c9);
 }
 
-.roomCol:last-child {
-  border-right: none;
+.roomSelect {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #0f172a;
+  outline: none;
 }
 
-.roomHeader {
-  height: 42px;
-  background: #f8fafc;
-  border-bottom: 1px solid #eef2f6;
+.mobileSwipeIndicator {
+  display: none;
+}
+
+/* Legenda de Status */
+.legendSection {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: #475569;
-  letter-spacing: 0.05em;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.roomBody {
-  position: relative;
-  height: 1760px;
-}
-
-.hourSlot {
-  height: 160px;
-  border-bottom: 1px solid #cbd5e1;
-  position: relative;
-  background-image: linear-gradient(to bottom, #f8fafc 1px, transparent 1px);
-  background-size: 100% 40px;
-}
-
-.hourSlot:hover {
-  background-color: rgba(241, 245, 249, 0.4);
-}
-
-.vagoContent {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.hourSlot:hover .vagoContent {
-  opacity: 1;
-}
-
-.btnAddVago {
-  background: var(--primary-color, #06b6d4);
-  color: #ffffff;
-  border: none;
-  border-radius: 50%;
-  width: 26px;
-  height: 26px;
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 5px rgba(6, 182, 212, 0.3);
-  transition: transform 0.15s ease;
-}
-
-.btnAddVago:hover {
-  transform: scale(1.15);
-}
-
-/* Linha do Tempo Real */
-.realTimeLine {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background-color: #f97316;
-  z-index: 15;
-  pointer-events: none;
-}
-
-.realTimeBadge {
-  position: absolute;
-  left: 2px;
-  background: #f97316;
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 4px;
-  border-radius: 4px;
-  z-index: 20;
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
-/* ─── CARDS DE AGENDAMENTO (CORES SISTÊMICAS) ─── */
-.apptCard {
-  position: absolute;
-  left: 6px;
-  right: 6px;
-  padding: 0 8px;
-  border-radius: 6px;
-  border-left: 4px solid;
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-  cursor: grab;
-  z-index: 10;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-}
-
-.apptCard:hover {
-  z-index: 25;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
-}
-
-.apptHeaderRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  gap: 6px;
-}
-
-.apptMainInfo {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow: hidden;
-  min-width: 0;
-}
-
-.apptTime {
+.statusBadge {
   font-size: 11px;
   font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
   white-space: nowrap;
 }
 
-.apptName {
-  font-size: 12px;
-  font-weight: 700;
-  color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.badgeAgendado { background-color: #fffbeb; color: #b45309; }
+.badgeConfirmado { background-color: #ecfdf5; color: #10b981; }
+.badgeEmAtendimento { background-color: #f0f9ff; color: #0284c7; }
+.badgeFinalizado { background-color: #f8fafc; color: #64748b; }
+
+/* Banner de Agenda Histórica */
+.historyNotice {
+  background-color: #f0f9ff;
+  border: 1px solid #e0f2fe;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
-.apptBadge {
-  font-size: 9px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
+.historyNoticeIcon {
+  color: var(--primary, #0082c9);
   flex-shrink: 0;
 }
 
-/* Agendado (Azul Claro) */
-.agendado { 
-  background: #eff6ff; 
-  border-color: #0284c7; 
-  color: #0369a1; 
-}
-.agendado .apptBadge { 
-  background: #e0f2fe; 
-  color: #0369a1; 
-}
-
-/* Confirmado (Azul Royal) */
-.confirmado { 
-  background: #e0f2fe; 
-  border-color: #1d4ed8; 
-  color: #1e40af; 
-}
-.confirmado .apptBadge { 
-  background: #dbeafe; 
-  color: #1e40af; 
-}
-
-/* Em Atendimento (Verde Esmeralda) */
-.emAtendimento { 
-  background: #ecfdf5; 
-  border-color: #10b981; 
-  color: #047857; 
-}
-.emAtendimento .apptBadge { 
-  background: #d1fae5; 
-  color: #047857; 
-}
-
-/* Finalizado (Cinza Neutro) */
-.finalizado { 
-  background: #f8fafc; 
-  border-color: #64748b; 
-  color: #475569; 
-}
-.finalizado .apptBadge { 
-  background: #f1f5f9; 
-  color: #475569; 
-}
-
-/* Cancelado / Faltou (Vermelho) */
-.cancelado { 
-  background: #fef2f2; 
-  border-color: #ef4444; 
-  color: #b91c1c; 
-}
-.cancelado .apptBadge { 
-  background: #fee2e2; 
-  color: #b91c1c; 
-}
-
-/* Espera */
-.espera { 
-  background: #fdf4ff; 
-  border-color: #c084fc; 
-  color: #7e22ce; 
-}
-
-/* ─── SIDEBAR DA RECEPÇÃO ─── */
-.sidePanel {
-  background: #ffffff;
-  border: 1px solid #eef2f6;
-  border-radius: 12px;
-  padding: 18px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
-}
-
-.sideHeaderContainer {
+.historyNoticeText {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
+  gap: 6px;
+  font-size: 12px;
+  color: #0369a1;
+  flex-wrap: wrap;
 }
 
-.sideTitle {
-  font-size: 13px;
+/* ─── ÁREA CENTRAL PRINCIPAL ─── */
+.mainLayout {
+  display: grid;
+  grid-template-columns: 2.2fr 1fr;
+  gap: 20px;
+  width: 100%;
+  align-items: flex-start;
+  box-sizing: border-box;
+}
+
+/* Grade de Atendimento */
+.scheduleCard {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.03);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.scheduleHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 12px;
+}
+
+.scheduleHeaderLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.scheduleTitle {
+  font-size: 16px;
   font-weight: 700;
   color: #0f172a;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   margin: 0;
 }
 
-.todayIndicator {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--primary-color, #0891b2);
-  background: #ecfeff;
-  padding: 2px 8px;
-  border-radius: 6px;
+.scheduleSubtitle {
+  font-size: 12.5px;
+  color: #64748b;
+  margin: 0;
 }
 
-.waitingSection {
+.btnToggleAfternoon {
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btnToggleAfternoon:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.tableWrapper {
+  width: 100%;
+  overflow-x: auto;
+  position: relative;
+}
+
+.scheduleGrid {
+  display: grid;
+  width: 100%;
+  border-collapse: collapse;
+  position: relative;
+}
+
+/* LINHA DE TEMPO REAL */
+.realTimeTrack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.realTimeDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: #ef4444;
+  margin-left: 50px;
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
+.realTimeLine {
+  flex: 1;
+  height: 2px;
+  background-color: #ef4444;
+}
+
+.realTimeTooltip {
+  background-color: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+}
+
+/* Cabeçalho da Grade */
+.colHeaderTime {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.04em;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.colHeaderRoom {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary, #0082c9);
+  letter-spacing: 0.04em;
+  padding-bottom: 12px;
+  padding-left: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* Células de Horários e Salas */
+.timeCell {
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-weight: 500;
+  padding: 16px 8px 16px 0;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: flex-start;
+}
+
+.timeCellPast {
+  opacity: 0.5;
+}
+
+.roomCell {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  border-left: 1px solid #f8fafc;
+  min-height: 84px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.roomCellPast {
+  background-color: #fafbfc;
+}
+
+.apptsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.emptySlotContent {
+  height: 100%;
+  display: flex;
+  align-items: flex-start;
+  padding-top: 6px;
+  cursor: pointer;
+}
+
+.emptySlotLabel {
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+/* ─── CARDS DE AGENDAMENTO FIGMA ─── */
+.appointmentFigmaCard {
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.appointmentFigmaCard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+.cardStatusFinalizado {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.cardStatusEmAtendimento {
+  background-color: #f0f9ff;
+  border: 1.5px solid var(--primary-border, #0082c9);
+}
+
+.cardStatusConfirmado {
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.cardStatusAgendado {
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.cardTopMeta {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.cardPatientName {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 1px 0;
+}
+
+.cardProcedureMeta {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.cardBottomStatus {
+  margin-top: 6px;
+}
+
+.statusLabelText {
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.statusTextFinalizado { color: #64748b; }
+.statusTextEmAtendimento { color: var(--primary, #0082c9); }
+.statusTextConfirmado { color: #16a34a; }
+.statusTextAgendado { color: #d97706; }
+
+.compactNoteMobile {
+  display: none;
+}
+
+/* ─── COLUNA LATERAL DIREITA: RECEPÇÃO E ESPERA ─── */
+.receptionSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.sideCard {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.receptionHeader,
+.waitingHeaderFigma {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sideCardTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+.receptionDateSub,
+.waitingCountSub {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.receptionPillBadge {
+  background-color: #f0f9ff;
+  color: var(--primary, #0082c9);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 6px;
+  align-self: flex-start;
+}
+
+.receptionList {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.receptionItem {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.sectionLabel {
-  font-size: 11px;
-  font-weight: 700;
-  color: #64748b;
-  letter-spacing: 0.03em;
-}
-
-.emptySidebarState {
+.receptionItemHeader {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 18px 8px;
-  text-align: center;
+  gap: 2px;
 }
 
-.emptyIcon {
-  color: #cbd5e1;
-  margin-bottom: 4px;
+.receptionItemName {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
 }
 
-.emptyText {
-  font-size: 11px;
-  color: #94a3b8;
-  margin: 0;
+.receptionItemMeta {
+  font-size: 11.5px;
+  color: #64748b;
 }
 
-.miniCard {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  padding: 10px 12px;
+.checkinDoneTag {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #16a34a;
+}
+
+/* BOTÕES CONECTADOS AO WHITE-LABEL */
+.btnEncaminharSala {
+  width: 100%;
+  background-color: var(--primary, #0082c9);
+  color: #ffffff;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 9px 14px;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.miniCard:hover {
-  border-color: var(--primary-color, #06b6d4);
-  background: #ffffff;
-  transform: translateX(2px);
+.btnEncaminharSala:hover {
+  background-color: var(--primary-hover, #006fae);
 }
 
-.miniCardTop {
+.btnRealizarCheckin,
+.btnOferecerHorario,
+.btnAdicionarEspera {
+  width: 100%;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btnRealizarCheckin:hover,
+.btnOferecerHorario:hover,
+.btnAdicionarEspera:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.waitingListWrapper {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.miniCardTop strong {
-  font-size: 13px;
+.waitingPatientCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.waitingPatientName {
+  font-size: 13.5px;
+  font-weight: 700;
   color: #0f172a;
 }
 
-.miniCardBadge {
-  font-size: 9px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid transparent;
-}
-
-.miniCardSub {
-  font-size: 11px;
+.waitingPrefMeta {
+  font-size: 11.5px;
   color: #64748b;
+}
+
+.waitingActionsCol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 4px;
+}
+
+.emptySideState {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 8px;
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
 }
 
-.sideSection {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px dashed #e2e8f0;
-}
-
-.sideHeaderRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.btnAddWaiting {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: #ecfeff;
-  border: 1px solid #cffafe;
-  color: var(--primary-color, #0891b2);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btnAddWaiting:hover {
-  background: #cffafe;
-}
-
-.waitingCard {
-  background: #fefce8;
-  border: 1px solid #fef08a;
-  border-left: 3px solid #eab308;
-  padding: 10px 12px;
-  border-radius: 8px;
-  margin-bottom: 8px;
-  cursor: grab;
-  transition: all 0.15s;
-}
-
-.waitingCard:hover {
-  transform: translateX(2px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-}
-
-.waitingCardHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.waitingCardHeader strong {
-  font-size: 12.5px;
-  color: #854d0e;
-}
-
-.dragPill {
-  font-size: 9px;
-  font-weight: 700;
-  background: #fef08a;
-  color: #a16207;
-  padding: 1px 4px;
-  border-radius: 4px;
-  text-transform: uppercase;
-}
-
-.waitingCard span {
-  font-size: 11px;
-  color: #a16207;
-  display: block;
-  margin-top: 3px;
-}
-
-/* ─── MODAIS & OVERLAYS ─── */
-.confirmOverlay {
+/* Modais e Toasts */
+.modalOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.6);
+  background-color: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 1000;
+  padding: 16px;
 }
 
-.confirmBox {
-  background: #ffffff;
+.modalCard {
+  background-color: #ffffff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 440px;
   padding: 24px;
-  border-radius: 12px;
-  max-width: 400px;
-  width: 90%;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.confirmIcon, .errorIcon {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
+.modalHeader {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  font-weight: bold;
-  margin: 0 auto 12px;
+  justify-content: space-between;
 }
 
-.confirmIcon { background: #fef3c7; color: #d97706; }
-.errorIcon { background: #fee2e2; color: #dc2626; }
-
-.confirmTitle {
-  font-size: 17px;
+.modalTitle {
+  font-size: 16px;
   font-weight: 700;
   color: #0f172a;
-  margin-bottom: 6px;
+  margin: 0;
+}
+
+.modalCloseBtn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.modalForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.formGroup label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.modalSelect,
+.modalInput {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+}
+
+.modalActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btnCancel {
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnSubmit {
+  background-color: var(--primary, #0082c9);
+  color: #ffffff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .confirmText {
   font-size: 13px;
-  color: #64748b;
-  margin-bottom: 18px;
-  line-height: 1.4;
-}
-
-.confirmActions {
-  display: flex;
-  gap: 10px;
-}
-
-.btnCancel {
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
   color: #475569;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
+  line-height: 1.5;
+  margin: 0;
 }
 
-.btnPrimaryModal {
+.toastError {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background-color: #ef4444;
+  color: #ffffff;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 10px 25px rgba(239, 68, 68, 0.3);
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: 8px;
+  gap: 12px;
+  z-index: 1100;
+}
+
+.toastError button {
+  background: transparent;
   border: none;
-  background: var(--primary-color, #06b6d4);
   color: #ffffff;
-  font-size: 13px;
-  font-weight: 600;
   cursor: pointer;
 }
 
-.btnPrimaryModal:hover {
-  opacity: 0.9;
+/* ─── TABLET (768px a 1024px) ─── */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .mainLayout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .receptionSidebar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  .compactNoteMobile {
+    display: block;
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 10px;
+  }
 }
 
-.modalSelect, .modalInput {
-  width: 100%;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 9px 12px;
-  font-size: 13px;
-  color: #0f172a;
-  outline: none;
-  background: #ffffff;
-}
+/* ─── MOBILE (390px a 640px) ─── */
+@media (max-width: 640px) {
+  .mainLayout {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
 
-.modalSelect:focus, .modalInput:focus {
-  border-color: var(--primary-color, #06b6d4);
-}
+  .scheduleCard {
+    padding: 16px;
+    border-radius: 12px;
+  }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  .receptionSidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .compactNoteMobile {
+    display: block;
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 8px;
+  }
 }
