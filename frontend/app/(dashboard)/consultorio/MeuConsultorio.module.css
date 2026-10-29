@@ -1067,3 +1067,44 @@
   padding: 2px 7px;
   border-radius: 4px;
 }
+/* Agrupamento de botões quando o paciente estiver "Na Cadeira" */
+.servingActionsGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.finishClinicalBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background-color: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #059669;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.finishClinicalBtn:hover {
+  background-color: #d1fae5;
+  color: #047857;
+}
+
+.finishClinicalBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .servingActionsGroup {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+}

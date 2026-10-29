@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   X,
   UserCheck,
+  Check
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './MeuConsultorio.module.css'
@@ -65,6 +66,7 @@ interface Appointment {
   status: 'AGENDADO' | 'CONFIRMADO' | 'ESPERA' | 'EM_ATENDIMENTO' | 'FINALIZADO' | 'CANCELADO'
   patient?: Patient
   procedure?: Procedure
+  transaction?: any
 }
 
 interface UserProfile {
@@ -106,6 +108,7 @@ export default function MeuConsultorioPage() {
   const [selectedRoom, setSelectedRoom] = useState<string>('SALA_1')
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState<boolean>(true)
+  const [finishingApptId, setFinishingApptId] = useState<string | null>(null)
 
   // ─── Usuário Logado & Dentista Ativo Vinculado à Sala ───
   const [loggedInUser, setLoggedInUser] = useState<UserProfile | null>(null)
@@ -133,7 +136,6 @@ export default function MeuConsultorioPage() {
 
     async function initProfile() {
       try {
-        // Tenta obter instantaneamente do localStorage
         const stored = localStorage.getItem('odontoflow_user') || localStorage.getItem('@odontoflow:user')
         let initialProfile: UserProfile | null = null
 
@@ -150,7 +152,6 @@ export default function MeuConsultorioPage() {
           }
         }
 
-        // Busca dados enriquecidos no backend (/auth/me ou /dentist-profile)
         const meRes = await api.get('/auth/me').catch(() => null)
         const meData = meRes?.data?.user || meRes?.data?.data || meRes?.data
 
@@ -266,7 +267,6 @@ export default function MeuConsultorioPage() {
     setIsChangeDoctorModalOpen(true)
     try {
       setLoadingDentists(true)
-      // Chama o endpoint do Swagger: /users?role=DENTIST&isActive=true
       const res = await api.get('/users?role=DENTIST&isActive=true').catch(() => null)
       const data = res?.data?.data || res?.data || []
       const dentistsList = Array.isArray(data) ? data : []
@@ -323,19 +323,43 @@ export default function MeuConsultorioPage() {
     })
   }
 
-  // ─── Ação Principal: Iniciar / Concluir Consulta ───
-  const handleAction = async (appt: Appointment) => {
+  // ─── AÇÃO 1: Iniciar ou Abrir Prontuário Clínico ───
+  const handleStartOrOpenRecord = async (appt: Appointment) => {
     if (appt.status !== 'EM_ATENDIMENTO' && appt.status !== 'FINALIZADO') {
       try {
         await api.patch(`/appointments/${appt.id}/status`, { status: 'EM_ATENDIMENTO' })
       } catch (err) {
-        console.error('Erro ao atualizar status do agendamento:', err)
+        console.error('Erro ao atualizar status do agendamento para EM_ATENDIMENTO:', err)
       }
     }
 
+    // Leva diretamente para o prontuário onde o dentista adiciona evolução clínica
     router.push(
       `/pacientes/${appt.patientId}?appointmentId=${appt.id}&room=${selectedRoom}&openEvolution=true`
     )
+  }
+
+  // ─── AÇÃO 2: Concluir Atendimento Clínico (Apenas Mocho -> SEM CRIAR TRANSAÇÃO) ───
+  const handleFinishClinicalService = async (appt: Appointment) => {
+    try {
+      setFinishingApptId(appt.id)
+
+      // 🛡️ REGRA: Atualiza apenas o status clínico da consulta para FINALIZADO[cite: 35].
+      // NÃO chama a rota /transactions nem /commissions aqui[cite: 17, 34].
+      // Dessa forma, o paciente é liberado do mocho e o agendamento fica aguardando checkout na recepção com os campos livres para faturar[cite: 32].
+      await api.patch(`/appointments/${appt.id}/status`, { 
+        status: 'FINALIZADO' 
+      })
+
+      // Atualiza o estado da lista localmente
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === appt.id ? { ...a, status: 'FINALIZADO' } : a))
+      )
+    } catch (err) {
+      console.error('Erro ao concluir atendimento clínico no mocho:', err)
+    } finally {
+      setFinishingApptId(null)
+    }
   }
 
   // ─── Contadores em Tempo Real ───
@@ -354,7 +378,24 @@ export default function MeuConsultorioPage() {
   return (
     <div className={styles.consultorioContainer}>
       {/* ─── TOPO LOCAL DA PÁGINA COM ATUALIZAÇÃO ─── */}
-      
+      {/* <div className={styles.pageHeaderRow}>
+        <div className={styles.pageHeaderInfo}>
+          <span className={styles.headerEyebrow}>ODONTOFLOW • MEU CONSULTÓRIO</span>
+          <h1 className={styles.pageTitle}>Atendimento Clínico & Mocho</h1>
+          <p className={styles.pageDescription}>
+            Selecione o consultório em que está operando para visualizar a fila e realizar atendimentos.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => loadAppointments(selectedRoom)}
+          className={styles.refreshBtn}
+        >
+          <RefreshCw size={13} className={loading ? styles.spinIcon : ''} />
+          <span>Atualizar Fila</span>
+        </button>
+      </div> */}
 
       {/* ─── CARD PRINCIPAL: SELETOR DE CADEIRAS (FIGMA) ─── */}
       <div className={styles.roomSelectorPanel}>
@@ -504,18 +545,36 @@ export default function MeuConsultorioPage() {
                       {isDone ? (
                         <span className={styles.doneTag}>Enviado p/ Checkout</span>
                       ) : isServing ? (
-                        <button
-                          type="button"
-                          onClick={() => handleAction(appt)}
-                          className={styles.continueBtn}
-                        >
-                          <FileText size={15} />
-                          <span>Retomar / Concluir</span>
-                        </button>
+                        <div className={styles.servingActionsGroup}>
+                          <button
+                            type="button"
+                            onClick={() => handleStartOrOpenRecord(appt)}
+                            className={styles.continueBtn}
+                            title="Abrir prontuário oficial e anamnese"
+                          >
+                            <FileText size={15} />
+                            <span>Prontuário</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={finishingApptId === appt.id}
+                            onClick={() => handleFinishClinicalService(appt)}
+                            className={styles.finishClinicalBtn}
+                            title="Concluir mocho e enviar paciente para cobrança na recepção"
+                          >
+                            {finishingApptId === appt.id ? (
+                              <RefreshCw size={14} className={styles.spinIcon} />
+                            ) : (
+                              <Check size={14} />
+                            )}
+                            <span>Concluir</span>
+                          </button>
+                        </div>
                       ) : (
                         <button
                           type="button"
-                          onClick={() => handleAction(appt)}
+                          onClick={() => handleStartOrOpenRecord(appt)}
                           className={styles.startBtn}
                         >
                           <Play size={14} />
@@ -574,7 +633,7 @@ export default function MeuConsultorioPage() {
             </div>
           </div>
 
-          {/* 2. Equipe Vinculada (Traz dinâmico os dados do dentista logado) */}
+          {/* 2. Equipe Vinculada */}
           <div className={styles.summaryCard}>
             <div className={styles.teamCardHeader}>
               <h3 className={styles.teamCardTitle}>Equipe vinculada</h3>

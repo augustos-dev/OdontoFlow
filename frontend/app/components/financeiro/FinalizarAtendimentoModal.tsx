@@ -10,7 +10,6 @@ import {
   AlertCircle,
   Stethoscope,
   Receipt,
-  Calculator,
   Award
 } from 'lucide-react'
 import api from '@/lib/api'
@@ -54,36 +53,45 @@ const CEARA_INSURANCES = [
   }
 ]
 
+interface ProcedureData {
+  id?: string
+  name: string
+  basePrice?: number
+}
+
+export interface FinalizarAtendimentoAppointment {
+  id: string
+  dateTime: string
+  type?: string
+  notes?: string
+  dentistId?: string
+  dentist?: {
+    id: string
+    name: string
+  }
+  procedureId?: string
+  procedure?: ProcedureData | null
+  treatmentPlanId?: string
+  patient: {
+    id: string
+    name: string
+    cpf?: string | null
+    email?: string | null
+    insuranceProvider?: string | null
+    insuranceNumber?: string | null
+  }
+  transaction?: {
+    id: string
+    amount: string | number
+    paymentMethod: string
+  } | null
+}
+
 interface FinalizarAtendimentoModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
-  appointment: {
-    id: string
-    dateTime: string
-    type?: string
-    notes?: string
-    dentistId?: string
-    dentist?: {
-      id: string
-      name: string
-    }
-    procedureId?: string
-    procedure?: {
-      id: string
-      name: string
-      basePrice?: number
-    } | null
-    treatmentPlanId?: string
-    patient: {
-      id: string
-      name: string
-      cpf?: string | null
-      email?: string | null
-      insuranceProvider?: string | null
-      insuranceNumber?: string | null
-    }
-  } | null
+  appointment: FinalizarAtendimentoAppointment | null
 }
 
 export function FinalizarAtendimentoModal({
@@ -93,6 +101,7 @@ export function FinalizarAtendimentoModal({
   appointment,
 }: FinalizarAtendimentoModalProps) {
   const [loading, setLoading] = useState(false)
+  const [loadingEvolution, setLoadingEvolution] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Tipo de Faturamento
@@ -100,6 +109,12 @@ export function FinalizarAtendimentoModal({
   const [amount, setAmount] = useState<string>('')
   const [paymentMethod, setPaymentMethod] = useState<'PIX' | 'CREDITO' | 'DEBITO' | 'DINHEIRO'>('PIX')
   const [description, setDescription] = useState('')
+
+  // Procedimento Dinâmico (do Agendamento ou da Evolução)
+  const [activeProcedure, setActiveProcedure] = useState<{ name: string; basePrice: number }>({
+    name: '',
+    basePrice: 0,
+  })
 
   // Comissão do Dentista
   const [dentistPercentage, setDentistPercentage] = useState<number>(40)
@@ -110,67 +125,131 @@ export function FinalizarAtendimentoModal({
   const [insuranceNumber, setInsuranceNumber] = useState('')
   const [authorizationCode, setAuthorizationCode] = useState('')
 
-  // NFS-e (POST /nfse/emit)[cite: 16]
+  // NFS-e
   const [emitNfse, setEmitNfse] = useState(false)
   const [patientCpf, setPatientCpf] = useState('')
   const [patientEmail, setPatientEmail] = useState('')
+
+  // Estado que trava o checkout se já tiver transação válida
+  const [existingTransaction, setExistingTransaction] = useState<any>(null)
 
   const activeInsurance = useMemo(() => {
     return CEARA_INSURANCES.find((i) => i.id === selectedInsuranceId) || CEARA_INSURANCES[0]
   }, [selectedInsuranceId])
 
   useEffect(() => {
-    if (appointment && isOpen) {
-      setError(null)
+    if (!appointment || !isOpen) return
 
-      const isConvenio = appointment.type === 'CONVENIO' || !!appointment.patient.insuranceProvider
-      setBillingType(isConvenio ? 'CONVENIO' : 'PARTICULAR')
+    setError(null)
+    setMaterialsCost('0,00')
+    setAuthorizationCode('')
+    setPatientCpf(appointment.patient?.cpf || '')
+    setPatientEmail(appointment.patient?.email || '')
+    setEmitNfse(false)
+    setInsuranceNumber(appointment.patient?.insuranceNumber || '')
 
-      const existingProvider = (appointment.patient.insuranceProvider || '').toUpperCase()
-      let initialInsuranceId = 'HAPVIDA'
-      
-      if (existingProvider.includes('UNIMED')) initialInsuranceId = 'UNIMED'
-      else if (existingProvider.includes('BRADESCO')) initialInsuranceId = 'BRADESCO'
-      else if (existingProvider.includes('AMIL')) initialInsuranceId = 'AMIL'
-      else if (existingProvider.includes('HAPVIDA')) initialInsuranceId = 'HAPVIDA'
+    // 🔒 1. VALIDAÇÃO ESTRITA ANTI-DUPLICIDADE
+    // Só considera como faturado se existir um objeto com ID válido preenchido
+    const hasDirectTransaction = Boolean(
+      appointment.transaction &&
+      typeof appointment.transaction === 'object' &&
+      appointment.transaction.id
+    )
 
-      setSelectedInsuranceId(initialInsuranceId)
+    if (hasDirectTransaction) {
+      setExistingTransaction(appointment.transaction)
+    } else {
+      setExistingTransaction(null)
 
-      const procedureBasePrice = Number(appointment.procedure?.basePrice || 0)
-      const ins = CEARA_INSURANCES.find((i) => i.id === initialInsuranceId) || CEARA_INSURANCES[0]
+      // Validação complementar segura buscando detalhes específicos da consulta
+      api.get(`/appointments/${appointment.id}`)
+        .then((res) => {
+          const data = res.data?.data || res.data
+          if (data?.transaction?.id || data?.transactionId) {
+            setExistingTransaction(data.transaction || { id: data.transactionId })
+          } else {
+            setExistingTransaction(null)
+          }
+        })
+        .catch(() => {
+          setExistingTransaction(null)
+        })
+    }
 
-      if (procedureBasePrice > 0) {
+    // 2. Determinação de Convênio
+    const isConvenio = appointment.type === 'CONVENIO' || !!appointment.patient?.insuranceProvider
+    setBillingType(isConvenio ? 'CONVENIO' : 'PARTICULAR')
+
+    const existingProvider = (appointment.patient?.insuranceProvider || '').toUpperCase()
+    let initialInsuranceId = 'HAPVIDA'
+    if (existingProvider.includes('UNIMED')) initialInsuranceId = 'UNIMED'
+    else if (existingProvider.includes('BRADESCO')) initialInsuranceId = 'BRADESCO'
+    else if (existingProvider.includes('AMIL')) initialInsuranceId = 'AMIL'
+    else if (existingProvider.includes('HAPVIDA')) initialInsuranceId = 'HAPVIDA'
+    setSelectedInsuranceId(initialInsuranceId)
+
+    const ins = CEARA_INSURANCES.find((i) => i.id === initialInsuranceId) || CEARA_INSURANCES[0]
+
+    // 3. Resgate Dinâmico do Procedimento (se não constar no agendamento, busca da evolução)[cite: 29]
+    async function resolveProcedureAndPrice() {
+      let procName = appointment?.procedure?.name || ''
+      let procBasePrice = Number(appointment?.procedure?.basePrice || 0)
+
+      if (!procName && appointment?.patient?.id) {
+        try {
+          setLoadingEvolution(true)
+          const res = await api.get(`/medical-records/${appointment.patient.id}/evolutions`).catch(() => null)
+          const list = res?.data?.data || res?.data || []
+
+          if (Array.isArray(list) && list.length > 0) {
+            // Busca a evolução associada a esta consulta ou a última criada
+            const matchEv = list.find((e: any) => e.appointmentId === appointment.id) || list[0]
+
+            if (matchEv?.procedure) {
+              procName = matchEv.procedure.name
+              procBasePrice = Number(matchEv.procedure.basePrice || matchEv.procedurePrice || 0)
+            } else if (matchEv?.notes) {
+              procName = matchEv.notes.slice(0, 45)
+              procBasePrice = Number(matchEv.amount || 0)
+            }
+          }
+        } catch (evErr) {
+          console.error('Falha ao resgatar procedimento da evolução:', evErr)
+        } finally {
+          setLoadingEvolution(false)
+        }
+      }
+
+      setActiveProcedure({
+        name: procName || 'Procedimento Clínico',
+        basePrice: procBasePrice,
+      })
+
+      setDescription(procName ? `Procedimento: ${procName}` : 'Consulta / Atendimento Clínico')
+
+      if (procBasePrice > 0) {
         if (isConvenio) {
           const discountFactor = (100 - ins.discountPercent) / 100
-          const estimatedConvenioValue = procedureBasePrice * discountFactor
+          const estimatedConvenioValue = procBasePrice * discountFactor
           setAmount(estimatedConvenioValue.toFixed(2).replace('.', ','))
           setDentistPercentage(ins.dentistSplitPercent)
         } else {
-          setAmount(procedureBasePrice.toFixed(2).replace('.', ','))
+          setAmount(procBasePrice.toFixed(2).replace('.', ','))
           setDentistPercentage(40)
         }
       } else {
         setAmount('')
         setDentistPercentage(isConvenio ? ins.dentistSplitPercent : 40)
       }
-
-      setMaterialsCost('0,00')
-      setDescription(
-        appointment.procedure?.name
-          ? `Procedimento: ${appointment.procedure.name}`
-          : 'Consulta / Atendimento Clínico'
-      )
-      setInsuranceNumber(appointment.patient.insuranceNumber || '')
-      setAuthorizationCode('')
-      setPatientCpf(appointment.patient.cpf || '')
-      setPatientEmail(appointment.patient.email || '')
-      setEmitNfse(false)
     }
+
+    resolveProcedureAndPrice()
   }, [appointment?.id, isOpen])
 
   const handleToggleBillingType = (type: 'PARTICULAR' | 'CONVENIO') => {
+    if (existingTransaction) return
     setBillingType(type)
-    const basePrice = Number(appointment?.procedure?.basePrice || 0)
+    const basePrice = activeProcedure.basePrice
     if (basePrice <= 0) return
 
     if (type === 'PARTICULAR') {
@@ -185,11 +264,12 @@ export function FinalizarAtendimentoModal({
   }
 
   const handleInsuranceChange = (newInsuranceId: string) => {
+    if (existingTransaction) return
     setSelectedInsuranceId(newInsuranceId)
     const ins = CEARA_INSURANCES.find((i) => i.id === newInsuranceId) || CEARA_INSURANCES[0]
     setDentistPercentage(ins.dentistSplitPercent)
 
-    const basePrice = Number(appointment?.procedure?.basePrice || 0)
+    const basePrice = activeProcedure.basePrice
     if (basePrice > 0) {
       const discountFactor = (100 - ins.discountPercent) / 100
       const estimatedConvenioValue = basePrice * discountFactor
@@ -230,6 +310,8 @@ export function FinalizarAtendimentoModal({
 
   const handleFinishAppointment = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (existingTransaction) return
+
     setError(null)
     setLoading(true)
 
@@ -239,20 +321,22 @@ export function FinalizarAtendimentoModal({
         throw new Error('Indique um valor válido para o procedimento.')
       }
 
-      // 1. Lançamento da Receita Financeira
+      // 1. Registra a Receita Financeira vinculada à consulta[cite: 30]
       await api.post('/transactions', {
         type: 'RECEITA',
         amount: parsedAmount,
         paymentMethod: billingType === 'PARTICULAR' ? paymentMethod : 'CONVENIO',
-        category: appointment.procedure ? 'Procedimento Odontológico' : 'Consulta Clínica',
+        category: 'Procedimento Odontológico',
         description: billingType === 'CONVENIO' 
-          ? `Convênio ${activeInsurance.name} - Matrícula: ${insuranceNumber}${authorizationCode ? ` | Guia: ${authorizationCode}` : ''}`
+          ? `Convênio ${activeInsurance.name} • Matrícula: ${insuranceNumber}${authorizationCode ? ` | Guia: ${authorizationCode}` : ''}`
           : description,
         appointmentId: appointment.id,
+        patientId: appointment.patient.id,
+        dentistId: appointment.dentistId || appointment.dentist?.id,
         paidAt: new Date().toISOString(),
       })
 
-      // 2. Atualização dos dados de Convênio (caso aplicável)
+      // 2. Atualização dos dados do Convênio no cadastro do Paciente
       if (billingType === 'CONVENIO') {
         if (!insuranceNumber.trim()) {
           throw new Error('Indique o número da carteirinha ou matrícula do convênio.')
@@ -264,7 +348,7 @@ export function FinalizarAtendimentoModal({
         })
       }
 
-      // 3. Rota de Comissão do Dentista (POST /commissions)[cite: 17]
+      // 3. Lançamento da Comissão do Dentista Parceiro
       const resolvedDentistId = appointment.dentistId || appointment.dentist?.id
       if (resolvedDentistId && parsedAmount > 0) {
         try {
@@ -275,13 +359,13 @@ export function FinalizarAtendimentoModal({
             grossAmount: parsedAmount,
             materialsCost: financialBreakdown.matVal,
             percentage: financialBreakdown.percentage,
-          }) //[cite: 17]
+          })
         } catch (commErr) {
           console.error('Falha ao registrar comissão:', commErr)
         }
       }
 
-      // 4. Emissão Opcional de NFS-e (POST /nfse/emit)[cite: 16]
+      // 4. Emissão Opcional de NFS-e
       if (emitNfse) {
         if (!patientCpf.trim()) {
           throw new Error('Para a emissão da NFS-e é obrigatório preencher o CPF do paciente.')
@@ -289,14 +373,19 @@ export function FinalizarAtendimentoModal({
 
         await api.post('/nfse/emit', {
           serviceValue: parsedAmount,
-          serviceDescription: description || appointment.procedure?.name || 'Procedimento Odontológico',
+          serviceDescription: description || activeProcedure.name || 'Procedimento Odontológico',
           patient: {
             name: appointment.patient.name,
             cpf: patientCpf.replace(/\D/g, ''),
             email: patientEmail.trim() || undefined,
           },
-        }) //[cite: 16]
+        })
       }
+
+      // 5. Finaliza o status do agendamento[cite: 31]
+      await api.patch(`/appointments/${appointment.id}/status`, {
+        status: 'FINALIZADO',
+      })
 
       onSuccess()
       onClose()
@@ -307,6 +396,8 @@ export function FinalizarAtendimentoModal({
       setLoading(false)
     }
   }
+
+  const isLocked = Boolean(existingTransaction)
 
   return (
     <div className={styles.modalBackdrop}>
@@ -322,25 +413,40 @@ export function FinalizarAtendimentoModal({
           </button>
         </div>
 
-        {/* Banner do Paciente & Procedimento */}
+        {/* Banner do Paciente & Procedimento Dinâmico[cite: 28, 32] */}
         <div className={styles.patientBanner}>
           <div className={styles.patientInfoCol}>
-            <span className={styles.patientLabel}>Paciente</span>
+            <span className={styles.patientLabel}>PACIENTE</span>
             <span className={styles.patientName}>{appointment.patient.name}</span>
           </div>
 
-          {appointment.procedure && (
-            <div className={styles.procedureBadge}>
-              <Stethoscope size={14} />
-              <span>{appointment.procedure.name}</span>
-              {appointment.procedure.basePrice && (
-                <span className={styles.procedurePrice}>
-                  • Valor Base: R$ {Number(appointment.procedure.basePrice).toFixed(2)}
-                </span>
-              )}
-            </div>
-          )}
+          <div className={styles.procedureBadge}>
+            <Stethoscope size={14} />
+            {loadingEvolution ? (
+              <span className={styles.loadingProcText}>Consultando evolução...</span>
+            ) : (
+              <span>
+                {activeProcedure.name}
+                {activeProcedure.basePrice > 0 && (
+                  <span className={styles.procedurePrice}>
+                    {' '}• Valor Base: R$ {activeProcedure.basePrice.toFixed(2).replace('.', ',')}
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Alerta de Transação Existente (só aparece se já estiver faturado)[cite: 28, 32] */}
+        {isLocked && (
+          <div className={styles.alreadyPaidBanner}>
+            <AlertCircle size={18} className={styles.alreadyPaidIcon} />
+            <div className={styles.alreadyPaidText}>
+              <strong>Já existe uma transação vinculada a este agendamento.</strong>
+              <span>Este atendimento já foi faturado e baixado no sistema financeiro.</span>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className={styles.errorMessage}>
@@ -354,6 +460,7 @@ export function FinalizarAtendimentoModal({
           <div className={styles.typeSelector}>
             <button
               type="button"
+              disabled={isLocked}
               className={`${styles.typeBtn} ${billingType === 'PARTICULAR' ? styles.typeBtnActive : ''}`}
               onClick={() => handleToggleBillingType('PARTICULAR')}
             >
@@ -362,6 +469,7 @@ export function FinalizarAtendimentoModal({
             </button>
             <button
               type="button"
+              disabled={isLocked}
               className={`${styles.typeBtn} ${billingType === 'CONVENIO' ? styles.typeBtnActive : ''}`}
               onClick={() => handleToggleBillingType('CONVENIO')}
             >
@@ -370,7 +478,7 @@ export function FinalizarAtendimentoModal({
             </button>
           </div>
 
-          {/* Particular */}
+          {/* Seção Particular */}
           {billingType === 'PARTICULAR' && (
             <>
               <div className={styles.formGroup}>
@@ -380,6 +488,7 @@ export function FinalizarAtendimentoModal({
                   <input
                     type="text"
                     required
+                    disabled={isLocked}
                     placeholder="0,00"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
@@ -394,6 +503,7 @@ export function FinalizarAtendimentoModal({
                   {(['PIX', 'CREDITO', 'DEBITO', 'DINHEIRO'] as const).map((method) => (
                     <button
                       type="button"
+                      disabled={isLocked}
                       key={method}
                       onClick={() => setPaymentMethod(method)}
                       className={`${styles.methodBtn} ${paymentMethod === method ? styles.methodBtnActive : ''}`}
@@ -409,12 +519,13 @@ export function FinalizarAtendimentoModal({
             </>
           )}
 
-          {/* Convênio */}
+          {/* Seção Convênio */}
           {billingType === 'CONVENIO' && (
             <div className={styles.convenioSection}>
               <div className={styles.formGroup}>
                 <label>Operadora de Saúde Bucal*</label>
                 <select
+                  disabled={isLocked}
                   value={selectedInsuranceId}
                   onChange={(e) => handleInsuranceChange(e.target.value)}
                   className={styles.inputFieldPlain}
@@ -433,6 +544,7 @@ export function FinalizarAtendimentoModal({
                   <input
                     type="text"
                     required
+                    disabled={isLocked}
                     placeholder="00000000000"
                     value={insuranceNumber}
                     onChange={(e) => setInsuranceNumber(e.target.value)}
@@ -444,6 +556,7 @@ export function FinalizarAtendimentoModal({
                   <label>Nº Guia TISS / Autorização</label>
                   <input
                     type="text"
+                    disabled={isLocked}
                     placeholder="Código autorizador"
                     value={authorizationCode}
                     onChange={(e) => setAuthorizationCode(e.target.value)}
@@ -458,6 +571,7 @@ export function FinalizarAtendimentoModal({
                   <span>R$</span>
                   <input
                     type="text"
+                    disabled={isLocked}
                     placeholder="0,00"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
@@ -468,22 +582,13 @@ export function FinalizarAtendimentoModal({
             </div>
           )}
 
-          {/* Seção de Comissão do Dentista (POST /commissions) */}
-          <div style={{
-            backgroundColor: '#f8fafc',
-            border: '1px solid #e2e8f0',
-            borderRadius: '8px',
-            padding: '12px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            fontSize: '0.75rem'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#0f172a' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          {/* Seção de Comissão */}
+          <div className={styles.commissionBox}>
+            <div className={styles.commissionHeader}>
+              <span className={styles.commissionTitle}>
                 <Award size={14} color="#0284c7" /> Lançamento de Comissão (Dentista Parceiro)
               </span>
-              <span style={{ color: '#64748b' }}>
+              <span className={styles.dentistSub}>
                 {appointment.dentist?.name ? `Dr(a). ${appointment.dentist.name}` : 'Profissional Vinculado'}
               </span>
             </div>
@@ -493,6 +598,7 @@ export function FinalizarAtendimentoModal({
                 <label>Custo de Insumos / Prótese (R$)</label>
                 <input
                   type="text"
+                  disabled={isLocked}
                   placeholder="0,00"
                   value={materialsCost}
                   onChange={(e) => setMaterialsCost(e.target.value)}
@@ -506,6 +612,7 @@ export function FinalizarAtendimentoModal({
                   type="number"
                   min="0"
                   max="100"
+                  disabled={isLocked}
                   value={dentistPercentage}
                   onChange={(e) => setDentistPercentage(Number(e.target.value))}
                   className={styles.inputFieldPlain}
@@ -513,17 +620,11 @@ export function FinalizarAtendimentoModal({
               </div>
             </div>
 
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              borderTop: '1px solid #e2e8f0',
-              paddingTop: '6px',
-              fontWeight: 600
-            }}>
-              <span style={{ color: '#0284c7' }}>
+            <div className={styles.commissionResults}>
+              <span className={styles.commToPay}>
                 Comissão a Lançar: R$ {financialBreakdown.dentistCut.toFixed(2)}
               </span>
-              <span style={{ color: '#059669' }}>
+              <span className={styles.clinicNet}>
                 Líquido da Clínica: R$ {financialBreakdown.clinicNet.toFixed(2)}
               </span>
             </div>
@@ -534,17 +635,19 @@ export function FinalizarAtendimentoModal({
             <label>Descrição do Recibo / Histórico</label>
             <input
               type="text"
+              disabled={isLocked}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className={styles.inputFieldPlain}
             />
           </div>
 
-          {/* Emissão Opcional de NFS-e (POST /nfse/emit) */}
+          {/* Emissão de NFS-e */}
           <div className={styles.fiscalSection}>
             <label className={styles.fiscalToggleRow}>
               <input
                 type="checkbox"
+                disabled={isLocked}
                 checked={emitNfse}
                 onChange={(e) => setEmitNfse(e.target.checked)}
                 className={styles.fiscalCheckbox}
@@ -555,7 +658,7 @@ export function FinalizarAtendimentoModal({
                   Emitir NFS-e e enviar para o paciente
                 </span>
                 <span className={styles.fiscalLabelSub}>
-                  Gera a nota fiscal eletrônica e envia arquivo PDF por e-mail[cite: 16]
+                  Gera a nota fiscal eletrônica e envia arquivo PDF por e-mail
                 </span>
               </div>
             </label>
@@ -567,6 +670,7 @@ export function FinalizarAtendimentoModal({
                   <input
                     type="text"
                     required={emitNfse}
+                    disabled={isLocked}
                     placeholder="000.000.000-00"
                     value={patientCpf}
                     onChange={(e) => setPatientCpf(e.target.value)}
@@ -578,6 +682,7 @@ export function FinalizarAtendimentoModal({
                   <label>E-mail de Destino</label>
                   <input
                     type="email"
+                    disabled={isLocked}
                     placeholder="paciente@email.com"
                     value={patientEmail}
                     onChange={(e) => setPatientEmail(e.target.value)}
@@ -588,7 +693,7 @@ export function FinalizarAtendimentoModal({
             )}
           </div>
 
-          {/* Rodapé */}
+          {/* Rodapé com Trava de Duplicidade */}
           <div className={styles.modalFooter}>
             <button
               type="button"
@@ -598,20 +703,31 @@ export function FinalizarAtendimentoModal({
             >
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className={styles.btnConfirm}
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  <span>Processando...</span>
-                </>
-              ) : (
-                <span>Confirmar & Concluir Checkout</span>
-              )}
-            </button>
+
+            {!isLocked ? (
+              <button
+                type="submit"
+                disabled={loading}
+                className={styles.btnConfirm}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Processando...</span>
+                  </>
+                ) : (
+                  <span>Confirmar & Concluir Checkout</span>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className={styles.btnAlreadyPaid}
+              >
+                Atendimento já faturado
+              </button>
+            )}
           </div>
         </form>
       </div>
