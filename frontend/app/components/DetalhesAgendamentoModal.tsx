@@ -18,20 +18,21 @@ import {
   ChevronUp, 
   Bell, 
   SendHorizontal,
-  Stethoscope
+  Stethoscope,
+  ArrowRight
 } from 'lucide-react'
 import api from '@/lib/api'
 import styles from './DetalhesAgendamentoModal.module.css'
 import { FinalizarAtendimentoModal } from '@/app/components/financeiro/FinalizarAtendimentoModal'
 
-interface Procedure {
+export interface Procedure {
   id: string
   name: string
   code?: string
   basePrice?: number
 }
 
-interface Appointment {
+export interface Appointment {
   id: string
   dateTime: string
   durationMin: number
@@ -102,8 +103,8 @@ export default function DetalhesAgendamentoModal({
   const router = useRouter()
 
   const primaryColor = branding?.primaryColor || '#0284c7'
-  const clinicName = branding?.clinicName || 'Clarium Clinic - Messejana'
-  const clinicAddress = branding?.clinicAddress || 'Avenida Frei Cirilo, 3748, Messejana'
+  const clinicName = branding?.clinicName || 'Clarium Clinic'
+  const clinicAddress = branding?.clinicAddress || ''
 
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [cancellationReason, setCancellationReason] = useState('')
@@ -117,7 +118,11 @@ export default function DetalhesAgendamentoModal({
 
   if (!appointment) return null
 
-  const isFinished = ['FINALIZADO', 'CANCELADO', 'FALTOU'].includes(appointment.status)
+  // 💳 Lógica de Checkout Clínico:
+  // Se está FINALIZADO mas NÃO tem transação vinculada, significa que o dentista concluiu no mocho mas a recepção ainda não recebeu.
+  const isAwaitingCheckout = appointment.status === 'FINALIZADO' && !appointment.transaction
+  const isFullyPaid = appointment.status === 'FINALIZADO' && !!appointment.transaction
+  const isTerminated = ['CANCELADO', 'FALTOU'].includes(appointment.status) || isFullyPaid
 
   const dt = new Date(appointment.dateTime)
   const day = String(dt.getDate()).padStart(2, '0')
@@ -162,7 +167,6 @@ export default function DetalhesAgendamentoModal({
     return 'Olá, boa noite!'
   }
 
-  // 1. CONFIRMAÇÃO DE DADOS DA CONSULTA
   function handleSendConfirmation() {
     const fullPhone = getCleanPhone()
     if (!fullPhone) return
@@ -172,29 +176,25 @@ export default function DetalhesAgendamentoModal({
       '',
       `*Data:* ${dateFormattedCompact}`,
       `*Horário:* ${timeFormattedCompact}`,
-      `*Local:* ${clinicAddress}`,
+      clinicAddress ? `*Local:* ${clinicAddress}` : '',
       '',
       `*Nosso atendimento é por ordem de chegada, porém dentro do seu horário agendado.*`,
       '',
       `Se precisar reagendar, é só me avisar por aqui.`
-    ]
+    ].filter(Boolean)
 
     const textEncoded = lines.map((l) => encodeURIComponent(l)).join('%0A')
     window.open(`https://api.whatsapp.com/send?phone=${fullPhone}&text=${textEncoded}`, '_blank')
   }
 
- // 2. LEMBRETE DE CONSULTA
   function handleSendReminder() {
     const fullPhone = getCleanPhone()
     if (!fullPhone) return
 
-    // Pega o primeiro nome limpo
     const rawName = loggedUserName?.trim()
     const firstName = rawName ? rawName.split(' ')[0] : ''
     const greeting = getGreeting()
 
-    // Se tem o nome: "Me chamo Vicente e falo em nome da..."
-    // Se não pegou por delay de rede: "falo da equipe da..."
     const introduction = firstName 
       ? `Me chamo ${firstName} e falo em nome da *${clinicName}*.`
       : `falo da recepção da *${clinicName}*.`
@@ -208,6 +208,7 @@ export default function DetalhesAgendamentoModal({
     const textEncoded = lines.map((l) => encodeURIComponent(l)).join('%0A')
     window.open(`https://api.whatsapp.com/send?phone=${fullPhone}&text=${textEncoded}`, '_blank')
   }
+
   function handleOpenPatientRecord() {
     if (!appointment?.patient?.id) return
     onClose()
@@ -328,27 +329,13 @@ export default function DetalhesAgendamentoModal({
             </button>
           </div>
 
-          {/* ─── DISPAROS DE WHATSAPP ─── */}
+          {/* ─── WHATSAPP ─── */}
           {appointment.patient?.phone && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <button 
                 type="button" 
                 onClick={handleSendReminder}
-                title="Enviar lembrete amigável assinado pelo atendente"
-                style={{
-                  background: '#f0fdf4',
-                  border: '1px solid #bbf7d0',
-                  color: '#16a34a',
-                  padding: '7px 10px',
-                  borderRadius: '8px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
+                className={styles.btnWhatsappReminder}
               >
                 <Bell size={13} />
                 <span>Lembrar</span>
@@ -357,21 +344,7 @@ export default function DetalhesAgendamentoModal({
               <button 
                 type="button" 
                 onClick={handleSendConfirmation}
-                title="Enviar confirmação completa de agendamento"
-                style={{
-                  background: '#f0f9ff',
-                  border: '1px solid #bae6fd',
-                  color: '#0284c7',
-                  padding: '7px 10px',
-                  borderRadius: '8px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
+                className={styles.btnWhatsappConfirm}
               >
                 <SendHorizontal size={13} />
                 <span>Confirmar</span>
@@ -397,9 +370,21 @@ export default function DetalhesAgendamentoModal({
             </button>
           </div>
 
-          {/* ─── FINALIZAR & COBRAR ─── */}
+          {/* ─── BOTÃO DE AÇÃO: FINALIZAR / IR PARA CHECKOUT ─── */}
           <div className={styles.primaryActionRow}>
-            {!isFinished && (
+            {/* Caso 1: Paciente finalizou atendimento no mocho e está aguardando checkout/recepção */}
+            {isAwaitingCheckout ? (
+              <button
+                type="button"
+                className={styles.btnCheckoutAction}
+                onClick={() => setIsFinalizarModalOpen(true)}
+              >
+                <CreditCard size={15} />
+                <span>Ir para Checkout / Receber</span>
+                <ArrowRight size={14} />
+              </button>
+            ) : !isTerminated ? (
+              /* Caso 2: Em atendimento ou agendado */
               <button
                 type="button"
                 className={styles.btnFinishAction}
@@ -408,14 +393,15 @@ export default function DetalhesAgendamentoModal({
                 <CreditCard size={15} />
                 <span>Finalizar & Cobrar</span>
               </button>
-            )}
+            ) : null}
+
             <button
               type="button"
               className={styles.btnIconCopy}
               title="Copiar dados da consulta"
               onClick={() =>
                 navigator.clipboard.writeText(
-                  `${appointment.patient.name} - ${dateFormattedHeader} às ${timeFormattedHeader}`
+                  `${appointment.patient.name}\n${dateFormattedHeader} às ${timeFormattedHeader}`
                 )
               }
             >
@@ -428,7 +414,7 @@ export default function DetalhesAgendamentoModal({
             <div className={styles.detailItem}>
               <UserCheck size={15} className={styles.icon} />
               <span>
-                <strong>{appointment.dentist.name}</strong> • {appointment.room?.replace('_', ' ') ?? '—'}
+                <strong>{appointment.dentist.name}</strong> • {appointment.room?.replace('_', ' ') ?? 'Consultório'}
               </span>
             </div>
 
@@ -458,37 +444,51 @@ export default function DetalhesAgendamentoModal({
               </div>
             )}
 
+            {/* Aviso de Checkout Pendente */}
+            {isAwaitingCheckout && (
+              <div className={styles.checkoutNoticeBox}>
+                <Clock size={14} className={styles.checkoutNoticeIcon} />
+                <div className={styles.checkoutNoticeContent}>
+                  <strong>Atendimento finalizado pelo dentista</strong>
+                  <span>Paciente aguardando cobrança / acerto financeiro na recepção.</span>
+                </div>
+              </div>
+            )}
+
             {appointment.notes && (
-              <div className={styles.notesBox} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                <FileText size={13} style={{ flexShrink: 0, marginTop: '2px', color: '#64748b' }} />
+              <div className={styles.notesBox}>
+                <FileText size={13} className={styles.notesIcon} />
                 <span><strong>Observações:</strong> {appointment.notes}</span>
               </div>
             )}
 
             {appointment.cancellationReason && (
-              <div className={styles.cancelReasonBox} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                <AlertCircle size={13} style={{ flexShrink: 0, marginTop: '2px', color: '#dc2626' }} />
+              <div className={styles.cancelReasonBox}>
+                <AlertCircle size={13} className={styles.cancelIcon} />
                 <span><strong>Motivo do Cancelamento:</strong> {appointment.cancellationReason}</span>
               </div>
             )}
 
             {appointment.transaction && (
               <div className={styles.transactionCard}>
+                <div className={styles.transactionLeft}>
+                  <span className={styles.paidBadge}>Pago / Concluído</span>
+                  <span className={styles.transactionMethod}>
+                    {PAYMENT_LABEL[appointment.transaction.paymentMethod] ?? appointment.transaction.paymentMethod}
+                  </span>
+                </div>
                 <span className={styles.transactionAmount}>
                   {Number(appointment.transaction.amount).toLocaleString('pt-BR', {
                     style: 'currency',
                     currency: 'BRL',
                   })}
                 </span>
-                <span className={styles.transactionMethod}>
-                  {PAYMENT_LABEL[appointment.transaction.paymentMethod] ?? appointment.transaction.paymentMethod}
-                </span>
               </div>
             )}
           </div>
 
-          {/* ─── STATUS ─── */}
-          {!isFinished && (
+          {/* ─── STATUS SELETOR ─── */}
+          {!isTerminated && (
             <div className={styles.statusSection}>
               <button
                 type="button"
@@ -550,12 +550,11 @@ export default function DetalhesAgendamentoModal({
 
           {/* ─── FOOTER ─── */}
           <div className={styles.footer}>
-            {!isFinished && !confirmDelete && (
+            {!isTerminated && !confirmDelete && (
               <button 
                 type="button" 
                 className={styles.deleteBtn} 
                 onClick={() => setConfirmDelete(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
               >
                 <Trash2 size={13} />
                 <span>Excluir</span>
