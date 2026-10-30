@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit'
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import { Request, Response } from 'express'
 
 // Limite geral para navegação da API.
@@ -23,9 +23,9 @@ export const loginLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Login correto não consome cota
   keyGenerator: (req: Request): string => {
-    const email = (req.body?.email || '').trim().toLowerCase()
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : ''
     const ip = req.ip || req.socket.remoteAddress || 'unknown'
-    return `${ip}_${email}`
+    return `${ipKeyGenerator(ip)}_${email}`
   },
   handler: (req: Request, res: Response) => {
     return res.status(429).json({

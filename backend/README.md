@@ -64,11 +64,12 @@ Para ver os arquivos das rotas, consulte [backend/src/routes](backend/src/routes
 
 **Variáveis de ambiente (mínimas)**
 - `DATABASE_URL` — string de conexão PostgreSQL usada pelo Prisma
-- `JWT_SECRET` — segredo para assinar tokens JWT
+- `JWT_SECRET` — segredo aleatório com pelo menos 32 caracteres para assinar tokens JWT (obrigatório também no Render)
 - `JWT_EXPIRES_IN` — tempo de expiração do JWT (ex: `8h`) (opcional, padrão: `8h`)
 - `PORT` — porta da API (opcional, padrão: `3333`)
 
 Observação: o projeto já usa `dotenv`, então crie um arquivo `.env` na pasta `backend` com essas variáveis antes de iniciar.
+No Render, configure `JWT_SECRET` em **Dashboard → serviço da API → Environment**. Gere um segredo localmente com `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` e cadastre o valor diretamente no painel; não o coloque no código nem no Git. Sem essa variável, o servidor encerra a inicialização intencionalmente.
 
 **Executando localmente (rápido)**
 1. Instale dependências e prepare banco:
