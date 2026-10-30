@@ -54,11 +54,13 @@ export async function listProceduresController(
     const filters: ProcedureFiltersDTO = {
       name: req.query.name as string,
       category: req.query.category as string,
+      // Enterprise: 'catalog' mostra o catálogo inteiro da rede (tela de configuração); padrão = só o que a unidade oferece
+      scope: req.query.scope === 'catalog' ? 'catalog' : 'clinic',
       page: req.query.page ? Number(req.query.page) : undefined,
       limit: req.query.limit ? Number(req.query.limit) : undefined,
     }
 
-    const result = await procedureService.listProcedures(user.tenantId, filters)
+    const result = await procedureService.listProcedures(user.tenantId, user.clinicId!, filters)
 
     res.status(200).json(result)
   } catch (error) {
@@ -76,7 +78,7 @@ export async function getProcedureByIdController(
     const user = req.user as CustomJwtPayload
     const { id } = req.params
 
-    const procedure = await procedureService.getProcedureById(user.tenantId, id as string)
+    const procedure = await procedureService.getProcedureById(user.tenantId, user.clinicId!, id as string)
 
     res.status(200).json(procedure)
   } catch (error) {
@@ -168,7 +170,7 @@ export async function getProcedureProductsController(
     const user = req.user as CustomJwtPayload
     const { id } = req.params
 
-    const products = await procedureService.getProcedureProducts(user.tenantId, id as string)
+    const products = await procedureService.getProcedureProducts(user.tenantId, user.clinicId!, id as string)
 
     res.status(200).json(products)
   } catch (error) {

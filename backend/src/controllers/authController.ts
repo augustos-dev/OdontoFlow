@@ -1,19 +1,21 @@
 import type { Request, Response, NextFunction } from 'express'
 import * as authService from '../services/authService'
-import type { RegisterDTO, RegisterTenantDTO, LoginDTO } from '../types/auth.types'
-import { getSessionUser } from '../middlewares/authMiddlewares'
+import type { RegisterDTO, LoginDTO, SwitchClinicDTO } from '../types/auth.types'
 
+// Cadastro de colaborador. A rota exige ADMIN/OWNER autenticado.
+// tenantId SEMPRE vem do token (antes vinha do body: qualquer pessoa criava usuário em qualquer tenant).
+// Só o OWNER escolhe a unidade; os demais criam na própria unidade.
 export async function registerController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    // 🚀 Se a requisição veio do Checkout / Landing Page (Onboarding atômico do SaaS)
-    if (req.body.tenantName && req.body.adminName) {
-      const result = await authService.registerTenant(req.body as RegisterTenantDTO)
-      res.status(201).json(result)
-      return
-    }
+    const actor = req.user!
+    const body = (req.body || {}) as Partial<RegisterDTO>
+    const clinicId = actor.role === 'OWNER' && body.clinicId ? body.clinicId : actor.clinicId
 
-    // 👥 Cadastro convencional de colaboradores internos em um tenant já existente
-    const result = await authService.register(req.body as RegisterDTO)
+    const result = await authService.register({
+      ...(body as RegisterDTO),
+      tenantId: actor.tenantId,
+      clinicId,
+    })
     res.status(201).json(result)
   } catch (error) {
     next(error)
@@ -31,11 +33,36 @@ export async function loginController(req: Request, res: Response, next: NextFun
 
 export async function getMeController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = getSessionUser(req)
-    const userId = user.userId || (user.sub as string)
+    const { sub: userId, tenantId, clinicId } = req.user!
+    const user = await authService.getMe(userId, tenantId, clinicId)
+    res.status(200).json(user)
+  } catch (error) {
+    next(error)
+  }
+}
 
-    const profile = await authService.getMe(userId, user.tenantId, user.clinicId)
-    res.status(200).json(profile)
+// GET /auth/clinics → unidades que o usuário pode acessar (OWNER: todas as ativas do tenant)
+export async function listMyClinicsController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { sub: userId, tenantId } = req.user!
+    const clinics = await authService.listAccessibleClinics(userId, tenantId)
+    res.status(200).json(clinics)
+  } catch (error) {
+    next(error)
+  }
+}
+
+// POST /auth/switch-clinic   body: { clinicId } → novo token com a unidade ativa escolhida
+export async function switchClinicController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { sub: userId, tenantId } = req.user!
+    const { clinicId } = (req.body || {}) as SwitchClinicDTO
+    if (!clinicId || typeof clinicId !== 'string') {
+      res.status(400).json({ message: 'Informe clinicId.' })
+      return
+    }
+    const result = await authService.switchClinic(userId, tenantId, clinicId)
+    res.status(200).json(result)
   } catch (error) {
     next(error)
   }

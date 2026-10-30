@@ -1,12 +1,11 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
-import helmet from 'helmet'
-import path from 'path'
-import fs from 'fs'
+import path from 'path' // 👈 1. Import do path
 import router from './routes/index'
 import { errorHandler } from './middlewares/errorHandler.middleware'
 import { apiLimiter } from './middlewares/rateLimiter.middleware'
+import { assertRequiredEnv } from './config/env'
 import { swaggerSpec } from './docs/Swagger'
 import swaggerUi from 'swagger-ui-express'
 
@@ -20,59 +19,67 @@ process.on('unhandledRejection', (reason) => {
   process.exit(1)
 })
 
+// Falha no boot (e não no primeiro login) se faltar JWT_SECRET: sem ele qualquer pessoa forja tokens.
+try {
+  assertRequiredEnv()
+} catch (err) {
+  console.error('❌', err instanceof Error ? err.message : err)
+  process.exit(1)
+}
+
 const app = express()
 const PORT = process.env.PORT ?? 3333
 
-// Permite capturar o IP real do cliente atrás de proxies reversos (Cloudflare, Nginx, Render)
-app.set('trust proxy', 1)
+// Atrás de proxy/load balancer (Railway, Render, Nginx...) defina TRUST_PROXY=1; sem isso o rate limit
+// enxerga o IP do proxy (todos os usuários viram um só) e req.ip/auditoria ficam errados.
+if (process.env.TRUST_PROXY) {
+  const n = Number(process.env.TRUST_PROXY)
+  app.set('trust proxy', Number.isNaN(n) ? process.env.TRUST_PROXY : n)
+}
 
-// Oculta X-Powered-By e aplica headers HTTP de segurança (crossOriginResourcePolicy permite servir uploads)
-app.use(
-  helmet({
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-  })
-)
+// CORS: defina CORS_ORIGINS="https://app.seudominio.com,https://outro.com". Sem a variável, aceita qualquer origem (como antes).
+const corsOrigins = (process.env.CORS_ORIGINS ?? '').split(',').map((o) => o.trim()).filter(Boolean)
+if (corsOrigins.length === 0 && process.env.NODE_ENV === 'production') {
+  console.warn('⚠️  CORS_ORIGINS não definido: a API está aceitando requisições de qualquer origem.')
+}
 
-// Configuração de CORS aberta para subdomínios da plataforma
 app.use(
   cors({
-    origin: '*',
+    origin: corsOrigins.length > 0 ? corsOrigins : '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'accept'],
   })
 )
 
-// Suporte a payloads maiores para transcrição de áudio via IA e importação de planilhas Excel/CSV
-app.use(express.json({ limit: '25mb' }))
-app.use(express.urlencoded({ extended: true, limit: '25mb' }))
+app.use(express.json())
 
-// Garante a existência do diretório de uploads local antes de servir arquivos estáticos
-const uploadsDir = path.resolve(__dirname, '..', 'uploads')
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true })
-}
+// Limite geral por IP e limite estrito de login (o rateLimiter.middleware existia, mas não estava montado em lugar nenhum).
+// O limiter de login usa req.body.email, por isso vem DEPOIS do express.json().
+app.use('/api', apiLimiter)
 
-// Acesso estático público aos uploads
-app.use('/uploads', express.static(uploadsDir))
+// /uploads/temp guarda áudios de consultas (dado de saúde): nunca servir, mesmo que o arquivo exista.
+app.use('/uploads/temp', (_req, res) => {
+  res.sendStatus(404)
+})
 
-// Documentação Swagger (livre de rate limiter)
+// 👈 2. Libera o acesso público à pasta de uploads para servir fotos/anexos
+// ATENÇÃO: esta rota NÃO tem autenticação (quem tem a URL acessa). Se nada local depende dela, remova.
+// Anexos clínicos (radiografias, exames) não devem ficar aqui nem em bucket público: use URL assinada.
 app.use(
-  '/docs',
-  swaggerUi.serve,
-  swaggerUi.setup(swaggerSpec, {
-    customSiteTitle: 'OdontoFlow API — Documentação',
-  })
+  '/uploads',
+  express.static(path.resolve(__dirname, '..', 'uploads'), { dotfiles: 'deny', index: false })
 )
 
-// Endpoint de verificação operacional (livre de rate limiter)
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'OdontoFlow API — Documentação',
+}))
+
+app.use('/api', router)
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-// Aplica limitador geral de tráfego em todos os endpoints de negócio sob o prefixo /api
-app.use('/api', apiLimiter, router)
-
-// Middleware central de tratamento de erros
 app.use(errorHandler)
 
 const portNumber = Number(PORT)

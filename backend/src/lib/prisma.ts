@@ -13,7 +13,18 @@ const pool =
   globalForPrisma.pool ??
   new Pool({
     connectionString: process.env.DATABASE_URL,
+    max: Number(process.env.DB_POOL_MAX) || 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
   })
+
+// Sem este listener, uma conexão ociosa que o banco derruba (restart, pooler do Supabase) emite 'error' sem tratador,
+// vira uncaughtException e o server.ts encerra o processo inteiro.
+if (!globalForPrisma.pool) {
+  pool.on('error', (err) => {
+    console.error('[pg pool] erro em conexão ociosa (será recriada):', err.message)
+  })
+}
 
 const adapter = new PrismaPg(pool)
 

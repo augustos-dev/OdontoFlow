@@ -13,8 +13,8 @@ export function can(module: SystemModule, action: PermissionAction) {
       return next(new AppError('Não autenticado.', 401))
     }
 
-    // ADMIN possui bypass total
-    if (user.role === 'ADMIN') {
+    // ADMIN e OWNER (dono da rede) possuem bypass total
+    if (user.role === 'ADMIN' || user.role === 'OWNER') {
       return next()
     }
 
@@ -29,7 +29,10 @@ export function can(module: SystemModule, action: PermissionAction) {
                   { clinicId: user.clinicId },
                   { clinicId: null }
               ]
-          }
+          },
+          // A regra da unidade tem prioridade sobre a regra global do tenant (sem ordenar, o findFirst podia
+          // devolver a global mesmo existindo uma específica).
+          orderBy: { clinicId: { sort: 'desc', nulls: 'last' } }
       })
 
       if (!permission) {

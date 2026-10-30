@@ -2,7 +2,13 @@ import { Prisma, $Enums, UserRole } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
 import { auditLogService } from './auditLog.service'
-import { triggerAutoStockExit } from '../utils/stockAutoExit'
+import { triggerAutoStockExit, type StockShortage } from '../utils/stockAutoExit'
+import {
+  getTenantContext,
+  patientScope,
+  userInClinic,
+  assertProcedureAvailable,
+} from '../lib/tenantContext'
 import type {
   CreateAppointmentDTO,
   UpdateAppointmentDTO,
@@ -15,6 +21,9 @@ interface ActorContext {
   userName: string
   userRole?: UserRole
 }
+
+// Janela máxima (antes do início) em que um agendamento ainda pode sobrepor outro.
+const MAX_APPOINTMENT_SPAN_MS = 12 * 60 * 60 * 1000
 
 function calcEndTime(dateTime: Date, durationMin: number): Date {
   return new Date(dateTime.getTime() + durationMin * 60 * 1000)
@@ -41,12 +50,15 @@ async function checkConflicts(
 ) {
   const overlapping = await prisma.appointment.findMany({
     where: {
-      clinicId,
+      // Sala: só conflita na mesma unidade. Dentista: conflita em QUALQUER unidade (ele não está em dois lugares).
+      OR: [{ clinicId }, { dentistId }],
       status: { in: ACTIVE_STATUSES },
       id: excludeAppointmentId ? { not: excludeAppointmentId } : undefined,
-      dateTime: { lt: endTime },
+      // Limita a busca (antes carregava todo o histórico anterior da clínica).
+      dateTime: { gte: new Date(startTime.getTime() - MAX_APPOINTMENT_SPAN_MS), lt: endTime },
     },
     include: {
+      clinic: { select: { name: true } },
       dentist: { select: { name: true } },
       patient: { select: { name: true } },
     },
@@ -56,7 +68,7 @@ async function checkConflicts(
     const apptEnd = calcEndTime(appt.dateTime, appt.durationMin)
     if (!hasOverlap(startTime, endTime, appt.dateTime, apptEnd)) continue
 
-    if (appt.room === room) {
+    if (appt.clinicId === clinicId && appt.room === room) {
       throw new AppError(
         `Conflito de sala: ${room} já está ocupada das ${appt.dateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} às ${apptEnd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`,
         409
@@ -65,7 +77,7 @@ async function checkConflicts(
 
     if (appt.dentistId === dentistId) {
       throw new AppError(
-        `Conflito de agenda: Dr(a). ${appt.dentist.name} já possui consulta das ${appt.dateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} às ${apptEnd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`,
+        `Conflito de agenda: Dr(a). ${appt.dentist.name} já possui consulta${appt.clinicId !== clinicId ? ` na unidade ${appt.clinic.name}` : ''} das ${appt.dateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} às ${apptEnd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`,
         409
       )
     }
@@ -80,22 +92,20 @@ export async function createAppointment(
 ) {
   const { patientId, dentistId, procedureId, dateTime, durationMin = 60, type, room, notes } = data
 
+  const ctx = await getTenantContext(tenantId)
+
+  // Enterprise: o paciente pode ter sido cadastrado em outra unidade da rede.
   const patient = await prisma.patient.findFirst({
-    where: { id: patientId, tenantId, clinicId, deletedAt: null },
+    where: { id: patientId, ...patientScope(ctx, clinicId), deletedAt: null },
   })
   if (!patient) throw new AppError('Paciente não encontrado.', 404)
 
   const dentist = await prisma.user.findFirst({
-    where: { id: dentistId, tenantId, clinicId, role: 'DENTIST', isActive: true },
+    where: { id: dentistId, tenantId, role: 'DENTIST', isActive: true, ...userInClinic(clinicId) },
   })
   if (!dentist) throw new AppError('Dentista não encontrado ou inativo.', 404)
 
-  if (procedureId) {
-    const procedureExists = await prisma.procedure.findFirst({
-      where: { id: procedureId, tenantId },
-    })
-    if (!procedureExists) throw new AppError('Procedimento não encontrado.', 404)
-  }
+  if (procedureId) await assertProcedureAvailable(tenantId, clinicId, procedureId)
 
   const startTime = new Date(dateTime)
   const endTime = calcEndTime(startTime, durationMin)
@@ -233,6 +243,26 @@ export async function updateAppointment(
     throw new AppError('Agendamentos finalizados ou cancelados não podem ser editados.', 400)
   }
 
+  // Antes, patientId/dentistId/procedureId chegavam direto no update sem validação (referência a outro tenant).
+  if (data.patientId || data.dentistId || data.procedureId) {
+    const ctx = await getTenantContext(tenantId)
+    if (data.patientId) {
+      const p = await prisma.patient.findFirst({
+        where: { id: data.patientId, ...patientScope(ctx, clinicId), deletedAt: null },
+        select: { id: true },
+      })
+      if (!p) throw new AppError('Paciente não encontrado.', 404)
+    }
+    if (data.dentistId) {
+      const d = await prisma.user.findFirst({
+        where: { id: data.dentistId, tenantId, role: 'DENTIST', isActive: true, ...userInClinic(clinicId) },
+        select: { id: true },
+      })
+      if (!d) throw new AppError('Dentista não encontrado ou inativo.', 404)
+    }
+    if (data.procedureId) await assertProcedureAvailable(tenantId, clinicId, data.procedureId)
+  }
+
   const newDateTime = data.dateTime ? new Date(data.dateTime) : appointment.dateTime
   const newDuration = data.durationMin ?? appointment.durationMin
   const newRoom = data.room ?? appointment.room
@@ -243,7 +273,17 @@ export async function updateAppointment(
 
   const updatedAppointment = await prisma.appointment.update({
     where: { id: appointmentId },
-    data: { ...data, dateTime: newDateTime },
+    // Lista explícita: o `...data` anterior deixava o cliente gravar status, autoStockDeducted, clinicId, tenantId...
+    data: {
+      patientId: data.patientId,
+      dentistId: data.dentistId,
+      procedureId: data.procedureId,
+      durationMin: data.durationMin,
+      type: data.type,
+      room: data.room,
+      notes: data.notes,
+      dateTime: newDateTime,
+    },
     include: {
       patient: { select: { id: true, name: true, phone: true } },
       dentist: { select: { id: true, name: true } },
@@ -288,6 +328,8 @@ export async function updateAppointmentStatus(
     throw new AppError('Informe o motivo do cancelamento.', 400)
   }
 
+  if (data.procedureId) await assertProcedureAvailable(tenantId, clinicId, data.procedureId)
+
   const activeProcedureId = data.procedureId || appointment.procedureId
 
   const updatedAppointment = await prisma.appointment.update({
@@ -307,15 +349,18 @@ export async function updateAppointmentStatus(
     },
   })
 
+  let stockWarnings: StockShortage[] = []
+
   if (data.status === 'FINALIZADO' && activeProcedureId) {
     try {
-      await triggerAutoStockExit({
+      const stock = await triggerAutoStockExit({
         tenantId,
         clinicId,
         procedureId: activeProcedureId,
         userId: actor.userId,
         appointmentId,
       })
+      if (!stock.skipped) stockWarnings = stock.shortages
     } catch (error) {
       console.error('[Exit Inteligente Error]: Falha na baixa de estoque', error)
     }
@@ -333,7 +378,8 @@ export async function updateAppointmentStatus(
     details: `Alterou status da consulta de ${appointment.status} para ${data.status}${data.cancellationReason ? ` (Motivo: ${data.cancellationReason})` : ''}`,
   })
 
-  return updatedAppointment
+  // `stockWarnings` só aparece quando faltou insumo na baixa automática (o atendimento NÃO é bloqueado).
+  return stockWarnings.length > 0 ? { ...updatedAppointment, stockWarnings } : updatedAppointment
 }
 
 export async function deleteAppointment(

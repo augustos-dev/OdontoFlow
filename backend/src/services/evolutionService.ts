@@ -3,7 +3,9 @@ import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
 import { findMedicalRecord } from './medicalRecordService'
 import { auditLogService } from './auditLog.service'
-import { processAutoStockDeduction } from './stockService'
+import { triggerAutoStockExit } from '../utils/stockAutoExit'
+import { signEvolutionAttachments, resolveAttachmentUrls } from './storageService'
+import { userInClinic, assertProcedureAvailable } from '../lib/tenantContext'
 import type { CreateEvolutionDTO } from '../types/medicalRecord.types'
 
 interface ActorContext {
@@ -33,7 +35,8 @@ export class EvolutionService {
         id: dentistId,
         tenantId,
         isActive: true,
-        role: { in: ['DENTIST', 'ADMIN'] },
+        role: { in: ['DENTIST', 'ADMIN', 'OWNER'] },
+        ...userInClinic(clinicId),
       },
     })
 
@@ -43,12 +46,7 @@ export class EvolutionService {
 
     // 3. Valida o procedimento (caso tenha sido selecionado na evolução)
     if (data.procedureId) {
-      const procedureExists = await prisma.procedure.findFirst({
-        where: { id: data.procedureId, tenantId },
-      })
-      if (!procedureExists) {
-        throw new AppError('Procedimento selecionado não encontrado no catálogo.', 404)
-      }
+      await assertProcedureAvailable(tenantId, clinicId, data.procedureId)
     }
 
     // 4. Normalização do snapshot (suporta string JSON via FormData ou Object direto)
@@ -71,6 +69,7 @@ export class EvolutionService {
       const createdEvolution = await tx.evolution.create({
         data: {
           tenantId,
+          clinicId,
           medicalRecordId: medicalRecord.id,
           dentistId: dentist.id,
           procedureId: data.procedureId || null,
@@ -130,13 +129,16 @@ export class EvolutionService {
     // 🚀 EXIT INTELIGENTE: Se o dentista selecionou um procedimento na evolução, dá baixa nos insumos
     if (data.procedureId) {
       try {
-        await processAutoStockDeduction(
+        const stock = await triggerAutoStockExit({
           tenantId,
           clinicId,
-          data.procedureId,
-          actor?.userId || dentist.id,
-          `Baixa Automática via Evolução Clínica ID: ${evolution.id}`
-        )
+          procedureId: data.procedureId,
+          userId: actor?.userId || dentist.id,
+          evolutionId: evolution.id,
+        })
+        if (!stock.skipped && stock.shortages.length > 0) {
+          console.warn('[Exit Inteligente] Estoque insuficiente:', stock.shortages)
+        }
       } catch (error) {
         console.error('[Exit Inteligente Error]: Falha ao disparar baixa no estoque via Evolução', error)
       }
@@ -155,7 +157,7 @@ export class EvolutionService {
       details: `Registrou evolução clínica${evolution.procedure ? ` (Procedimento: ${evolution.procedure.name})` : ''}. Profissional: Dr(a). ${dentist.name}`,
     })
 
-    return evolution
+    return { ...evolution, attachments: await resolveAttachmentUrls(evolution.attachments) }
   }
 
   /**
@@ -168,17 +170,20 @@ export class EvolutionService {
   ) {
     const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-    return prisma.evolution.findMany({
+    const evolutions = await prisma.evolution.findMany({
       where: {
         tenantId,
         medicalRecordId: medicalRecord.id,
       },
       orderBy: { createdAt: 'desc' },
       include: {
+        clinic: { select: { id: true, name: true } },
         dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
         procedure: { select: { id: true, name: true, basePrice: true } },
       },
     })
+
+    return signEvolutionAttachments(evolutions)
   }
 
   /**
@@ -191,7 +196,7 @@ export class EvolutionService {
     actor: ActorContext
   ) {
     const evolution = await prisma.evolution.findFirst({
-      where: { id: evolutionId, tenantId },
+      where: { id: evolutionId, tenantId, clinicId },
     })
 
     if (!evolution) {
@@ -233,7 +238,7 @@ export class EvolutionService {
     actor: ActorContext
   ) {
     const evolution = await prisma.evolution.findFirst({
-      where: { id: evolutionId, tenantId },
+      where: { id: evolutionId, tenantId, clinicId },
     })
 
     if (!evolution) {

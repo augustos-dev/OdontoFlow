@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import * as userService from '../services/userService'
+import { UserRole as UserRoleEnum } from '@prisma/client'
 import type { UserRole } from '@prisma/client'
 import type {
   CreateUserDTO,
@@ -10,24 +11,14 @@ import type {
   UserFiltersDTO,
 } from '../types/user.types'
 import type { BulkUpdateRolePermissionsDTO } from '../types/permission.types'
-import { getSessionUser } from '../middlewares/authMiddlewares'
-
-function getActor(req: Request) {
-  const user = getSessionUser(req)
-  return {
-    userId: user.userId || (user.sub as string),
-    userName: user.name || 'Utilizador',
-    userRole: user.role,
-  }
-}
 
 export async function createUserController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = getSessionUser(req)
-    const actor = getActor(req)
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
 
-    const created = await userService.createUser(user.tenantId, user.clinicId, req.body as CreateUserDTO, actor)
-    res.status(201).json(created)
+    const user = await userService.createUser(tenantId, clinicId, req.body as CreateUserDTO, actor)
+    res.status(201).json(user)
   } catch (error) {
     next(error)
   }
@@ -35,15 +26,15 @@ export async function createUserController(req: Request, res: Response, next: Ne
 
 export async function listUsersController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = getSessionUser(req)
+    const { tenantId, clinicId } = req.user!
     const filters: UserFiltersDTO = {
-      name: req.query.name as string | undefined,
-      role: req.query.role as UserRole | undefined,
-      isActive: req.query.isActive !== undefined ? req.query.isActive === 'true' : undefined,
+      name: req.query.name as string,
+      role: req.query.role as UserRole,
+      isActive: req.query.isActive ? req.query.isActive === 'true' : undefined,
       page: req.query.page ? Number(req.query.page) : undefined,
       limit: req.query.limit ? Number(req.query.limit) : undefined,
     }
-    const result = await userService.listUsers(user.tenantId, user.clinicId, filters)
+    const result = await userService.listUsers(tenantId, clinicId, filters)
     res.status(200).json(result)
   } catch (error) {
     next(error)
@@ -52,10 +43,10 @@ export async function listUsersController(req: Request, res: Response, next: Nex
 
 export async function getUserByIdController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = getSessionUser(req)
+    const { tenantId, clinicId } = req.user!
     const { id } = req.params
-    const found = await userService.getUserById(user.tenantId, user.clinicId, id as string)
-    res.status(200).json(found)
+    const user = await userService.getUserById(tenantId, clinicId, id as string)
+    res.status(200).json(user)
   } catch (error) {
     next(error)
   }
@@ -63,18 +54,12 @@ export async function getUserByIdController(req: Request, res: Response, next: N
 
 export async function updateUserController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = getSessionUser(req)
-    const actor = getActor(req)
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
 
-    const updated = await userService.updateUser(
-      user.tenantId,
-      user.clinicId,
-      id as string,
-      req.body as UpdateUserDTO,
-      actor
-    )
-    res.status(200).json(updated)
+    const user = await userService.updateUser(tenantId, clinicId, id as string, req.body as UpdateUserDTO, actor)
+    res.status(200).json(user)
   } catch (error) {
     next(error)
   }
@@ -82,18 +67,18 @@ export async function updateUserController(req: Request, res: Response, next: Ne
 
 export async function updateUserRoleController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = getSessionUser(req)
-    const actor = getActor(req)
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
 
-    const updated = await userService.updateUserRole(
-      user.tenantId,
-      user.clinicId,
+    const user = await userService.updateUserRole(
+      tenantId,
+      clinicId,
       id as string,
       req.body as UpdateUserRoleDTO,
       actor
     )
-    res.status(200).json(updated)
+    res.status(200).json(user)
   } catch (error) {
     next(error)
   }
@@ -101,31 +86,18 @@ export async function updateUserRoleController(req: Request, res: Response, next
 
 export async function updateUserStatusController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = getSessionUser(req)
-    const actor = getActor(req)
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
 
-    const updated = await userService.updateUserStatus(
-      user.tenantId,
-      user.clinicId,
+    const user = await userService.updateUserStatus(
+      tenantId,
+      clinicId,
       id as string,
       req.body as UpdateUserStatusDTO,
       actor
     )
-    res.status(200).json(updated)
-  } catch (error) {
-    next(error)
-  }
-}
-
-export async function resetUserLockoutController(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const user = getSessionUser(req)
-    const actor = getActor(req)
-    const { id } = req.params
-
-    const unlocked = await userService.resetUserLockout(user.tenantId, user.clinicId, id as string, actor)
-    res.status(200).json({ message: 'Conta desbloqueada com sucesso.', user: unlocked })
+    res.status(200).json(user)
   } catch (error) {
     next(error)
   }
@@ -133,15 +105,13 @@ export async function resetUserLockoutController(req: Request, res: Response, ne
 
 export async function changePasswordController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = getSessionUser(req)
-    const userId = user.userId || (user.sub as string)
-
+    const { tenantId, clinicId, sub: userId, name: userName } = req.user!
     await userService.changePassword(
-      user.tenantId,
-      user.clinicId,
+      tenantId,
+      clinicId,
       userId,
       req.body as ChangePasswordDTO,
-      user.name || 'Utilizador'
+      userName || 'Usuário'
     )
     res.status(200).json({ message: 'Senha alterada com sucesso.' })
   } catch (error) {
@@ -151,23 +121,31 @@ export async function changePasswordController(req: Request, res: Response, next
 
 export async function deleteUserController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = getSessionUser(req)
-    const actor = getActor(req)
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
 
-    await userService.deleteUser(user.tenantId, user.clinicId, id as string, actor)
+    await userService.deleteUser(tenantId, clinicId, id as string, actor)
     res.status(204).send()
   } catch (error) {
     next(error)
   }
 }
 
+// ─── Permissões de Perfis (RBAC Granular) ───────────────────────────────────
+
 export async function getRolePermissionsController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = getSessionUser(req)
+    const { tenantId, clinicId } = req.user!
     const { role } = req.params
 
-    const permissions = await userService.getRolePermissions(user.tenantId, user.clinicId, role as UserRole)
+    // Antes: getRolePermissions(tenantId, role) -> o service espera (tenantId, clinicId, role); o papel caía em clinicId.
+    if (!Object.values(UserRoleEnum).includes(role as UserRole)) {
+      res.status(400).json({ message: 'Perfil inválido.' })
+      return
+    }
+
+    const permissions = await userService.getRolePermissions(tenantId, clinicId, role as UserRole)
     res.status(200).json(permissions)
   } catch (error) {
     next(error)
@@ -176,16 +154,64 @@ export async function getRolePermissionsController(req: Request, res: Response, 
 
 export async function updateRolePermissionsController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = getSessionUser(req)
-    const actor = getActor(req)
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
 
     const updated = await userService.updateRolePermissions(
-      user.tenantId,
-      user.clinicId,
+      tenantId,
+      clinicId,
       req.body as BulkUpdateRolePermissionsDTO,
       actor
     )
     res.status(200).json(updated)
+  } catch (error) {
+    next(error)
+  }
+}
+// ─── Atuação em várias unidades (Enterprise) ────────────────────────────────
+
+export async function listUserClinicsController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId } = req.user!
+    const { id } = req.params
+    res.status(200).json(await userService.listUserClinics(tenantId, id as string))
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function assignUserClinicController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, sub: userId, name: userName, role } = req.user!
+    const { id, clinicId } = req.params
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    const link = await userService.assignUserToClinic(tenantId, id as string, clinicId as string, actor)
+    res.status(201).json(link)
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function removeUserClinicController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, sub: userId, name: userName, role } = req.user!
+    const { id, clinicId } = req.params
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+
+    await userService.removeUserFromClinic(tenantId, id as string, clinicId as string, actor)
+    res.status(204).send()
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function resetUserLockoutController(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
+    const user = await userService.resetUserLockout(tenantId, clinicId, req.params.id as string, actor)
+    res.status(200).json(user)
   } catch (error) {
     next(error)
   }

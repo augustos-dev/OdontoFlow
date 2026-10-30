@@ -1,10 +1,12 @@
 import rateLimit from 'express-rate-limit'
 import { Request, Response } from 'express'
 
-// Limite geral para navegação da API
+// Limite geral para navegação da API.
+// É por IP: uma clínica inteira costuma sair por UM IP público, e cada tela (dashboard etc.) faz várias chamadas.
+// O padrão antigo (300 por 15 min para a clínica toda) travaria o uso normal, então o teto é configurável.
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 300,
+  max: Number(process.env.API_RATE_LIMIT_MAX) || 1500,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

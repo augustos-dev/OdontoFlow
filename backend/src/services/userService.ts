@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import { Prisma, UserRole, SystemModule } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
+import { getTenantContext, assertProfessionalLimit } from '../lib/tenantContext'
 import { auditLogService } from './auditLog.service'
 import type {
   CreateUserDTO,
@@ -37,13 +38,32 @@ interface ActorContext {
   userRole?: UserRole
 }
 
+/** OWNER só existe no Enterprise e só quem já é OWNER concede/retira esse papel. */
+async function assertCanAssignRole(tenantId: string, role: UserRole, actor: ActorContext) {
+  if (role !== 'OWNER') return
+  const ctx = await getTenantContext(tenantId)
+  if (!ctx.isNetwork) throw new AppError('O papel OWNER existe apenas no plano Enterprise.', 400)
+  if (actor.userRole !== 'OWNER') throw new AppError('Somente o dono da rede pode atribuir o papel OWNER.', 403)
+}
+
+function assertNotOwnerTarget(target: { role: UserRole }, actor: ActorContext) {
+  if (target.role === 'OWNER' && actor.userRole !== 'OWNER') {
+    throw new AppError('Somente o dono da rede pode alterar outro dono.', 403)
+  }
+}
+
 export async function createUser(
   tenantId: string,
   clinicId: string,
   data: CreateUserDTO,
   actor: ActorContext
 ) {
-  const { name, email, password, role, phone, cro } = data
+  const { name, password, role, phone, cro } = data
+  // O login normaliza o e-mail (trim + minúsculas). Sem isso, um e-mail cadastrado com maiúscula nunca consegue entrar.
+  const email = data.email.trim().toLowerCase()
+
+  await assertCanAssignRole(tenantId, role, actor)
+  if (role === 'DENTIST') await assertProfessionalLimit(tenantId)
 
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) throw new AppError('E-mail já cadastrado.', 409)
@@ -66,7 +86,7 @@ export async function createUser(
     select: USER_SAFE_SELECT,
   })
 
-  await ensureDefaultRolePermissions(tenantId, clinicId, role)
+  if (role !== 'OWNER') await ensureDefaultRolePermissions(tenantId, clinicId, role)
 
   await auditLogService.createLog({
     tenantId,
@@ -179,6 +199,10 @@ export async function updateUserRole(
 
   if (!user) throw new AppError('Usuário não encontrado.', 404)
 
+  assertNotOwnerTarget(user, actor)
+  await assertCanAssignRole(tenantId, data.role, actor)
+  if (data.role === 'DENTIST' && user.role !== 'DENTIST' && user.isActive) await assertProfessionalLimit(tenantId)
+
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: { role: data.role },
@@ -216,6 +240,9 @@ export async function updateUserStatus(
   })
 
   if (!user) throw new AppError('Usuário não encontrado.', 404)
+
+  assertNotOwnerTarget(user, actor)
+  if (data.isActive && !user.isActive && user.role === 'DENTIST') await assertProfessionalLimit(tenantId)
 
   const updatedUser = await prisma.user.update({
     where: { id: userId },
@@ -333,6 +360,8 @@ export async function deleteUser(
 
   if (!user) throw new AppError('Usuário não encontrado.', 404)
 
+  assertNotOwnerTarget(user, actor)
+
   const hasAppointments = await prisma.appointment.findFirst({
     where: { dentistId: userId },
   })
@@ -381,8 +410,8 @@ export async function updateRolePermissions(
   const { role, permissions } = data
   const targetClinicId = data.clinicId !== undefined ? data.clinicId : clinicId
 
-  if (role === 'ADMIN') {
-    throw new AppError('As permissões do perfil ADMINISTRADOR são fixas e irrestritas.', 400)
+  if (role === 'ADMIN' || role === 'OWNER') {
+    throw new AppError('As permissões dos perfis ADMINISTRADOR e DONO DA REDE são fixas e irrestritas.', 400)
   }
 
   const operations = permissions.map((perm) =>
@@ -490,5 +519,90 @@ async function ensureDefaultRolePermissions(tenantId: string, clinicId: string, 
   await prisma.rolePermission.createMany({
     data: defaults,
     skipDuplicates: true,
+  })
+}
+
+// ─── Vínculo de usuário a várias unidades (Enterprise) ────────────────────────
+
+export async function listUserClinics(tenantId: string, userId: string) {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, tenantId },
+    select: {
+      clinicId: true,
+      clinic: { select: { id: true, name: true } },
+      clinics: { select: { clinic: { select: { id: true, name: true } } } },
+    },
+  })
+  if (!user) throw new AppError('Usuário não encontrado.', 404)
+
+  return {
+    primary: user.clinic,
+    additional: user.clinics.map((c) => c.clinic),
+  }
+}
+
+export async function assignUserToClinic(
+  tenantId: string,
+  userId: string,
+  clinicId: string,
+  actor: ActorContext
+) {
+  const ctx = await getTenantContext(tenantId)
+  if (!ctx.isNetwork) throw new AppError('Atuar em mais de uma unidade exige o plano Enterprise.', 403)
+  if (actor.userRole !== 'OWNER') throw new AppError('Somente o dono da rede pode vincular usuários a unidades.', 403)
+
+  const [user, clinic] = await Promise.all([
+    prisma.user.findFirst({ where: { id: userId, tenantId } }),
+    prisma.clinic.findFirst({ where: { id: clinicId, tenantId, isActive: true } }),
+  ])
+  if (!user) throw new AppError('Usuário não encontrado.', 404)
+  if (!clinic) throw new AppError('Clínica não encontrada.', 404)
+  if (user.clinicId === clinicId) throw new AppError('Esta já é a unidade principal do usuário.', 400)
+
+  const link = await prisma.userClinic.upsert({
+    where: { userId_clinicId: { userId, clinicId } },
+    create: { tenantId, userId, clinicId },
+    update: {},
+  })
+
+  // Garante as permissões padrão do papel também nesta unidade.
+  if (user.role !== 'OWNER') await ensureDefaultRolePermissions(tenantId, clinicId, user.role)
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'OWNER',
+    action: 'UPDATE',
+    entity: 'USER',
+    entityId: userId,
+    details: `Vinculou ${user.name} à unidade "${clinic.name}"`,
+  })
+
+  return link
+}
+
+export async function removeUserFromClinic(
+  tenantId: string,
+  userId: string,
+  clinicId: string,
+  actor: ActorContext
+) {
+  if (actor.userRole !== 'OWNER') throw new AppError('Somente o dono da rede pode desvincular usuários de unidades.', 403)
+
+  const { count } = await prisma.userClinic.deleteMany({ where: { tenantId, userId, clinicId } })
+  if (count === 0) throw new AppError('Vínculo não encontrado (a unidade principal não pode ser removida por aqui).', 404)
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId,
+    userId: actor.userId,
+    userName: actor.userName,
+    userRole: actor.userRole || 'OWNER',
+    action: 'UPDATE',
+    entity: 'USER',
+    entityId: userId,
+    details: `Removeu o vínculo do usuário ${userId} com a unidade ${clinicId}`,
   })
 }

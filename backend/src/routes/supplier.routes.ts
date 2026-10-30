@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { authenticate } from '../middlewares/authMiddlewares' // Seu middleware JWT
+import { authenticate, authorize } from '../middlewares/authMiddlewares'
 import {
   createSupplierController,
   listSuppliersController,
@@ -13,10 +13,10 @@ const router = Router()
 // Todas as rotas de fornecedor exigem autenticação
 router.use(authenticate)
 
-router.post('/', createSupplierController)
+router.post('/', authorize('ADMIN', 'SECRETARY'), createSupplierController)
 router.get('/', listSuppliersController)
 router.get('/:id', getSupplierByIdController)
-router.put('/:id', updateSupplierController)
-router.delete('/:id', deleteSupplierController)
+router.put('/:id', authorize('ADMIN', 'SECRETARY'), updateSupplierController)
+router.delete('/:id', authorize('ADMIN', 'SECRETARY'), deleteSupplierController)
 
 export default router

@@ -2,8 +2,7 @@ import type { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import type { JwtPayload } from '../types/auth.types'
 import { AppError } from '../shared/AppError'
-
-const JWT_SECRET = process.env.JWT_SECRET || 'secret'
+import { getJwtSecret } from '../config/env'
 
 declare global {
   namespace Express {
@@ -24,7 +23,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   const token = authHeader.split(' ')[1]
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as JwtPayload
+    const payload = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] }) as JwtPayload
     req.user = payload
     next()
   } catch {
@@ -39,7 +38,11 @@ export function authorize(...roles: string[]) {
       return
     }
 
-    if (!roles.includes(req.user.role)) {
+    // OWNER (dono da rede) é um ADMIN com alcance sobre todas as unidades: passa onde ADMIN passa.
+    const allowed =
+      roles.includes(req.user.role) || (req.user.role === 'OWNER' && roles.includes('ADMIN'))
+
+    if (!allowed) {
       res.status(403).json({ message: 'Acesso negado. Permissão insuficiente.' })
       return
     }
