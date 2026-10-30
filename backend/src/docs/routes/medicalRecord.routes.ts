@@ -24,6 +24,7 @@ const router = Router()
  *   get:
  *     summary: Recupera anamnese pública através de Magic Link com token assinado de 36 horas
  *     tags: [Medical Records Public]
+ *     security: []
  *     parameters:
  *       - in: query
  *         name: token
@@ -40,6 +41,7 @@ const router = Router()
  *   put:
  *     summary: Preenchimento público da ficha de saúde pelo paciente via Magic Link (Token 36h)
  *     tags: [Medical Records Public]
+ *     security: []
  *     parameters:
  *       - in: query
  *         name: token
