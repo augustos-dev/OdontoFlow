@@ -99,7 +99,8 @@ Scripts úteis (em [backend/package.json](backend/package.json)):
 ```
 
 **Testes e documentação**
-- Não existem testes automatizados configurados no momento.
+- `npm test` executa os testes unitários de anexos/armazenamento.
+- `npm run test:integration` executa a suíte de integração e requer um banco PostgreSQL de teste preparado com as migrations e `src/__tests__/seed.sql`.
 - O projeto inclui integração com Swagger (`swagger-jsdoc` e `swagger-ui-express`) — ver [backend/src/docs](backend/src/docs) para a configuração.
 
 **Próximos passos sugeridos**

@@ -70,6 +70,8 @@ export interface ToothConditionDTO {
 export interface EvolutionResponseDTO {
   id: string
   tenantId: string
+  clinicId: string                      // Unidade onde a evolução foi registrada
+  clinic?: { id: string; name: string } // "evolução feita no Meireles"
   medicalRecordId: string
   dentistId: string
   procedureId?: string | null

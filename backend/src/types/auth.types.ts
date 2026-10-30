@@ -92,3 +92,15 @@ export interface AuthUserSession {
   plan?: TenantPlan
   isBetaPartner?: boolean
 }
+// ─── TROCA DE UNIDADE (REDE ENTERPRISE) ───
+export interface AccessibleClinicDTO {
+  id: string
+  name: string
+  logoUrl?: string | null
+  cnpj?: string | null
+  phone?: string | null
+}
+
+export interface SwitchClinicDTO {
+  clinicId: string
+}

@@ -19,6 +19,8 @@ export interface UpdateProcedureDTO {
 export interface ProcedureFiltersDTO {
   name?: string
   category?: string
+  /** Enterprise: 'clinic' (padrão) = só o que a unidade oferece; 'catalog' = catálogo inteiro da rede. */
+  scope?: 'clinic' | 'catalog'
   page?: number
   limit?: number
 }
@@ -42,6 +44,7 @@ export interface SetProcedureProductsDTO {
 export interface ProcedureProductResponseDTO {
   id: string
   tenantId: string
+  clinicId: string           // A receita é por clínica
   procedureId: string
   productId: string
   quantity: number           // Quantidade gasta na ficha
@@ -56,4 +59,26 @@ export interface ProcedureProductResponseDTO {
     itemsPerPackage?: number | null // 🟢 Unidades por caixa para cálculo de fracionamento
     lotNumber?: string | null
   }
+}
+// ─── CATÁLOGO POR UNIDADE (ENTERPRISE) ───
+
+export interface SetClinicProcedureDTO {
+  isActive?: boolean
+  price?: number | null      // null = usar o preço base da rede
+}
+
+export interface CloneClinicProceduresDTO {
+  fromClinicId: string
+  copyPrices?: boolean       // default: true
+}
+
+export interface ReconcileRecipesDTO {
+  fromClinicId: string
+}
+
+// Procedimento na visão da unidade (retorno de listProcedures/getProcedureById)
+export interface ProcedureClinicViewDTO {
+  effectivePrice: number     // preço da unidade, ou o base da rede
+  clinicPrice: number | string | null
+  isActiveInClinic: boolean
 }

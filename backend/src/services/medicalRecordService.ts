@@ -1,7 +1,13 @@
 import crypto from 'crypto'
-import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
+import { signEvolutionAttachments, resolveAttachmentUrls } from './storageService'
+import {
+  getTenantContext,
+  patientScope,
+  userInClinic,
+  assertProcedureAvailable,
+} from '../lib/tenantContext'
 import { auditLogService } from './auditLog.service'
 import { triggerAutoStockExit } from '../utils/stockAutoExit'
 import type { UserRole } from '@prisma/client'
@@ -18,8 +24,6 @@ const VALID_TOOTH_NUMBERS = [
   ...Array.from({ length: 8 }, (_, i) => 41 + i),
 ]
 
-const JWT_SECRET = process.env.JWT_SECRET || 'odontoflow_super_secret_jwt_key_2026'
-
 interface ActorContext {
   userId: string
   userName: string
@@ -28,12 +32,16 @@ interface ActorContext {
 
 export async function findMedicalRecord(
   tenantId: string,
-  _clinicId: string,
+  clinicId: string,
   recordOrPatientId: string
 ) {
+  const ctx = await getTenantContext(tenantId)
+
+  // Enterprise: prontuário único da rede. Demais planos: só o da clínica.
   const medicalRecord = await prisma.medicalRecord.findFirst({
     where: {
       tenantId,
+      ...(ctx.isNetwork ? {} : { clinicId }),
       OR: [{ id: recordOrPatientId }, { patientId: recordOrPatientId }],
     },
   })
@@ -48,7 +56,8 @@ export async function findMedicalRecord(
 export async function getMedicalRecordByPatient(
   tenantId: string,
   clinicId: string,
-  patientOrRecordId: string
+  patientOrRecordId: string,
+  actor?: ActorContext
 ) {
   const targetRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
@@ -58,6 +67,7 @@ export async function getMedicalRecordByPatient(
       evolutions: {
         orderBy: { createdAt: 'desc' },
         include: {
+          clinic: { select: { id: true, name: true } }, // "evolução feita no Meireles"
           dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
           procedure: { select: { id: true, name: true, basePrice: true } },
           aiTranscription: true,
@@ -73,7 +83,23 @@ export async function getMedicalRecordByPatient(
     throw new AppError('Prontuário não encontrado.', 404)
   }
 
-  return medicalRecord
+  // LGPD: abrir o prontuário de paciente cadastrado em outra unidade fica registrado.
+  if (actor && medicalRecord.clinicId !== clinicId) {
+    await auditLogService.createLog({
+      tenantId,
+      clinicId,
+      userId: actor.userId,
+      userName: actor.userName,
+      userRole: actor.userRole || 'SECRETARY',
+      action: 'READ',
+      entity: 'MEDICAL_RECORD',
+      entityId: medicalRecord.id,
+      details: `Abriu o prontuário do paciente ID: ${medicalRecord.patientId}, registrado em outra unidade da rede`,
+    })
+  }
+
+  // Modo privado: anexos viram URLs assinadas e temporárias (sem efeito com o bucket público).
+  return { ...medicalRecord, evolutions: await signEvolutionAttachments(medicalRecord.evolutions) }
 }
 
 export async function getEvolutionsByPatient(
@@ -83,18 +109,21 @@ export async function getEvolutionsByPatient(
 ) {
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-  return prisma.evolution.findMany({
+  const evolutions = await prisma.evolution.findMany({
     where: {
       tenantId,
       medicalRecordId: medicalRecord.id,
     },
     orderBy: { createdAt: 'desc' },
     include: {
+      clinic: { select: { id: true, name: true } },
       dentist: { select: { id: true, name: true, cro: true, avatarUrl: true } },
       procedure: { select: { id: true, name: true, basePrice: true } },
       aiTranscription: true,
     },
   })
+
+  return signEvolutionAttachments(evolutions)
 }
 
 export const getEvolutions = getEvolutionsByPatient
@@ -149,8 +178,9 @@ export async function generateAnamnesisToken(
   patientId: string,
   createdById?: string
 ) {
+  const ctx = await getTenantContext(tenantId)
   const patient = await prisma.patient.findFirst({
-    where: { id: patientId, tenantId, clinicId, deletedAt: null },
+    where: { id: patientId, ...patientScope(ctx, clinicId), deletedAt: null },
     select: { id: true, name: true },
   })
 
@@ -195,15 +225,11 @@ export async function getPublicAnamnesisByToken(rawToken: string) {
   const token = rawToken.trim()
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
 
-  // 1. Busca pelo token opaco curto
+  // 1. Busca SOMENTE pelo hash do token opaco.
+  // (O fallback anterior `{ id: token.length === 36 ? token : undefined }` virava `{}` dentro do OR quando o
+  //  token não tinha 36 caracteres, e o Prisma devolvia o PRIMEIRO token da tabela: vazamento de prontuário.)
   const registeredToken = await prisma.patientAnamnesisToken.findFirst({
-    where: {
-      OR: [
-        { tokenHash },
-        // Fallback caso venha com hash direto
-        { id: token.length === 36 ? token : undefined }
-      ]
-    },
+    where: { tokenHash },
     include: {
       patient: { select: { id: true, name: true } },
     }
@@ -213,8 +239,8 @@ export async function getPublicAnamnesisByToken(rawToken: string) {
     throw new AppError('Link de anamnese inválido ou não encontrado.', 401)
   }
 
-  if (registeredToken.isRevoked) {
-    throw new AppError('Este link de anamnese foi cancelado.', 403)
+  if (registeredToken.isRevoked || registeredToken.usedAt) {
+    throw new AppError('Este link de anamnese foi cancelado ou já foi utilizado.', 403)
   }
 
   if (new Date() > new Date(registeredToken.expiresAt)) {
@@ -259,7 +285,7 @@ export async function updatePublicAnamnesisByToken(
     throw new AppError('Link de anamnese inválido.', 401)
   }
 
-  if (registeredToken.isRevoked) {
+  if (registeredToken.isRevoked || registeredToken.usedAt) {
     throw new AppError('Este link de anamnese já foi utilizado ou revogado.', 403)
   }
 
@@ -346,34 +372,27 @@ export async function CreateEvolution(
 
   const medicalRecord = await findMedicalRecord(tenantId, clinicId, patientOrRecordId)
 
-  let dentist = await prisma.user.findFirst({
+  // Antes: se o profissional não era encontrado, a evolução era atribuída a QUALQUER usuário ativo do tenant
+  // (registro clínico em nome de outra pessoa). Agora o profissional precisa existir e atuar nesta unidade.
+  const dentist = await prisma.user.findFirst({
     where: {
       id: dentistId,
       tenantId,
       isActive: true,
+      ...userInClinic(clinicId),
     },
   })
-
   if (!dentist) {
-    dentist = await prisma.user.findFirst({
-      where: {
-        tenantId,
-        isActive: true,
-      },
-    })
+    throw new AppError('Dentista/Profissional não encontrado, inativo ou não atua nesta unidade.', 404)
   }
 
-  const responsibleUserId = dentist?.id || dentistId
-  const responsibleUserName = dentist?.name || actor?.userName || 'Profissional'
-  const responsibleUserRole = (dentist?.role || actor?.userRole || 'DENTIST') as UserRole
+  const responsibleUserId = dentist.id
+  const responsibleUserName = dentist.name
+  const responsibleUserRole = dentist.role as UserRole
 
   if (data.procedureId) {
-    const procedureExists = await prisma.procedure.findFirst({
-      where: { id: data.procedureId, tenantId },
-    })
-    if (!procedureExists) {
-      throw new AppError('Procedimento selecionado não encontrado no catálogo.', 404)
-    }
+    // Catálogo da rede; no Enterprise, também precisa estar ativo nesta unidade.
+    await assertProcedureAvailable(tenantId, clinicId, data.procedureId)
   }
 
   if (data.aiTranscriptionId) {
@@ -418,6 +437,7 @@ export async function CreateEvolution(
     const createdEvolution = await tx.evolution.create({
       data: {
         tenantId,
+        clinicId,
         medicalRecordId: medicalRecord.id,
         dentistId: responsibleUserId,
         procedureId: data.procedureId || null,
@@ -499,13 +519,17 @@ export async function CreateEvolution(
 
   if (data.procedureId) {
     try {
-      await triggerAutoStockExit({
+      const stock = await triggerAutoStockExit({
         tenantId,
         clinicId,
         procedureId: data.procedureId,
         userId: responsibleUserId,
+        evolutionId: evolution.id,
         appointmentId: (data as any).appointmentId || undefined,
       })
+      if (!stock.skipped && stock.shortages.length > 0) {
+        console.warn('[Exit Inteligente] Estoque insuficiente:', stock.shortages)
+      }
     } catch (stockErr) {
       console.error('[Exit Inteligente Error]:', stockErr)
     }
@@ -525,7 +549,7 @@ export async function CreateEvolution(
     }. Profissional: Dr(a). ${responsibleUserName}`,
   })
 
-  return evolution
+  return { ...evolution, attachments: await resolveAttachmentUrls(evolution.attachments) }
 }
 
 export async function lockEvolution(
@@ -534,8 +558,9 @@ export async function lockEvolution(
   evolutionId: string,
   actor: ActorContext
 ) {
+  // Só a unidade que registrou a evolução pode travar/editar (mesmo dentro da rede).
   const evolution = await prisma.evolution.findFirst({
-    where: { id: evolutionId, tenantId },
+    where: { id: evolutionId, tenantId, clinicId },
   })
 
   if (!evolution) throw new AppError('Evolução não encontrada.', 404)
@@ -568,8 +593,9 @@ export async function updateEvolution(
   description: string,
   actor: ActorContext
 ) {
+  // Só a unidade que registrou a evolução pode travar/editar (mesmo dentro da rede).
   const evolution = await prisma.evolution.findFirst({
-    where: { id: evolutionId, tenantId },
+    where: { id: evolutionId, tenantId, clinicId },
   })
 
   if (!evolution) throw new AppError('Evolução não encontrada.', 404)

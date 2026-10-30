@@ -48,14 +48,24 @@ export async function createStockMovement(
 
   // Transação atômica: Atualiza o produto e cria o registro de movimentação
   const result = await prisma.$transaction(async (tx) => {
-    const updatedProduct = await tx.product.update({
-      where: { id: productId },
-      data: {
-        quantity: {
-          increment: netQuantity,
-        },
-      },
-    })
+    // Atômico: a checagem de saldo e o abatimento acontecem no MESMO UPDATE condicional.
+    // (Antes lia o saldo, comparava e depois fazia increment: duas saídas simultâneas deixavam o saldo negativo.)
+    if (type === 'EXIT_MANUAL') {
+      const r = await tx.product.updateMany({
+        where: { id: productId, tenantId, clinicId, quantity: { gte: quantity } },
+        data: { quantity: { decrement: quantity } },
+      })
+      if (r.count === 0) {
+        throw new AppError(`Saldo insuficiente para "${product.name}".`, 400)
+      }
+    } else {
+      await tx.product.updateMany({
+        where: { id: productId, tenantId, clinicId },
+        data: { quantity: { increment: quantity } },
+      })
+    }
+
+    const updatedProduct = await tx.product.findUniqueOrThrow({ where: { id: productId } })
 
     const movement = await tx.stockMovement.create({
       data: {
@@ -145,61 +155,7 @@ export async function listStockMovements(
   }
 }
 
-// ─── 3. DEDUÇÃO AUTOMÁTICA DE ESTOQUE (EXIT INTELIGENTE) ────────────────────
-
-export async function processAutoStockDeduction(
-  tenantId: string,
-  clinicId: string,
-  procedureId: string,
-  userId?: string,
-  referenceText?: string
-) {
-  // Busca os insumos da ficha técnica do procedimento
-  const recipeItems = await prisma.procedureProduct.findMany({
-    where: { procedureId, tenantId },
-    include: { product: true },
-  })
-
-  if (recipeItems.length === 0) return []
-
-  return await prisma.$transaction(async (tx) => {
-    const results = []
-
-    for (const item of recipeItems) {
-      const product = item.product
-
-      if (product.quantity < item.quantity) {
-        console.warn(
-          `[Exit Inteligente Warning] Saldo insuficiente para ${product.name}. Requerido: ${item.quantity}, Saldo atual: ${product.quantity}`
-        )
-      }
-
-      // 1. Abate o saldo no produto
-      const updatedProduct = await tx.product.update({
-        where: { id: product.id },
-        data: {
-          quantity: {
-            decrement: item.quantity,
-          },
-        },
-      })
-
-      // 2. Grava histórico como EXIT_AUTO
-      const movement = await tx.stockMovement.create({
-        data: {
-          tenantId,
-          clinicId,
-          productId: product.id,
-          userId,
-          type: 'EXIT_AUTO',
-          quantity: -item.quantity,
-          reason: referenceText || `Baixa Automática por Procedimento`,
-        },
-      })
-
-      results.push({ updatedProduct, movement })
-    }
-
-    return results
-  })
-}
+// ─── 3. DEDUÇÃO AUTOMÁTICA (EXIT INTELIGENTE) ────────────────────────────────
+// A antiga `processAutoStockDeduction` foi REMOVIDA: buscava a receita só por tenant (baixava insumo de outra
+// unidade), deixava o saldo negativo e não tinha trava de idempotência. Use `triggerAutoStockExit`
+// (utils/stockAutoExit.ts), que é por clínica, atômico e idempotente.
