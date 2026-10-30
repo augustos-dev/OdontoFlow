@@ -1,6 +1,8 @@
 import { Prisma, UserRole } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
+import { getTenantContext } from '../lib/tenantContext'
+import { pick } from '../shared/pick'
 import { auditLogService } from './auditLog.service'
 import type {
   CreateClinicDTO,
@@ -27,7 +29,26 @@ export async function createClinic(tenantId: string, data: CreateClinicDTO, acto
     if (existing) throw new AppError('CNPJ já cadastrado em outra clínica.', 409)
   }
 
-  const clinic = await prisma.clinic.create({
+  const ctx = await getTenantContext(tenantId)
+
+  // Rede (Enterprise): só o dono da rede abre novas unidades.
+  if (ctx.isNetwork && actor.userRole !== 'OWNER') {
+    throw new AppError('Somente o dono da rede (OWNER) pode cadastrar novas unidades.', 403)
+  }
+
+  const clinic = await prisma.$transaction(async (tx) => {
+    // Trava por tenant: duas criações simultâneas não furam o limite do pacote.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId}))`
+
+    const activeCount = await tx.clinic.count({ where: { tenantId, isActive: true } })
+    if (activeCount >= ctx.maxClinics) {
+      throw new AppError(
+        `Limite de clínicas do plano atingido (${ctx.maxClinics}). Para abrir uma nova unidade, solicite a ampliação do pacote Enterprise.`,
+        403
+      )
+    }
+
+    return tx.clinic.create({
     data: {
       tenantId,
       name,
@@ -51,6 +72,7 @@ export async function createClinic(tenantId: string, data: CreateClinicDTO, acto
     include: {
       customization: true,
     },
+    })
   })
 
   await auditLogService.createLog({
@@ -139,9 +161,17 @@ export async function updateClinic(
     if (existing) throw new AppError('CNPJ já cadastrado em outra clínica.', 409)
   }
 
+  // `isActive` não pode ser alterado por aqui: reativar por PUT burlaria o limite do pacote e a regra do OWNER.
+  if (data.isActive !== undefined && data.isActive !== clinic.isActive) {
+    throw new AppError('Para ativar ou desativar uma unidade use as ações /deactivate e /reactivate.', 400)
+  }
+
+  // Lista explícita: o `data` anterior ia inteiro para o Prisma (o cliente podia trocar o tenantId da clínica).
+  const editable = pick(data, ['name', 'cnpj', 'phone', 'email', 'address', 'logoUrl', 'paymentIntegrationActive'] as const)
+
   const updatedClinic = await prisma.clinic.update({
     where: { id: clinicId },
-    data,
+    data: editable,
     include: {
       customization: true,
     },
@@ -169,6 +199,11 @@ export async function deactivateClinic(tenantId: string, clinicId: string, actor
 
   if (!clinic) throw new AppError('Clínica não encontrada.', 404)
   if (!clinic.isActive) throw new AppError('Clínica já está inativa.', 400)
+
+  const networkCtx = await getTenantContext(tenantId)
+  if (networkCtx.isNetwork && actor.userRole !== 'OWNER') {
+    throw new AppError('Somente o dono da rede pode desativar unidades.', 403)
+  }
 
   const activeClinicsCount = await prisma.clinic.count({
     where: { tenantId, isActive: true },
@@ -205,6 +240,15 @@ export async function reactivateClinic(tenantId: string, clinicId: string, actor
 
   if (!clinic) throw new AppError('Clínica não encontrada.', 404)
   if (clinic.isActive) throw new AppError('Clínica já está ativa.', 400)
+
+  const ctx = await getTenantContext(tenantId)
+  if (ctx.isNetwork && actor.userRole !== 'OWNER') {
+    throw new AppError('Somente o dono da rede pode reativar unidades.', 403)
+  }
+  const activeCount = await prisma.clinic.count({ where: { tenantId, isActive: true } })
+  if (activeCount >= ctx.maxClinics) {
+    throw new AppError(`Limite de clínicas do plano atingido (${ctx.maxClinics}).`, 403)
+  }
 
   const reactivatedClinic = await prisma.clinic.update({
     where: { id: clinicId },

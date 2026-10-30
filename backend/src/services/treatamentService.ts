@@ -1,6 +1,7 @@
 import { Prisma, $Enums, UserRole } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
+import { getTenantContext, patientScope, userInClinic } from '../lib/tenantContext'
 import { auditLogService } from './auditLog.service'
 import type {
   CreateTreatmentPlanDTO,
@@ -22,19 +23,30 @@ function calcTotalAmount(procedures: PlanProcedureItemDTO[]): number {
   return procedures.reduce((sum, item) => sum + item.quantity * item.actualPrice, 0)
 }
 
-async function validateProcedures(tenantId: string, procedures: PlanProcedureItemDTO[]) {
+async function validateProcedures(tenantId: string, clinicId: string, procedures: PlanProcedureItemDTO[]) {
   if (procedures.length === 0) {
     throw new AppError('O plano de tratamento deve ter ao menos um procedimento.', 400)
   }
 
+  const ctx = await getTenantContext(tenantId)
   const procedureIds = procedures.map((p) => p.procedureId)
   const found = await prisma.procedure.findMany({
-    where: { id: { in: procedureIds }, tenantId },
+    where: {
+      id: { in: procedureIds },
+      tenantId,
+      // Enterprise: só procedimentos ativos na unidade.
+      ...(ctx.isNetwork && { clinicProcedures: { some: { clinicId, isActive: true } } }),
+    },
     select: { id: true },
   })
 
   if (found.length !== new Set(procedureIds).size) {
-    throw new AppError('Um ou mais procedimentos informados não existem no catálogo.', 404)
+    throw new AppError(
+      ctx.isNetwork
+        ? 'Um ou mais procedimentos não existem ou não estão ativos nesta unidade.'
+        : 'Um ou mais procedimentos informados não existem no catálogo.',
+      404
+    )
   }
 }
 
@@ -48,17 +60,19 @@ export async function createTreatmentPlan(
 ) {
   const { patientId, dentistId, title, notes, procedures } = data
 
+  const ctx = await getTenantContext(tenantId)
+
   const patient = await prisma.patient.findFirst({
-    where: { id: patientId, tenantId, clinicId, deletedAt: null },
+    where: { id: patientId, ...patientScope(ctx, clinicId), deletedAt: null },
   })
   if (!patient) throw new AppError('Paciente não encontrado.', 404)
 
   const dentist = await prisma.user.findFirst({
-    where: { id: dentistId, tenantId, clinicId, role: 'DENTIST', isActive: true },
+    where: { id: dentistId, tenantId, role: 'DENTIST', isActive: true, ...userInClinic(clinicId) },
   })
   if (!dentist) throw new AppError('Dentista não encontrado ou inativo.', 404)
 
-  await validateProcedures(tenantId, procedures)
+  await validateProcedures(tenantId, clinicId, procedures)
 
   const totalAmount = calcTotalAmount(procedures)
 
@@ -114,10 +128,13 @@ export async function listTreatmentPlans(
 ) {
   const { patientId, dentistId, status, page = 1, limit = 20 } = filters
   const skip = (page - 1) * limit
+  const ctx = await getTenantContext(tenantId)
 
   const where: Prisma.TreatmentPlanWhereInput = {
     tenantId,
-    clinicId,
+    // Enterprise: ao consultar UM paciente, mostra os planos dele na rede toda (tratamento começou em outra unidade).
+    // Listagem geral continua por unidade (é visão financeira/gerencial da clínica).
+    ...(ctx.isNetwork && patientId ? {} : { clinicId }),
     ...(patientId && { patientId }),
     ...(dentistId && { dentistId }),
     ...(status && { status: status as $Enums.TreatmentStatus }),
@@ -153,9 +170,11 @@ export async function getTreatmentPlanById(
   clinicId: string,
   planId: string
 ) {
+  const ctx = await getTenantContext(tenantId)
   const plan = await prisma.treatmentPlan.findFirst({
-    where: { id: planId, tenantId, clinicId },
+    where: { id: planId, tenantId, ...(ctx.isNetwork ? {} : { clinicId }) },
     include: {
+      clinic: { select: { id: true, name: true } },
       patient: { select: { id: true, name: true, phone: true } },
       dentist: { select: { id: true, name: true, cro: true } },
       planProcedures: {
@@ -191,7 +210,7 @@ export async function updateTreatmentPlan(
   let totalAmount = plan.totalAmount
 
   if (data.procedures) {
-    await validateProcedures(tenantId, data.procedures)
+    await validateProcedures(tenantId, clinicId, data.procedures)
     totalAmount = new Prisma.Decimal(calcTotalAmount(data.procedures))
 
     await prisma.planProcedure.deleteMany({ where: { treatmentPlanId: planId } })

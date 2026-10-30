@@ -104,3 +104,11 @@ export interface ClinicFiltersDTO {
   page?: number
   limit?: number
 }
+// =============================================================================
+// PACOTE CONTRATADO (LIMITES)
+// =============================================================================
+
+export interface SubscriptionLimitsDTO {
+  maxClinics: number              // Basic/Premium = 1; Enterprise = contratado
+  maxProfessionals: number | null // null = sem limite
+}

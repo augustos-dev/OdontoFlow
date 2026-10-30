@@ -5,6 +5,7 @@ import {
   getRevenueChartController,
   getUpcomingAppointmentsController,
   getTopDentistsController,
+  getClinicsBreakdownController,
 } from '../controllers/dashboardController'
 import { authenticate, authorize } from '../middlewares/authMiddlewares'
 
@@ -19,5 +20,8 @@ router.get('/summary', getDashboardSummaryController)
 router.get('/revenue-chart', getRevenueChartController)
 router.get('/upcoming-appointments', getUpcomingAppointmentsController)
 router.get('/top-dentists', getTopDentistsController)
+
+// Rede (Enterprise): comparativo entre unidades. Também aceitam ?scope=network (somente OWNER) as rotas acima.
+router.get('/clinics-breakdown', getClinicsBreakdownController)
 
 export default router

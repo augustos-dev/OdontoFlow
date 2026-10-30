@@ -40,6 +40,7 @@ export interface Patient {
   updatedAt: Date | string
 
   // Relacionamentos opcionais (carregados via include)
+  clinic?: { id: string; name: string } | null // unidade onde foi cadastrado
   medicalRecord?: MedicalRecord | null
   appointments?: any[]
   treatmentPlans?: any[]
@@ -101,6 +102,7 @@ export interface PatientFiltersDTO {
   cpf?: string
   phone?: string
   insuranceName?: string // Facilita filtrar pacientes por operadora/convênio
+  clinicId?: string // Enterprise: restringe a busca da rede a uma unidade
   page?: number
   limit?: number
 }

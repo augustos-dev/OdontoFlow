@@ -54,6 +54,7 @@ enum UserRole {
   ADMIN
   DENTIST
   SECRETARY
+  OWNER // Dono da rede (Enterprise): acessa todas as clínicas do tenant
 }
 
 enum SystemModule {
@@ -133,6 +134,7 @@ enum AuditAction {
   DELETE
   LOGIN
   EXPORT
+  READ // Acesso a dado sensível (ex.: prontuário de outra unidade da rede)
 }
 
 enum TaskPriority {
@@ -243,6 +245,9 @@ model Tenant {
   receivables            AccountReceivable[]
   insuranceBatches       InsuranceBatch[]
   insuranceGuides        InsuranceGuide[]
+  clinicProcedures       ClinicProcedure[]
+  userClinics            UserClinic[]
+  stockMovements         StockMovement[]
 
   @@map("tenants")
 }
@@ -256,6 +261,10 @@ model Subscription {
   currentPeriodStart DateTime           @default(now())
   currentPeriodEnd   DateTime
   gracePeriodEndsAt  DateTime?
+
+  // Pacote contratado. Basic/Premium = 1 clínica. Enterprise = valor contratado.
+  maxClinics         Int                @default(1)
+  maxProfessionals   Int?               // null = sem limite
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -301,6 +310,10 @@ model Clinic {
   receivables            AccountReceivable[]
   insuranceBatches       InsuranceBatch[]
   insuranceGuides        InsuranceGuide[]
+  evolutions             Evolution[]
+  clinicProcedures       ClinicProcedure[]
+  userClinics            UserClinic[]
+  stockMovements         StockMovement[]
 
   @@index([tenantId])
   @@map("clinics")
@@ -387,6 +400,7 @@ model User {
   aiTranscriptions ClinicalAiTranscription[]
   dentistProfile  DentistProfile?
   issuedTokens    PatientAnamnesisToken[]   @relation("TokenIssuer")
+  clinics         UserClinic[]
 
   @@index([tenantId])
   @@index([clinicId])
@@ -478,6 +492,8 @@ model Patient {
   @@index([tenantId, clinicId])
   @@index([clinicId, name])
   @@index([clinicId, deletedAt])
+  @@index([tenantId, name])
+  @@index([tenantId, deletedAt])
   @@map("patients")
 }
 
@@ -548,6 +564,7 @@ model PatientAnamnesisToken {
 model Evolution {
   id                  String   @id @default(uuid())
   tenantId            String
+  clinicId            String   // Unidade onde a evolução foi registrada
   medicalRecordId     String
   dentistId           String
   procedureId         String?
@@ -564,10 +581,14 @@ model Evolution {
   isAiGenerated       Boolean   @default(false)
   aiTranscriptionId   String?   @unique
 
+  // Trava de idempotência da baixa automática de estoque (quando não há agendamento vinculado)
+  stockDeducted       Boolean   @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   tenant          Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic          Clinic                   @relation(fields: [clinicId], references: [id])
   medicalRecord   MedicalRecord            @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
   dentist         User                     @relation(fields: [dentistId], references: [id])
   procedure       Procedure?               @relation(fields: [procedureId], references: [id], onDelete: SetNull)
@@ -576,6 +597,7 @@ model Evolution {
   @@index([tenantId])
   @@index([medicalRecordId])
   @@index([medicalRecordId, createdAt])
+  @@index([clinicId, createdAt])
   @@map("evolutions")
 }
 
@@ -671,6 +693,7 @@ model Procedure {
   evolutions        Evolution[]
   commissions       DentistCommission[]
   insuranceGuides   InsuranceGuide[]
+  clinicProcedures  ClinicProcedure[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -803,14 +826,18 @@ model Product {
   @@index([tenantId])
   @@index([clinicId])
   @@index([tenantId, clinicId])
+  @@unique([id, clinicId])
   @@index([clinicId, quantity, minQuantity])
   @@index([clinicId, lotNumber])
   @@map("products")
 }
 
+// Ficha técnica (receita) POR CLÍNICA: o procedimento é da rede, os insumos são de cada unidade.
+// A FK composta (productId, clinicId) garante no banco que o produto é da mesma clínica da receita.
 model ProcedureProduct {
   id          String   @id @default(uuid())
   tenantId    String
+  clinicId    String
   procedureId String
   productId   String
   quantity    Float    @default(1.0)
@@ -818,11 +845,52 @@ model ProcedureProduct {
 
   tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   procedure Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
-  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId, clinicId], references: [id, clinicId], onDelete: Cascade)
 
-  @@unique([procedureId, productId])
+  @@unique([procedureId, clinicId, productId])
   @@index([tenantId])
+  @@index([clinicId, procedureId])
   @@map("procedure_products")
+}
+
+// Quais procedimentos da rede cada unidade oferece (e a que preço). Usado no plano ENTERPRISE.
+// price = null  -> usa Procedure.basePrice
+model ClinicProcedure {
+  id          String   @id @default(uuid())
+  tenantId    String
+  clinicId    String
+  procedureId String
+  price       Decimal? @db.Decimal(10, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic    Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  procedure Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, procedureId])
+  @@index([tenantId])
+  @@index([clinicId, isActive])
+  @@map("clinic_procedures")
+}
+
+// Usuários que atuam em mais de uma unidade (além da clínica principal em users.clinicId).
+model UserClinic {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String
+  clinicId  String
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clinicId])
+  @@index([tenantId])
+  @@index([clinicId])
+  @@map("user_clinics")
 }
 
 model StockMovement {
@@ -840,6 +908,8 @@ model StockMovement {
 
   createdAt     DateTime          @default(now())
 
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  clinic  Clinic  @relation(fields: [clinicId], references: [id])
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 

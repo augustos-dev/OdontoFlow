@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma'
 import { Prisma, StockMovementType, UnitType } from '@prisma/client'
 import { AppError } from '../shared/AppError'
+import { pick } from '../shared/pick'
 import type {
   CreateProductDTO,
   AdjustStockDTO,
@@ -207,8 +208,25 @@ export async function updateProductService(
     throw new AppError('Produto não encontrado.', 404)
   }
 
-  // 🟢 Remove batchNumber se o front tiver enviado por engano
-  const { manufacturingDate, expiryDate, costPrice, itemsPerPackage, batchNumber, ...rest }: any = data
+  const { manufacturingDate, expiryDate, costPrice, itemsPerPackage }: any = data
+
+  // Lista explícita: o `...rest` anterior deixava o cliente gravar tenantId, clinicId, id etc. direto no produto.
+  // (batchNumber, enviado por engano pelo front, também continua de fora.)
+  const rest = pick(data as Record<string, any>, [
+    'name',
+    'quantity',
+    'minQuantity',
+    'unit',
+    'supplierId',
+    'lotNumber',
+    'notes',
+  ] as const)
+
+  if (rest.supplierId === '') rest.supplierId = null
+  if (rest.supplierId) {
+    const supplier = await prisma.supplier.findFirst({ where: { id: rest.supplierId, tenantId, clinicId } })
+    if (!supplier) throw new AppError('Fornecedor não encontrado.', 404)
+  }
 
   const parsedCost = costPrice !== undefined && costPrice !== null && costPrice !== ''
     ? parseFloat(String(costPrice).replace(',', '.')) 

@@ -26,20 +26,23 @@ export const auditLogService = {
     }
   },
 
-  // 2. Listar logs da clínica com paginação
-  async getLogs(tenantId: string, clinicId: string, page = 1, limit = 20) {
+  // 2. Listar logs da clínica com paginação.
+  //    clinicId = null -> todas as unidades do tenant (visão do dono da rede; o controller valida o OWNER).
+  async getLogs(tenantId: string, clinicId: string | null, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
+    const where = clinicId ? { tenantId, clinicId } : { tenantId };
 
     const [total, logs] = await Promise.all([
       prisma.auditLog.count({
-        where: { tenantId, clinicId },
+        where,
       }),
       prisma.auditLog.findMany({
-        where: { tenantId, clinicId },
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
         include: {
+          clinic: { select: { id: true, name: true } },
           user: {
             select: { name: true, email: true, role: true },
           },

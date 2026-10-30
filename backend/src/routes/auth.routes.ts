@@ -1,25 +1,34 @@
-import { Router } from 'express'
+import { Router } from "express";
 import {
   registerController,
   loginController,
   getMeController,
-} from '../controllers/authController'
-import { authenticate } from '../middlewares/authMiddlewares'
-import { loginLimiter } from '../middlewares/rateLimiter.middleware'
+  listMyClinicsController,
+  switchClinicController,
+} from "../controllers/authController";
+import { authenticate, authorize } from "../middlewares/authMiddlewares";
 
-const router = Router()
 
-// ─── ROTAS PÚBLICAS (ONBOARDING, REGISTO E LOGIN) ───
+const authRouter = Router()
 
-// Registo público: Criação de Tenant/Clínica (Landing Page) ou de utilizador interno
-router.post('/register', registerController)
+// POST Cria colaborador vinculado à clínica.
+// ANTES era pública e aceitava tenantId/clinicId/role do body (qualquer pessoa criava ADMIN em qualquer tenant).
+// Agora exige ADMIN/OWNER autenticado; o tenantId vem do token.
+authRouter.post('/register', authenticate, authorize('ADMIN'), registerController)
 
-// Autenticação com proteção contra força bruta (Rate Limiting)
-router.post('/login', loginLimiter, loginController)
+// POST retorna login e jwt
+// (confirme que o loginLimiter está montado em /auth/login no app.ts: nas rotas enviadas ele não é usado)
+authRouter.post('/login', loginController)
 
-// ─── ROTAS PRIVADAS (EXIGEM TOKEN JWT VÁLIDO) ───
+// GET retorna o perfil (com a unidade ativa e as unidades acessíveis)
+authRouter.get('/me', authenticate, getMeController)
 
-// Dados do perfil, permissões e clínica do utilizador autenticado
-router.get('/me', authenticate, getMeController)
+// ─── Rede de clínicas ───
+// GET unidades que o usuário pode acessar
+authRouter.get('/clinics', authenticate, listMyClinicsController)
 
-export default router
+// POST troca a unidade ativa (devolve novo token)
+authRouter.post('/switch-clinic', authenticate, switchClinicController)
+
+
+export default authRouter

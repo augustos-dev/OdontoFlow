@@ -2,6 +2,8 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
+import { getJwtSecret } from '../config/env'
+import { assertProfessionalLimit } from '../lib/tenantContext'
 import { auditLogService } from './auditLog.service'
 import {
   RegisterTenantDTO,
@@ -11,10 +13,10 @@ import {
   AuthResponse,
   JwtPayload,
   TenantPlan,
+  BillingCycle,
   SubscriptionStatus
 } from '../types/auth.types'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret'
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '8h'
 
 const DUMMY_HASH = '$2a$12$e8wE4yqZmsU9N6Yn8fFmqubL9w11iGzX6E1sL/vE6Q3oJ37iF0JqS'
@@ -27,12 +29,18 @@ export async function registerTenant(data: RegisterTenantDTO): Promise<RegisterT
     tenantName,
     slug,
     plan,
+    billingCycle,
     phone,
     cnpjOrCpf,
     adminName,
     email,
     password,
   } = data
+
+  // Enterprise é contratado sob consulta e entregue configurado (provisionEnterprise): não existe auto-cadastro.
+  if (plan === TenantPlan.ENTERPRISE) {
+    throw new AppError('O plano Enterprise é contratado sob consulta. Fale com nosso time comercial.', 403)
+  }
 
   const normalizedEmail = email.trim().toLowerCase()
   const normalizedSlug = slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '')
@@ -58,6 +66,7 @@ export async function registerTenant(data: RegisterTenantDTO): Promise<RegisterT
         name: tenantName.trim(),
         slug: normalizedSlug,
         plan: plan ?? TenantPlan.PREMIUM,
+        billingCycle: billingCycle ?? BillingCycle.ANNUAL,
         status: SubscriptionStatus.TRIAL,
         trialEndsAt,
         isBetaPartner: false,
@@ -71,6 +80,18 @@ export async function registerTenant(data: RegisterTenantDTO): Promise<RegisterT
         status: true,
         trialEndsAt: true,
         isBetaPartner: true,
+      },
+    })
+
+    // Assinatura com o limite do pacote (Basic/Premium = 1 clínica). Antes a linha nunca era criada.
+    await tx.subscription.create({
+      data: {
+        tenantId: newTenant.id,
+        plan: newTenant.plan,
+        status: SubscriptionStatus.TRIAL,
+        billingCycle: billingCycle ?? BillingCycle.ANNUAL,
+        currentPeriodEnd: trialEndsAt,
+        maxClinics: 1,
       },
     })
 
@@ -164,6 +185,10 @@ export async function register(data: RegisterDTO): Promise<AuthResponse> {
   const { tenantId, clinicId, name, email, password, role, phone, cro } = data
   const normalizedEmail = email.trim().toLowerCase()
 
+  if (role === 'OWNER') {
+    throw new AppError('O papel OWNER só é atribuído na contratação do plano Enterprise.', 403)
+  }
+
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } })
   if (!tenant) throw new AppError('Tenant não encontrado.', 404)
   if (!tenant.isActive) throw new AppError('Assinatura inativa.', 403)
@@ -175,6 +200,8 @@ export async function register(data: RegisterDTO): Promise<AuthResponse> {
 
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } })
   if (existing) throw new AppError('E-mail já cadastrado.', 409)
+
+  if (role === 'DENTIST') await assertProfessionalLimit(tenantId)
 
   const passwordHash = await bcrypt.hash(password, 12)
 
@@ -359,7 +386,7 @@ export async function login(data: LoginDTO): Promise<AuthResponse> {
 // ─── 4. PERFIL DO USUÁRIO (/auth/me) ───
 export async function getMe(userId: string, tenantId: string, clinicId: string) {
   const user = await prisma.user.findFirst({
-    where: { id: userId, tenantId, clinicId, isActive: true },
+    where: { id: userId, tenantId, isActive: true },
     select: {
       id: true,
       name: true,
@@ -381,23 +408,93 @@ export async function getMe(userId: string, tenantId: string, clinicId: string) 
           isBetaPartner: true,
         },
       },
-      clinic: {
-        select: {
-          id: true,
-          name: true,
-          logoUrl: true,
-          cnpj: true,
-          phone: true,
-        },
-      },
     },
   })
 
   if (!user) throw new AppError('Usuário não encontrado.', 404)
 
-  return user
+  // A unidade ATIVA é a do token: depois de trocar de unidade ela difere da principal (users.clinicId).
+  const accessible = await listAccessibleClinics(userId, tenantId)
+  const clinic = accessible.find((c) => c.id === clinicId)
+  if (!clinic) throw new AppError('Você não tem acesso à unidade ativa. Faça login novamente.', 403)
+
+  return { ...user, clinic, clinics: accessible }
+}
+
+// ─── 5. UNIDADES DO USUÁRIO / TROCA DE UNIDADE (REDE) ───
+const CLINIC_PUBLIC_SELECT = { id: true, name: true, logoUrl: true, cnpj: true, phone: true } as const
+
+/** OWNER acessa todas as unidades ativas do tenant; os demais, a principal + vínculos em user_clinics. */
+export async function listAccessibleClinics(userId: string, tenantId: string) {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, tenantId, isActive: true },
+    select: { role: true, clinicId: true, clinics: { select: { clinicId: true } } },
+  })
+  if (!user) throw new AppError('Usuário não encontrado.', 404)
+
+  const ids = [user.clinicId, ...user.clinics.map((c) => c.clinicId)]
+
+  return prisma.clinic.findMany({
+    where: user.role === 'OWNER' ? { tenantId, isActive: true } : { tenantId, isActive: true, id: { in: ids } },
+    select: CLINIC_PUBLIC_SELECT,
+    orderBy: { name: 'asc' },
+  })
+}
+
+/** Emite um novo token com a unidade escolhida. Valida o acesso no banco, nunca confia no que o cliente diz. */
+export async function switchClinic(
+  userId: string,
+  tenantId: string,
+  targetClinicId: string
+): Promise<AuthResponse> {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, tenantId, isActive: true },
+    include: { tenant: { select: { isActive: true, plan: true } } },
+  })
+  if (!user || !user.tenant.isActive) throw new AppError('Acesso negado.', 403)
+
+  const accessible = await listAccessibleClinics(userId, tenantId)
+  if (!accessible.some((c) => c.id === targetClinicId)) {
+    throw new AppError('Você não tem acesso a esta unidade.', 403)
+  }
+
+  const token = generateToken({
+    sub: user.id,
+    userId: user.id,
+    tenantId: user.tenantId,
+    clinicId: targetClinicId,
+    role: user.role,
+    name: user.name,
+    plan: user.tenant.plan,
+  })
+
+  await auditLogService.createLog({
+    tenantId,
+    clinicId: targetClinicId,
+    userId: user.id,
+    userName: user.name,
+    userRole: user.role,
+    action: 'UPDATE',
+    entity: 'USER',
+    entityId: user.id,
+    details: 'Trocou a unidade ativa da sessão',
+  })
+
+  return {
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      tenantId: user.tenantId,
+      clinicId: targetClinicId,
+      avatarUrl: user.avatarUrl,
+      plan: user.tenant.plan,
+    },
+  }
 }
 
 function generateToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions)
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions)
 }

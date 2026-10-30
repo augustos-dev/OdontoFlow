@@ -1,6 +1,7 @@
 import { Prisma, UserRole } from '@prisma/client'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../shared/AppError'
+import { getTenantContext, patientScope, type TenantContext } from '../lib/tenantContext'
 import { auditLogService } from './auditLog.service'
 import type { CreatePatientDTO, UpdatePatientDTO, PatientFiltersDTO } from '../types/patient.types'
 
@@ -13,6 +14,31 @@ interface ActorContext {
 // Helpers de Higienização de Payload
 const clean = (val?: string | null) => (val && val.trim() !== '' ? val.trim() : null)
 const cleanDoc = (val?: string | null) => (val ? val.replace(/\D/g, '') || null : null)
+
+/**
+ * CPF único por tenant. No Enterprise, se o CPF já existe na rede, devolve o id do cadastro
+ * existente para o front abrir o paciente (em vez de criar outro).
+ */
+async function assertCpfAvailable(ctx: TenantContext, tenantId: string, cpf: string) {
+  const existing = await prisma.patient.findUnique({
+    where: { tenantId_cpf: { tenantId, cpf } },
+    select: { id: true, name: true, deletedAt: true, clinic: { select: { name: true } } },
+  })
+  if (!existing) return
+
+  if (existing.deletedAt) {
+    throw new AppError('Este CPF pertence a um cadastro desativado. Solicite a reativação ao administrador.', 409)
+  }
+  if (ctx.isNetwork) {
+    throw new AppError('Este CPF já está cadastrado na rede. Abra o cadastro existente em vez de criar outro.', 409, {
+      code: 'PATIENT_EXISTS_IN_NETWORK',
+      patientId: existing.id,
+      patientName: existing.name,
+      registeredAt: existing.clinic.name,
+    })
+  }
+  throw new AppError('CPF já cadastrado neste tenant.', 409)
+}
 
 // Helper com suporte a string, Date ou undefined/null
 const parseDate = (val?: string | Date | null): Date | null => {
@@ -33,14 +59,10 @@ export async function createPatient(
   data: CreatePatientDTO,
   actor: ActorContext
 ) {
+  const ctx = await getTenantContext(tenantId)
   const sanitizedCpf = cleanDoc(data.cpf)
 
-  if (sanitizedCpf) {
-    const existing = await prisma.patient.findUnique({
-      where: { tenantId_cpf: { tenantId, cpf: sanitizedCpf } },
-    })
-    if (existing) throw new AppError('CPF já cadastrado neste tenant.', 409)
-  }
+  if (sanitizedCpf) await assertCpfAvailable(ctx, tenantId, sanitizedCpf)
 
   const {
     historyNotes,
@@ -129,14 +151,16 @@ export async function createPatient(
 // ─── List ─────────────────────────────────────────────────────────────────────
 
 export async function listPatients(tenantId: string, clinicId: string, filters: PatientFiltersDTO) {
-  const { name, cpf, phone, insuranceName, page = 1, limit = 20 } = filters
+  const { name, cpf, phone, insuranceName, clinicId: filterClinicId, page = 1, limit = 20 } = filters
   const skip = (page - 1) * limit
+  const ctx = await getTenantContext(tenantId)
   const sanitizedCpf = cleanDoc(cpf)
   const sanitizedPhone = cleanDoc(phone)
 
   const where: Prisma.PatientWhereInput = {
-    tenantId,
-    clinicId,
+    // Enterprise: a rede inteira (CPF achado em qualquer unidade). Demais planos: só a clínica.
+    ...patientScope(ctx, clinicId),
+    ...(ctx.isNetwork && filterClinicId && { clinicId: filterClinicId }),
     deletedAt: null,
     ...(name && { name: { contains: name.trim(), mode: 'insensitive' } }),
     ...(sanitizedCpf && { cpf: { contains: sanitizedCpf } }),
@@ -160,6 +184,8 @@ export async function listPatients(tenantId: string, clinicId: string, filters: 
         gender: true,
         insuranceName: true,
         createdAt: true,
+        clinicId: true,
+        clinic: { select: { id: true, name: true } }, // unidade onde o paciente foi cadastrado
       },
     }),
     prisma.patient.count({ where }),
@@ -173,10 +199,17 @@ export async function listPatients(tenantId: string, clinicId: string, filters: 
 
 // ─── Get by ID ────────────────────────────────────────────────────────────────
 
-export async function getPatientById(tenantId: string, clinicId: string, patientId: string) {
+export async function getPatientById(
+  tenantId: string,
+  clinicId: string,
+  patientId: string,
+  actor?: ActorContext
+) {
+  const ctx = await getTenantContext(tenantId)
   const patient = await prisma.patient.findFirst({
-    where: { id: patientId, tenantId, clinicId, deletedAt: null },
+    where: { id: patientId, ...patientScope(ctx, clinicId), deletedAt: null },
     include: {
+      clinic: { select: { id: true, name: true } },
       medicalRecord: {
         select: {
           id: true,
@@ -199,6 +232,7 @@ export async function getPatientById(tenantId: string, clinicId: string, patient
           dateTime: true,
           status: true,
           type: true,
+          clinic: { select: { id: true, name: true } },
           dentist: { select: { id: true, name: true } },
         },
       },
@@ -218,6 +252,21 @@ export async function getPatientById(tenantId: string, clinicId: string, patient
 
   if (!patient) throw new AppError('Paciente não encontrado.', 404)
 
+  // LGPD: acesso a paciente cadastrado em OUTRA unidade da rede fica registrado.
+  if (actor && patient.clinicId !== clinicId) {
+    await auditLogService.createLog({
+      tenantId,
+      clinicId,
+      userId: actor.userId,
+      userName: actor.userName,
+      userRole: actor.userRole || 'SECRETARY',
+      action: 'READ',
+      entity: 'PATIENT',
+      entityId: patient.id,
+      details: `Acessou o cadastro de "${patient.name}", registrado em outra unidade da rede (${patient.clinic.name})`,
+    })
+  }
+
   return patient
 }
 
@@ -230,8 +279,9 @@ export async function updatePatient(
   data: UpdatePatientDTO,
   actor: ActorContext
 ) {
+  const ctx = await getTenantContext(tenantId)
   const patient = await prisma.patient.findFirst({
-    where: { id: patientId, tenantId, clinicId, deletedAt: null },
+    where: { id: patientId, ...patientScope(ctx, clinicId), deletedAt: null },
     include: { medicalRecord: true },
   })
 
@@ -239,12 +289,7 @@ export async function updatePatient(
 
   const sanitizedCpf = data.cpf !== undefined ? cleanDoc(data.cpf) : undefined
 
-  if (sanitizedCpf && sanitizedCpf !== patient.cpf) {
-    const existing = await prisma.patient.findUnique({
-      where: { tenantId_cpf: { tenantId, cpf: sanitizedCpf } },
-    })
-    if (existing) throw new AppError('CPF já cadastrado neste tenant.', 409)
-  }
+  if (sanitizedCpf && sanitizedCpf !== patient.cpf) await assertCpfAvailable(ctx, tenantId, sanitizedCpf)
 
   const {
     historyNotes,
@@ -354,8 +399,9 @@ export async function deletePatient(
   patientId: string,
   actor: ActorContext
 ) {
+  const ctx = await getTenantContext(tenantId)
   const patient = await prisma.patient.findFirst({
-    where: { id: patientId, tenantId, clinicId, deletedAt: null },
+    where: { id: patientId, ...patientScope(ctx, clinicId), deletedAt: null },
   })
 
   if (!patient) throw new AppError('Paciente não encontrado.', 404)

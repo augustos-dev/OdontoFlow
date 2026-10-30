@@ -6,40 +6,51 @@ import {
   updateUserController,
   updateUserRoleController,
   updateUserStatusController,
-  resetUserLockoutController,
   changePasswordController,
   deleteUserController,
   getRolePermissionsController,
   updateRolePermissionsController,
+  listUserClinicsController,
+  assignUserClinicController,
+  removeUserClinicController,
 } from '../controllers/userController'
 import { authenticate, authorize } from '../middlewares/authMiddlewares'
-import { can } from '../middlewares/rbac.middleware'
-import { requireFeature } from '../middlewares/planMiddleware'
 
 const router = Router()
 
+// ─── Todas as rotas de usuários são privadas ──────────────────────────────────
+
 router.use(authenticate)
+
+// ─── Rota Privada — Própria conta (qualquer usuário autenticado) ────────────
 
 router.patch('/me/change-password', changePasswordController)
 
-// Customização de permissões por perfil exclusiva de planos ENTERPRISE
+// ─── Rotas Privadas — Permissões Granulares (RBAC / Apenas ADMIN) ────────────
+// (Declaradas antes de /:id para evitar conflitos de rota dinâmica no Express)
+
 router.get('/permissions/:role', authorize('ADMIN'), getRolePermissionsController)
-router.put(
-  '/permissions',
-  requireFeature('CUSTOM_PERMISSIONS'),
-  authorize('ADMIN'),
-  updateRolePermissionsController
-)
+router.put('/permissions', authorize('ADMIN'), updateRolePermissionsController)
 
-router.patch('/:id/unlock', authorize('ADMIN'), resetUserLockoutController)
+// ─── Rotas Privadas — Leitura de Usuários (Apenas ADMIN) ─────────────────────
 
-router.get('/', can('SETTINGS', 'READ'), listUsersController)
-router.get('/:id', can('SETTINGS', 'READ'), getUserByIdController)
+router.get('/', authorize('ADMIN'), listUsersController)
 
-router.post('/', can('SETTINGS', 'CREATE'), createUserController)
-router.put('/:id', can('SETTINGS', 'UPDATE'), updateUserController)
+// Atuação em várias unidades (Enterprise; vincular/desvincular é só do OWNER, validado no service)
+router.get('/:id/clinics', authorize('ADMIN'), listUserClinicsController)
+router.post('/:id/clinics/:clinicId', authorize('ADMIN'), assignUserClinicController)
+router.delete('/:id/clinics/:clinicId', authorize('ADMIN'), removeUserClinicController)
+
+router.get('/:id', authorize('ADMIN'), getUserByIdController)
+
+// ─── Rotas Privadas — Escrita e Modificação (Apenas ADMIN) ───────────────────
+
+router.post('/', authorize('ADMIN'), createUserController)
+router.put('/:id', authorize('ADMIN'), updateUserController)
 router.patch('/:id/role', authorize('ADMIN'), updateUserRoleController)
 router.patch('/:id/status', authorize('ADMIN'), updateUserStatusController)
+
+// ─── Rotas Privadas — Exclusão (Apenas ADMIN) ────────────────────────────────
 
 router.delete('/:id', authorize('ADMIN'), deleteUserController)
 

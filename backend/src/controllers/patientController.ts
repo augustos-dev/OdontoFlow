@@ -33,6 +33,7 @@ export async function listPatientsController(
       cpf: req.query.cpf as string | undefined,
       phone: req.query.phone as string | undefined,
       insuranceName: req.query.insuranceName as string | undefined,
+      clinicId: req.query.clinicId as string | undefined, // Enterprise: filtrar a rede por unidade
       page: req.query.page ? Number(req.query.page) : undefined,
       limit: req.query.limit ? Number(req.query.limit) : undefined,
     }
@@ -51,10 +52,12 @@ export async function getPatientByIdController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { tenantId, clinicId } = req.user!
+    const { tenantId, clinicId, sub: userId, name: userName, role } = req.user!
     const { id } = req.params
+    const actor = { userId, userName: userName || 'Usuário', userRole: role as UserRole }
 
-    const patient = await patientService.getPatientById(tenantId, clinicId, id as string)
+    // O actor permite registrar (LGPD) o acesso a paciente cadastrado em outra unidade da rede.
+    const patient = await patientService.getPatientById(tenantId, clinicId, id as string, actor)
     
     res.status(200).json(patient)
   } catch (error) {
