@@ -71,7 +71,7 @@ app.use(
 )
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customSiteTitle: 'OdontoFlow API — Documentação',
+  customSiteTitle: 'Oris API',
 }))
 
 app.use('/api', router)

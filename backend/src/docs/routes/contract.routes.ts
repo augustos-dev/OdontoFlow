@@ -16,6 +16,7 @@ const router = Router()
  *   post:
  *     summary: Submissão pública de anamnese e pré-cadastro feita pelo próprio paciente via link temporário (WhatsApp)
  *     tags: [Contracts & Pre-Registration]
+ *     security: []
  *     parameters:
  *       - in: path
  *         name: token
